@@ -40,3 +40,6 @@ vignettes/*.pdf
 
 # Jupyter notebook checkpoints
 .ipynb_checkpoints
+
+# .DS_Store files from Mac
+.DS_Store
