@@ -8,20 +8,20 @@ usage="$(basename "$0") -1 Forward_read_trimmed -2 Reverse_read_trimmed [-S] [-I
 Usage:
 	-1 Forward_read_trimmed - must state PATH to the file
 	-2 Reverse_read_trimmed - must state PATH to the file
-	-S Flag to generate rnaSPAdes assembly output 
-	-I Flag to generate IDBA-tran assembly output
+	-r Flag to generate rnaSPAdes assembly output
+	-t Flag to generate IDBA-tran assembly output
 	-T Flag to generate TRINITY assembly output
 	-B Flag to use BWA and BOWTIE2 - mapping
 	-C Flag to use BLAST and CREST - classification
 	-f Flag to produce final output files
-	-r Flag to include assembly contig/scaffold sequences in the final output files
+	-s Flag to include assembly contig/scaffold sequences in the final output files
 	-h Display this help and exit"
 
 # Set default options
 Forward_read_trimmed=''
 Reverse_read_trimmed=''
 rnaSPAdes='false'
-IDBA='false'
+IDBA_TRAN='false'
 TRINITY='false'
 MAP='false'
 CLASSIFICATION='false'
@@ -33,13 +33,13 @@ while getopts ':1:2:SITBCfrh' opt; do
  	case "${opt}" in
 		1) Forward_read_trimmed="${OPTARG}" ;;
 		2) Reverse_read_trimmed="${OPTARG}" ;;
-		S) rnaSPAdes='true' ;;
-		I) IDBA='true' ;;
+		r) rnaSPAdes='true' ;;
+		t) IDBA_TRAN='true' ;;
 		T) TRINITY='true' ;;
 		B) MAP='true' ;;
 		C) CLASSIFICATION='true' ;;
 		f) FINAL='true' ;;
-		r) READS='true' ;;
+		s) READS='true' ;;
 		h) echo "$usage"
 			exit ;;
 		:) printf "Option -$OPTARG requires an argument." >&2 ;;
@@ -53,7 +53,7 @@ shift $((OPTIND - 1))
 start=$(date +%s)
 echo -e "\nSTART RUNNING SCRIPT AT $(date)\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n"
 
-######################### Beginning of actual pipeline ######################## 
+######################### Beginning of actual pipeline ########################
 
 (
 mkdir PIPELINE_RNA
@@ -63,7 +63,7 @@ mkdir SORTMERNA
 sortmerna --ref /hdd1/databases/sortmerna_silva_databases/silva-bac-16s-id90.fasta --ref /hdd1/databases/sortmerna_silva_databases/silva-arc-16s-id95.fasta --ref /hdd1/databases/sortmerna_silva_databases/silva-euk-18s-id95.fasta --reads $Forward_read_trimmed --reads $Reverse_read_trimmed --paired_in -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA
 
 if [[ $rnaSPAdes == 'true' ]] ; then
-	mkdir rnaSPAdes 
+	mkdir rnaSPAdes
 	rnaspades.py --12 ./SORTMERNA/out/aligned.fq -o rnaSPAdes
 
 	if [[ $MAP == 'true' ]] ; then
@@ -140,7 +140,7 @@ if [[ $rnaSPAdes == 'true' ]] ; then
 
 		mv BWA/ BOWTIE2/ rnaSPAdes/
 
-	else 
+	else
 
 		echo "no BWA and BOWTIE2 output generated"
 
@@ -170,7 +170,7 @@ if [[ $rnaSPAdes == 'true' ]] ; then
 
 		echo "CREST output complete."
 
-	else 
+	else
 
 		echo "no BLAST or CREST output generated"
 
@@ -198,7 +198,7 @@ if [[ $rnaSPAdes == 'true' ]] ; then
 			echo "assembly sequence was included."
 			echo "BWA and BOWTIE2 files are ready."
 
-		else 
+		else
 			# Prepares to merge with BLAST of CREST - does not include assembly sequence
 			awk 'BEGIN {FS="\t";OFS="\t"} {print $2, $1}' ./rnaSPAdes/BWA/merge_input_mapped_bwa.txt > ./rnaSPAdes/temp.txt
 			sed 's/$/\tno assembly sequence was included/' ./rnaSPAdes/temp.txt > ./rnaSPAdes/temp2.txt
@@ -210,7 +210,7 @@ if [[ $rnaSPAdes == 'true' ]] ; then
 			sed 's/$/\tno assembly sequence was included/' ./rnaSPAdes/temp.txt > ./rnaSPAdes/temp2.txt
 			sed '1d' ./rnaSPAdes/temp2.txt > ./rnaSPAdes/temp3.txt
 			echo -e "contig_number\tcounts\tassembly_sequence" > ./rnaSPAdes/final_bowtie2_merge_ready.txt && cat ./rnaSPAdes/temp3.txt >> ./rnaSPAdes/final_bowtie2_merge_ready.txt
-			rm ./rnaSPAdes/temp*.txt 
+			rm ./rnaSPAdes/temp*.txt
 
 			echo "no assembly sequence was included."
 			echo "BWA and BOWTIE2 files are ready."
@@ -223,8 +223,8 @@ if [[ $rnaSPAdes == 'true' ]] ; then
 		sed '1d' ./rnaSPAdes/BLAST_output_nt_with_taxonomy.txt > ./rnaSPAdes/BLAST_output_nt_with_taxonomy_noheader.txt
 		echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" > ./rnaSPAdes/BLAST_output_nt_with_taxonomy_merge.txt && cat ./rnaSPAdes/BLAST_output_nt_with_taxonomy_noheader.txt >> ./rnaSPAdes/BLAST_output_nt_with_taxonomy_merge.txt
 
-		# Assign BLAST taxonomy - SILVA 
-		assign_taxonomy_NCBI_staxids.sh -b ./rnaSPAdes/CLASSIFICATION/BLAST/BLAST_output_SILVA -c 13 -e ~/.etetoolkit/taxa.sqlite 
+		# Assign BLAST taxonomy - SILVA
+		assign_taxonomy_NCBI_staxids.sh -b ./rnaSPAdes/CLASSIFICATION/BLAST/BLAST_output_SILVA -c 13 -e ~/.etetoolkit/taxa.sqlite
 		mv _with_taxonomy.txt ./rnaSPAdes/BLAST_output_SILVA_with_taxonomy.txt
 		sed '1d' ./rnaSPAdes/BLAST_output_SILVA_with_taxonomy.txt > ./rnaSPAdes/BLAST_output_SILVA_with_taxonomy_noheader.txt
 		echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" > ./rnaSPAdes/BLAST_output_SILVA_with_taxonomy_merge.txt && cat ./rnaSPAdes/BLAST_output_SILVA_with_taxonomy_noheader.txt >> ./rnaSPAdes/BLAST_output_SILVA_with_taxonomy_merge.txt
@@ -325,12 +325,12 @@ if [[ $rnaSPAdes == 'true' ]] ; then
 
 		echo "final rnaSPAdes output generated."
 
-	else 
+	else
 
 		echo "no FINAL merge generated."
 
 	fi
-		
+
 
 else
 	echo "no rnaSPAdes output generated."
@@ -338,15 +338,15 @@ fi
 
 
 
-if [[ $IDBA == 'true' ]] ; then
+if [[ $IDBA_TRAN == 'true' ]] ; then
 	fq2fa ./SORTMERNA/out/aligned.fq ./SORTMERNA/out/aligned.fa
-	idba_tran --num_threads 16 --pre_correction -r ./SORTMERNA/out/aligned.fa -o IDBA-tran
+	idba_tran --num_threads 16 --pre_correction -r ./SORTMERNA/out/aligned.fa -o IDBA_TRAN
 
 		if [[ $MAP == 'true' ]] ; then
 
 		echo "starting bwa index"
 
-		bwa index -p bwa_index ./IDBA-tran/contig.fa
+		bwa index -p bwa_index ./IDBA_TRAN/contig.fa
 
 		echo "bwa index complete."
 		echo "starting bwa."
@@ -378,7 +378,7 @@ if [[ $IDBA == 'true' ]] ; then
 
 		echo "starting bowtie2 index"
 
-		bowtie2-build -f ./IDBA-tran/contig.fa bowtie_index
+		bowtie2-build -f ./IDBA_TRAN/contig.fa bowtie_index
 
 		echo "bowtie2 index complete."
 		echo "starting bowtie2."
@@ -414,9 +414,9 @@ if [[ $IDBA == 'true' ]] ; then
 		mv bwa_output.sam merge_input_mapped_bwa.txt merge_input_unmapped_bwa.txt BWA/
 		mv bowtie2_output.sam merge_input_mapped_bowtie2.txt merge_input_unmapped_bowtie2.txt BOWTIE2/
 
-		mv BWA/ BOWTIE2/ IDBA-tran/
+		mv BWA/ BOWTIE2/ IDBA_TRAN/
 
-	else 
+	else
 
 		echo "no BWA and BOWTIE2 output generated"
 
@@ -425,27 +425,27 @@ if [[ $IDBA == 'true' ]] ; then
 
 	if [[ $CLASSIFICATION == 'true' ]] ; then
 
-		blastn -db /hdd1/databases/nt_database_feb_2020_indexed/nt -query ./IDBA-tran/contig.fa -outfmt "6 std staxids" -max_target_seqs 5 -num_threads 16 -out BLAST_output_nt
+		blastn -db /hdd1/databases/nt_database_feb_2020_indexed/nt -query ./IDBA_TRAN/contig.fa -outfmt "6 std staxids" -max_target_seqs 5 -num_threads 16 -out BLAST_output_nt
 
 		echo "BLAST nt output complete."
 
-		blastn -db /hdd1/databases/SILVA_database_mar_2020/SILVA_138_SSURef_NR99_tax_silva.fasta -query ./IDBA-tran/contig.fa -outfmt "6 std staxids" -max_target_seqs 5 -num_threads 16 -out BLAST_output_SILVA
+		blastn -db /hdd1/databases/SILVA_database_mar_2020/SILVA_138_SSURef_NR99_tax_silva.fasta -query ./IDBA_TRAN/contig.fa -outfmt "6 std staxids" -max_target_seqs 5 -num_threads 16 -out BLAST_output_SILVA
 
 		echo "BLAST SILVA output complete."
 
-		mkdir IDBA-tran/BLAST
-		mv BLAST_output_nt BLAST_output_SILVA IDBA-tran/BLAST/
+		mkdir IDBA_TRAN/BLAST
+		mv BLAST_output_nt BLAST_output_SILVA IDBA_TRAN/BLAST/
 
-		blastn -db ~/programs/CREST/LCAClassifier/parts/flatdb/silvamod/silvamod128.fasta -query ./IDBA-tran/contig.fa -outfmt "5" -max_target_seqs 5 -num_threads 16 -out BLAST_output.xml
+		blastn -db ~/programs/CREST/LCAClassifier/parts/flatdb/silvamod/silvamod128.fasta -query ./IDBA_TRAN/contig.fa -outfmt "5" -max_target_seqs 5 -num_threads 16 -out BLAST_output.xml
 		classify BLAST_output.xml -o CREST
 
 		rm BLAST_output.xml
-		mv CREST IDBA-tran/
+		mv CREST IDBA_TRAN/
 
-		mkdir IDBA-tran/CLASSIFICATION
-		mv IDBA-tran/BLAST IDBA-tran/CREST IDBA-tran/CLASSIFICATION/
+		mkdir IDBA_TRAN/CLASSIFICATION
+		mv IDBA_TRAN/BLAST IDBA_TRAN/CREST IDBA_TRAN/CLASSIFICATION/
 
-	else 
+	else
 
 		echo "no BLAST or CREST output generated"
 
@@ -455,241 +455,241 @@ if [[ $IDBA == 'true' ]] ; then
 	if [[ $FINAL == 'true' ]]; then
 		if [[ $READS == 'true' ]]; then
 			# Adding full assembly sequence to BWA or BOWTIE2 and prepares to merge with BLAST or CREST
-			fasta_to_tab ./IDBA-tran/contig.fa > ./IDBA-tran/fasta_to_tabbed.txt
-			sed 's/_/\t/2' ./IDBA-tran/fasta_to_tabbed.txt > ./IDBA-tran/fasta_to_tabbed_tab.txt
-			sed 's/_/\t/3' ./IDBA-tran/fasta_to_tabbed_tab.txt > ./IDBA-tran/fasta_to_tabbed_tab_2.txt
-			sed 's/ /\t/g' ./IDBA-tran/fasta_to_tabbed_tab_2.txt > ./IDBA-tran/cut_tab_ready.txt
-			cut -f1,3,5,6 ./IDBA-tran/cut_tab_ready.txt > ./IDBA-tran/important_columns.txt
-			rm ./IDBA-tran/fasta_to_tabbed.txt ./IDBA-tran/fasta_to_tabbed_tab.txt ./IDBA-tran/fasta_to_tabbed_tab_2.txt ./IDBA-tran/cut_tab_ready.txt
+			fasta_to_tab ./IDBA_TRAN/contig.fa > ./IDBA_TRAN/fasta_to_tabbed.txt
+			sed 's/_/\t/2' ./IDBA_TRAN/fasta_to_tabbed.txt > ./IDBA_TRAN/fasta_to_tabbed_tab.txt
+			sed 's/_/\t/3' ./IDBA_TRAN/fasta_to_tabbed_tab.txt > ./IDBA_TRAN/fasta_to_tabbed_tab_2.txt
+			sed 's/ /\t/g' ./IDBA_TRAN/fasta_to_tabbed_tab_2.txt > ./IDBA_TRAN/cut_tab_ready.txt
+			cut -f1,3,5,6 ./IDBA_TRAN/cut_tab_ready.txt > ./IDBA_TRAN/important_columns.txt
+			rm ./IDBA_TRAN/fasta_to_tabbed.txt ./IDBA_TRAN/fasta_to_tabbed_tab.txt ./IDBA_TRAN/fasta_to_tabbed_tab_2.txt ./IDBA_TRAN/cut_tab_ready.txt
 
-			mergeFilesOnColumn.pl ./IDBA-tran/BWA/merge_input_mapped_bwa.txt ./IDBA-tran/important_columns.txt 2 1 > ./IDBA-tran/merged_original_bwa.txt
-			cut -f1,2,4,5,6 ./IDBA-tran/merged_original_bwa.txt > ./IDBA-tran/important_columns_bwa.txt
-			awk 'BEGIN {FS="\t";OFS="\t"} {print $2, $3, $4, $1, $5}' ./IDBA-tran/important_columns_bwa.txt > ./IDBA-tran/final_order_bwa.txt
-			echo -e "contig_number\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./IDBA-tran/final_bwa_merge_ready.txt && cat ./IDBA-tran/final_order_bwa.txt >> ./IDBA-tran/final_bwa_merge_ready.txt
-			rm ./IDBA-tran/merged_original_bwa.txt ./IDBA-tran/important_columns_bwa.txt ./IDBA-tran/final_order_bwa.txt
+			mergeFilesOnColumn.pl ./IDBA_TRAN/BWA/merge_input_mapped_bwa.txt ./IDBA_TRAN/important_columns.txt 2 1 > ./IDBA_TRAN/merged_original_bwa.txt
+			cut -f1,2,4,5,6 ./IDBA_TRAN/merged_original_bwa.txt > ./IDBA_TRAN/important_columns_bwa.txt
+			awk 'BEGIN {FS="\t";OFS="\t"} {print $2, $3, $4, $1, $5}' ./IDBA_TRAN/important_columns_bwa.txt > ./IDBA_TRAN/final_order_bwa.txt
+			echo -e "contig_number\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./IDBA_TRAN/final_bwa_merge_ready.txt && cat ./IDBA_TRAN/final_order_bwa.txt >> ./IDBA_TRAN/final_bwa_merge_ready.txt
+			rm ./IDBA_TRAN/merged_original_bwa.txt ./IDBA_TRAN/important_columns_bwa.txt ./IDBA_TRAN/final_order_bwa.txt
 
 
-			mergeFilesOnColumn.pl ./IDBA-tran/BOWTIE2/merge_input_mapped_bowtie2.txt ./IDBA-tran/important_columns.txt 2 1 > ./IDBA-tran/merged_original_bowtie2.txt
-			cut -f1,2,4,5,6 ./IDBA-tran/merged_original_bowtie2.txt > ./IDBA-tran/important_columns_bowtie.txt
-			awk 'BEGIN {FS="\t";OFS="\t"} {print $2, $3, $4, $1, $5}' ./IDBA-tran/important_columns_bowtie.txt > ./IDBA-tran/final_order_bowtie2.txt
-			echo -e "contig_number\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./IDBA-tran/final_bowtie2_merge_ready.txt && cat ./IDBA-tran/final_order_bowtie2.txt >> ./IDBA-tran/final_bowtie2_merge_ready.txt
-			rm ./IDBA-tran/merged_original_bowtie2.txt ./IDBA-tran/important_columns_bowtie.txt ./IDBA-tran/final_order_bowtie2.txt ./IDBA-tran/important_columns.txt
+			mergeFilesOnColumn.pl ./IDBA_TRAN/BOWTIE2/merge_input_mapped_bowtie2.txt ./IDBA_TRAN/important_columns.txt 2 1 > ./IDBA_TRAN/merged_original_bowtie2.txt
+			cut -f1,2,4,5,6 ./IDBA_TRAN/merged_original_bowtie2.txt > ./IDBA_TRAN/important_columns_bowtie.txt
+			awk 'BEGIN {FS="\t";OFS="\t"} {print $2, $3, $4, $1, $5}' ./IDBA_TRAN/important_columns_bowtie.txt > ./IDBA_TRAN/final_order_bowtie2.txt
+			echo -e "contig_number\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./IDBA_TRAN/final_bowtie2_merge_ready.txt && cat ./IDBA_TRAN/final_order_bowtie2.txt >> ./IDBA_TRAN/final_bowtie2_merge_ready.txt
+			rm ./IDBA_TRAN/merged_original_bowtie2.txt ./IDBA_TRAN/important_columns_bowtie.txt ./IDBA_TRAN/final_order_bowtie2.txt ./IDBA_TRAN/important_columns.txt
 
 			echo "assembly sequence was included."
 			echo "BWA and BOWTIE2 files are ready."
 
 			# Assign BLAST taxonomy - nt
-			assign_taxonomy_NCBI_staxids.sh -b ./IDBA-tran/CLASSIFICATION/BLAST/BLAST_output_nt -c 13 -e ~/.etetoolkit/taxa.sqlite
-			mv _with_taxonomy.txt ./IDBA-tran/BLAST_output_nt_with_taxonomy.txt
-			sed '1d' ./IDBA-tran/BLAST_output_nt_with_taxonomy.txt > ./IDBA-tran/BLAST_output_nt_with_taxonomy_noheader.txt
-			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" > ./IDBA-tran/BLAST_output_nt_with_taxonomy_merge.txt && cat ./IDBA-tran/BLAST_output_nt_with_taxonomy_noheader.txt >> ./IDBA-tran/BLAST_output_nt_with_taxonomy_merge.txt
+			assign_taxonomy_NCBI_staxids.sh -b ./IDBA_TRAN/CLASSIFICATION/BLAST/BLAST_output_nt -c 13 -e ~/.etetoolkit/taxa.sqlite
+			mv _with_taxonomy.txt ./IDBA_TRAN/BLAST_output_nt_with_taxonomy.txt
+			sed '1d' ./IDBA_TRAN/BLAST_output_nt_with_taxonomy.txt > ./IDBA_TRAN/BLAST_output_nt_with_taxonomy_noheader.txt
+			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" > ./IDBA_TRAN/BLAST_output_nt_with_taxonomy_merge.txt && cat ./IDBA_TRAN/BLAST_output_nt_with_taxonomy_noheader.txt >> ./IDBA_TRAN/BLAST_output_nt_with_taxonomy_merge.txt
 
-			# Assign BLAST taxonomy - SILVA 
-			assign_taxonomy_NCBI_staxids.sh -b ./IDBA-tran/CLASSIFICATION/BLAST/BLAST_output_SILVA -c 13 -e ~/.etetoolkit/taxa.sqlite
-			mv _with_taxonomy.txt ./IDBA-tran/BLAST_output_SILVA_with_taxonomy.txt
-			sed '1d' ./IDBA-tran/BLAST_output_SILVA_with_taxonomy.txt > ./IDBA-tran/BLAST_output_SILVA_with_taxonomy_noheader.txt
-			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" > ./IDBA-tran/BLAST_output_SILVA_with_taxonomy_merge.txt && cat ./IDBA-tran/BLAST_output_SILVA_with_taxonomy_noheader.txt >> ./IDBA-tran/BLAST_output_SILVA_with_taxonomy_merge.txt
+			# Assign BLAST taxonomy - SILVA
+			assign_taxonomy_NCBI_staxids.sh -b ./IDBA_TRAN/CLASSIFICATION/BLAST/BLAST_output_SILVA -c 13 -e ~/.etetoolkit/taxa.sqlite
+			mv _with_taxonomy.txt ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy.txt
+			sed '1d' ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy.txt > ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy_noheader.txt
+			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" > ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy_merge.txt && cat ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy_noheader.txt >> ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy_merge.txt
 
-			rm ./IDBA-tran/BLAST_output_nt_with_taxonomy.txt ./IDBA-tran/BLAST_output_nt_with_taxonomy_noheader.txt ./IDBA-tran/BLAST_output_SILVA_with_taxonomy.txt ./IDBA-tran/BLAST_output_SILVA_with_taxonomy_noheader.txt
+			rm ./IDBA_TRAN/BLAST_output_nt_with_taxonomy.txt ./IDBA_TRAN/BLAST_output_nt_with_taxonomy_noheader.txt ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy.txt ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy_noheader.txt
 
 			echo "taxonomy has been assigned to BLAST files."
 			echo "BLAST files are ready."
 
 			# Prepare CREST file - remove 1st/3rd column, add a header
-			assign_NCBI_staxids_to_CREST_v3.py /hdd1/databases/SILVA_database_mar_2020/taxonomy/files_to_make_NCBI_staxids/NCBI_staxids_scientific.txt /hdd1/databases/SILVA_database_mar_2020/taxonomy/files_to_make_NCBI_staxids/NCBI_staxids_non_scientific.txt ./IDBA-tran/CLASSIFICATION/CREST/otus.csv ./IDBA-tran/CLASSIFICATION/CREST/CREST_output.txt
-			sed 's|:|\t|g' ./IDBA-tran/CLASSIFICATION/CREST/CREST_output.txt > ./IDBA-tran/CREST_seperated.txt
-			cut -f2,4 ./IDBA-tran/CREST_seperated.txt > ./IDBA-tran/CREST_header.txt
-			sed '1d' ./IDBA-tran/CREST_header.txt > ./IDBA-tran/CREST_tax_ready.txt
-			assign_taxonomy_NCBI_staxids.sh -b ./IDBA-tran/CREST_tax_ready.txt -c 2 -e ~/.etetoolkit/taxa.sqlite
-			mv CREST_tax_ready_with_taxonomy.txt ./IDBA-tran/
-			sed '1d' ./IDBA-tran/CREST_tax_ready_with_taxonomy.txt > ./IDBA-tran/CREST_tax_ready_with_taxonomy_noheader.txt
+			assign_NCBI_staxids_to_CREST_v3.py /hdd1/databases/SILVA_database_mar_2020/taxonomy/files_to_make_NCBI_staxids/NCBI_staxids_scientific.txt /hdd1/databases/SILVA_database_mar_2020/taxonomy/files_to_make_NCBI_staxids/NCBI_staxids_non_scientific.txt ./IDBA_TRAN/CLASSIFICATION/CREST/otus.csv ./IDBA_TRAN/CLASSIFICATION/CREST/CREST_output.txt
+			sed 's|:|\t|g' ./IDBA_TRAN/CLASSIFICATION/CREST/CREST_output.txt > ./IDBA_TRAN/CREST_seperated.txt
+			cut -f2,4 ./IDBA_TRAN/CREST_seperated.txt > ./IDBA_TRAN/CREST_header.txt
+			sed '1d' ./IDBA_TRAN/CREST_header.txt > ./IDBA_TRAN/CREST_tax_ready.txt
+			assign_taxonomy_NCBI_staxids.sh -b ./IDBA_TRAN/CREST_tax_ready.txt -c 2 -e ~/.etetoolkit/taxa.sqlite
+			mv CREST_tax_ready_with_taxonomy.txt ./IDBA_TRAN/
+			sed '1d' ./IDBA_TRAN/CREST_tax_ready_with_taxonomy.txt > ./IDBA_TRAN/CREST_tax_ready_with_taxonomy_noheader.txt
 
-			echo -e "contig_number\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" > ./IDBA-tran/CREST_merge.txt && cat ./IDBA-tran/CREST_tax_ready_with_taxonomy_noheader.txt >> ./IDBA-tran/CREST_merge.txt
+			echo -e "contig_number\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" > ./IDBA_TRAN/CREST_merge.txt && cat ./IDBA_TRAN/CREST_tax_ready_with_taxonomy_noheader.txt >> ./IDBA_TRAN/CREST_merge.txt
 
-			rm ./IDBA-tran/CREST_seperated.txt ./IDBA-tran/CREST_header.txt ./IDBA-tran/CREST_tax_ready.txt ./IDBA-tran/CREST_tax_ready_with_taxonomy.txt ./IDBA-tran/CREST_tax_ready_with_taxonomy_noheader.txt
+			rm ./IDBA_TRAN/CREST_seperated.txt ./IDBA_TRAN/CREST_header.txt ./IDBA_TRAN/CREST_tax_ready.txt ./IDBA_TRAN/CREST_tax_ready_with_taxonomy.txt ./IDBA_TRAN/CREST_tax_ready_with_taxonomy_noheader.txt
 
 			echo "CREST file is ready."
 
 			# Merge files together!!! (BWA with BLAST - nt and SILVA and CREST / BOWTIE2 with BLAST - nt and SILVA and CREST ) SHOULD have 6 output files in total
-			merge_mapped_reads_and_contigs.py ./IDBA-tran/CREST_merge.txt ./IDBA-tran/final_bwa_merge_ready.txt ./IDBA-tran/CREST_BWA.txt
-			merge_mapped_reads_and_contigs.py ./IDBA-tran/CREST_merge.txt ./IDBA-tran/final_bowtie2_merge_ready.txt ./IDBA-tran/CREST_BOWTIE2.txt
+			merge_mapped_reads_and_contigs.py ./IDBA_TRAN/CREST_merge.txt ./IDBA_TRAN/final_bwa_merge_ready.txt ./IDBA_TRAN/CREST_BWA.txt
+			merge_mapped_reads_and_contigs.py ./IDBA_TRAN/CREST_merge.txt ./IDBA_TRAN/final_bowtie2_merge_ready.txt ./IDBA_TRAN/CREST_BOWTIE2.txt
 
-			merge_mapped_reads_and_contigs.py ./IDBA-tran/BLAST_output_SILVA_with_taxonomy_merge.txt ./IDBA-tran/final_bowtie2_merge_ready.txt ./IDBA-tran/BLAST_SILVA_BOWTIE2.txt
-			merge_mapped_reads_and_contigs.py ./IDBA-tran/BLAST_output_nt_with_taxonomy_merge.txt ./IDBA-tran/final_bowtie2_merge_ready.txt ./IDBA-tran/BLAST_nt_BOWTIE2.txt
+			merge_mapped_reads_and_contigs.py ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy_merge.txt ./IDBA_TRAN/final_bowtie2_merge_ready.txt ./IDBA_TRAN/BLAST_SILVA_BOWTIE2.txt
+			merge_mapped_reads_and_contigs.py ./IDBA_TRAN/BLAST_output_nt_with_taxonomy_merge.txt ./IDBA_TRAN/final_bowtie2_merge_ready.txt ./IDBA_TRAN/BLAST_nt_BOWTIE2.txt
 
-			merge_mapped_reads_and_contigs.py ./IDBA-tran/BLAST_output_SILVA_with_taxonomy_merge.txt ./IDBA-tran/final_bwa_merge_ready.txt ./IDBA-tran/BLAST_SILVA_BWA.txt
-			merge_mapped_reads_and_contigs.py ./IDBA-tran/BLAST_output_nt_with_taxonomy_merge.txt ./IDBA-tran/final_bwa_merge_ready.txt ./IDBA-tran/BLAST_nt_BWA.txt
+			merge_mapped_reads_and_contigs.py ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy_merge.txt ./IDBA_TRAN/final_bwa_merge_ready.txt ./IDBA_TRAN/BLAST_SILVA_BWA.txt
+			merge_mapped_reads_and_contigs.py ./IDBA_TRAN/BLAST_output_nt_with_taxonomy_merge.txt ./IDBA_TRAN/final_bwa_merge_ready.txt ./IDBA_TRAN/BLAST_nt_BWA.txt
 
 			# Move all files - easy to find!!!
-			mkdir ./IDBA-tran/MERGE_FILES
-			mv ./IDBA-tran/final_bwa_merge_ready.txt ./IDBA-tran/final_bowtie2_merge_ready.txt ./IDBA-tran/CREST_merge.txt ./IDBA-tran/BLAST_output_SILVA_with_taxonomy_merge.txt ./IDBA-tran/BLAST_output_nt_with_taxonomy_merge.txt ./IDBA-tran/MERGE_FILES/
+			mkdir ./IDBA_TRAN/MERGE_FILES
+			mv ./IDBA_TRAN/final_bwa_merge_ready.txt ./IDBA_TRAN/final_bowtie2_merge_ready.txt ./IDBA_TRAN/CREST_merge.txt ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy_merge.txt ./IDBA_TRAN/BLAST_output_nt_with_taxonomy_merge.txt ./IDBA_TRAN/MERGE_FILES/
 
 			# Edit contig-* in all the final files
 			# CREST files
-			sed '1d' ./IDBA-tran/CREST_BWA.txt > ./IDBA-tran/new.txt
-			sed 's/_/\t/1' ./IDBA-tran/new.txt > ./IDBA-tran/new2.txt
-			cut -f2-20 ./IDBA-tran/new2.txt > ./IDBA-tran/new3.txt
-			echo -e "contig_number\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./IDBA-tran/CREST_BWA_final.txt && cat ./IDBA-tran/new3.txt >> ./IDBA-tran/CREST_BWA_final.txt
-			rm ./IDBA-tran/new*.txt ./IDBA-tran/CREST_BWA.txt
+			sed '1d' ./IDBA_TRAN/CREST_BWA.txt > ./IDBA_TRAN/new.txt
+			sed 's/_/\t/1' ./IDBA_TRAN/new.txt > ./IDBA_TRAN/new2.txt
+			cut -f2-20 ./IDBA_TRAN/new2.txt > ./IDBA_TRAN/new3.txt
+			echo -e "contig_number\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./IDBA_TRAN/CREST_BWA_final.txt && cat ./IDBA_TRAN/new3.txt >> ./IDBA_TRAN/CREST_BWA_final.txt
+			rm ./IDBA_TRAN/new*.txt ./IDBA_TRAN/CREST_BWA.txt
 
-			sed '1d' ./IDBA-tran/CREST_BOWTIE2.txt > ./IDBA-tran/new.txt
-			sed 's/_/\t/1' ./IDBA-tran/new.txt > ./IDBA-tran/new2.txt
-			cut -f2-20 ./IDBA-tran/new2.txt > ./IDBA-tran/new3.txt
-			echo -e "contig_number\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence"  > ./IDBA-tran/CREST_BOWTIE2_final.txt && cat ./IDBA-tran/new3.txt >> ./IDBA-tran/CREST_BOWTIE2_final.txt
-			rm ./IDBA-tran/new*.txt ./IDBA-tran/CREST_BOWTIE2.txt
+			sed '1d' ./IDBA_TRAN/CREST_BOWTIE2.txt > ./IDBA_TRAN/new.txt
+			sed 's/_/\t/1' ./IDBA_TRAN/new.txt > ./IDBA_TRAN/new2.txt
+			cut -f2-20 ./IDBA_TRAN/new2.txt > ./IDBA_TRAN/new3.txt
+			echo -e "contig_number\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence"  > ./IDBA_TRAN/CREST_BOWTIE2_final.txt && cat ./IDBA_TRAN/new3.txt >> ./IDBA_TRAN/CREST_BOWTIE2_final.txt
+			rm ./IDBA_TRAN/new*.txt ./IDBA_TRAN/CREST_BOWTIE2.txt
 
 			# BLAST nt files
-			sed '1d' ./IDBA-tran/BLAST_nt_BWA.txt > ./IDBA-tran/new.txt
-			sed 's/_/\t/1' ./IDBA-tran/new.txt > ./IDBA-tran/new2.txt
-			cut -f2-31 ./IDBA-tran/new2.txt > ./IDBA-tran/new3.txt
-			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./IDBA-tran/BLAST_nt_BWA_final.txt && cat ./IDBA-tran/new3.txt >> ./IDBA-tran/BLAST_nt_BWA_final.txt
-			rm ./IDBA-tran/new*.txt ./IDBA-tran/BLAST_nt_BWA.txt
+			sed '1d' ./IDBA_TRAN/BLAST_nt_BWA.txt > ./IDBA_TRAN/new.txt
+			sed 's/_/\t/1' ./IDBA_TRAN/new.txt > ./IDBA_TRAN/new2.txt
+			cut -f2-31 ./IDBA_TRAN/new2.txt > ./IDBA_TRAN/new3.txt
+			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./IDBA_TRAN/BLAST_nt_BWA_final.txt && cat ./IDBA_TRAN/new3.txt >> ./IDBA_TRAN/BLAST_nt_BWA_final.txt
+			rm ./IDBA_TRAN/new*.txt ./IDBA_TRAN/BLAST_nt_BWA.txt
 
-			sed '1d' ./IDBA-tran/BLAST_nt_BOWTIE2.txt > ./IDBA-tran/new.txt
-			sed 's/_/\t/1' ./IDBA-tran/new.txt > ./IDBA-tran/new2.txt
-			cut -f2-31 ./IDBA-tran/new2.txt > ./IDBA-tran/new3.txt
-			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./IDBA-tran/BLAST_nt_BOWTIE2_final.txt && cat ./IDBA-tran/new3.txt >> ./IDBA-tran/BLAST_nt_BOWTIE2_final.txt
-			rm ./IDBA-tran/new*.txt ./IDBA-tran/BLAST_nt_BOWTIE2.txt
+			sed '1d' ./IDBA_TRAN/BLAST_nt_BOWTIE2.txt > ./IDBA_TRAN/new.txt
+			sed 's/_/\t/1' ./IDBA_TRAN/new.txt > ./IDBA_TRAN/new2.txt
+			cut -f2-31 ./IDBA_TRAN/new2.txt > ./IDBA_TRAN/new3.txt
+			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./IDBA_TRAN/BLAST_nt_BOWTIE2_final.txt && cat ./IDBA_TRAN/new3.txt >> ./IDBA_TRAN/BLAST_nt_BOWTIE2_final.txt
+			rm ./IDBA_TRAN/new*.txt ./IDBA_TRAN/BLAST_nt_BOWTIE2.txt
 
 			# BLAST SILVA files
-			sed '1d' ./IDBA-tran/BLAST_SILVA_BWA.txt > ./IDBA-tran/new.txt
-			sed 's/_/\t/1' ./IDBA-tran/new.txt > ./IDBA-tran/new2.txt
-			cut -f2-31 ./IDBA-tran/new2.txt > ./IDBA-tran/new3.txt
-			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./IDBA-tran/BLAST_SILVA_BWA_final.txt && cat ./IDBA-tran/new3.txt >> ./IDBA-tran/BLAST_SILVA_BWA_final.txt
-			rm ./IDBA-tran/new*.txt ./IDBA-tran/BLAST_SILVA_BWA.txt
+			sed '1d' ./IDBA_TRAN/BLAST_SILVA_BWA.txt > ./IDBA_TRAN/new.txt
+			sed 's/_/\t/1' ./IDBA_TRAN/new.txt > ./IDBA_TRAN/new2.txt
+			cut -f2-31 ./IDBA_TRAN/new2.txt > ./IDBA_TRAN/new3.txt
+			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./IDBA_TRAN/BLAST_SILVA_BWA_final.txt && cat ./IDBA_TRAN/new3.txt >> ./IDBA_TRAN/BLAST_SILVA_BWA_final.txt
+			rm ./IDBA_TRAN/new*.txt ./IDBA_TRAN/BLAST_SILVA_BWA.txt
 
-			sed '1d' ./IDBA-tran/BLAST_SILVA_BOWTIE2.txt > ./IDBA-tran/new.txt
-			sed 's/_/\t/1' ./IDBA-tran/new.txt > ./IDBA-tran/new2.txt
-			cut -f2-31 ./IDBA-tran/new2.txt > ./IDBA-tran/new3.txt
-			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./IDBA-tran/BLAST_SILVA_BOWTIE2_final.txt && cat ./IDBA-tran/new3.txt >> ./IDBA-tran/BLAST_SILVA_BOWTIE2_final.txt
-			rm ./IDBA-tran/new*.txt ./IDBA-tran/BLAST_SILVA_BOWTIE2.txt
+			sed '1d' ./IDBA_TRAN/BLAST_SILVA_BOWTIE2.txt > ./IDBA_TRAN/new.txt
+			sed 's/_/\t/1' ./IDBA_TRAN/new.txt > ./IDBA_TRAN/new2.txt
+			cut -f2-31 ./IDBA_TRAN/new2.txt > ./IDBA_TRAN/new3.txt
+			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./IDBA_TRAN/BLAST_SILVA_BOWTIE2_final.txt && cat ./IDBA_TRAN/new3.txt >> ./IDBA_TRAN/BLAST_SILVA_BOWTIE2_final.txt
+			rm ./IDBA_TRAN/new*.txt ./IDBA_TRAN/BLAST_SILVA_BOWTIE2.txt
 
-			mkdir ./IDBA-tran/FINAL_FILES_IDBA-tran
-			mv ./IDBA-tran/CREST_BWA_final.txt ./IDBA-tran/CREST_BOWTIE2_final.txt ./IDBA-tran/BLAST_SILVA_BOWTIE2_final.txt ./IDBA-tran/BLAST_nt_BOWTIE2_final.txt ./IDBA-tran/BLAST_SILVA_BWA_final.txt ./IDBA-tran/BLAST_nt_BWA_final.txt ./IDBA-tran/FINAL_FILES_IDBA-tran/
+			mkdir ./IDBA_TRAN/FINAL_FILES_IDBA_TRAN
+			mv ./IDBA_TRAN/CREST_BWA_final.txt ./IDBA_TRAN/CREST_BOWTIE2_final.txt ./IDBA_TRAN/BLAST_SILVA_BOWTIE2_final.txt ./IDBA_TRAN/BLAST_nt_BOWTIE2_final.txt ./IDBA_TRAN/BLAST_SILVA_BWA_final.txt ./IDBA_TRAN/BLAST_nt_BWA_final.txt ./IDBA_TRAN/FINAL_FILES_IDBA_TRAN/
 
-			echo "final IDBA output generated."
+			echo "final IDBA_TRAN output generated."
 
-		else 
+		else
 			# Prepares to merge with BLAST of CREST - does not include assembly sequence
-			awk 'BEGIN {FS="\t";OFS="\t"} {print $2, $1}' ./IDBA-tran/BWA/merge_input_mapped_bwa.txt > ./IDBA-tran/temp.txt
-			sed 's/$/\tno assembly sequence was included/' ./IDBA-tran/temp.txt > ./IDBA-tran/temp2.txt
-			sed '1d' ./IDBA-tran/temp2.txt > ./IDBA-tran/temp3.txt
-			echo -e "contig_number\tcounts\tassembly_sequence" > ./IDBA-tran/final_bwa_merge_ready.txt && cat ./IDBA-tran/temp3.txt >> ./IDBA-tran/final_bwa_merge_ready.txt
- 			rm ./IDBA-tran/temp*.txt 
+			awk 'BEGIN {FS="\t";OFS="\t"} {print $2, $1}' ./IDBA_TRAN/BWA/merge_input_mapped_bwa.txt > ./IDBA_TRAN/temp.txt
+			sed 's/$/\tno assembly sequence was included/' ./IDBA_TRAN/temp.txt > ./IDBA_TRAN/temp2.txt
+			sed '1d' ./IDBA_TRAN/temp2.txt > ./IDBA_TRAN/temp3.txt
+			echo -e "contig_number\tcounts\tassembly_sequence" > ./IDBA_TRAN/final_bwa_merge_ready.txt && cat ./IDBA_TRAN/temp3.txt >> ./IDBA_TRAN/final_bwa_merge_ready.txt
+ 			rm ./IDBA_TRAN/temp*.txt
 
-			awk 'BEGIN {FS="\t";OFS="\t"} {print $2, $1}' ./IDBA-tran/BOWTIE2/merge_input_mapped_bowtie2.txt > ./IDBA-tran/temp.txt
-			sed 's/$/\tno assembly sequence was included/' ./IDBA-tran/temp.txt > ./IDBA-tran/temp2.txt
-			sed '1d' ./IDBA-tran/temp2.txt > ./IDBA-tran/temp3.txt
-			echo -e "contig_number\tcounts\tassembly_sequence" > ./IDBA-tran/final_bowtie2_merge_ready.txt && cat ./IDBA-tran/temp3.txt >> ./IDBA-tran/final_bowtie2_merge_ready.txt
-			rm ./IDBA-tran/temp*.txt 
+			awk 'BEGIN {FS="\t";OFS="\t"} {print $2, $1}' ./IDBA_TRAN/BOWTIE2/merge_input_mapped_bowtie2.txt > ./IDBA_TRAN/temp.txt
+			sed 's/$/\tno assembly sequence was included/' ./IDBA_TRAN/temp.txt > ./IDBA_TRAN/temp2.txt
+			sed '1d' ./IDBA_TRAN/temp2.txt > ./IDBA_TRAN/temp3.txt
+			echo -e "contig_number\tcounts\tassembly_sequence" > ./IDBA_TRAN/final_bowtie2_merge_ready.txt && cat ./IDBA_TRAN/temp3.txt >> ./IDBA_TRAN/final_bowtie2_merge_ready.txt
+			rm ./IDBA_TRAN/temp*.txt
 
 			echo "no assembly sequence was included."
 			echo "BWA and BOWTIE2 files are ready."
 
 			# Assign BLAST taxonomy - nt
-			assign_taxonomy_NCBI_staxids.sh -b ./IDBA-tran/CLASSIFICATION/BLAST/BLAST_output_nt -c 13 -e ~/.etetoolkit/taxa.sqlite
-			mv _with_taxonomy.txt ./IDBA-tran/BLAST_output_nt_with_taxonomy.txt
-			sed '1d' ./IDBA-tran/BLAST_output_nt_with_taxonomy.txt > ./IDBA-tran/BLAST_output_nt_with_taxonomy_noheader.txt
-			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" > ./IDBA-tran/BLAST_output_nt_with_taxonomy_merge.txt && cat ./IDBA-tran/BLAST_output_nt_with_taxonomy_noheader.txt >> ./IDBA-tran/BLAST_output_nt_with_taxonomy_merge.txt
+			assign_taxonomy_NCBI_staxids.sh -b ./IDBA_TRAN/CLASSIFICATION/BLAST/BLAST_output_nt -c 13 -e ~/.etetoolkit/taxa.sqlite
+			mv _with_taxonomy.txt ./IDBA_TRAN/BLAST_output_nt_with_taxonomy.txt
+			sed '1d' ./IDBA_TRAN/BLAST_output_nt_with_taxonomy.txt > ./IDBA_TRAN/BLAST_output_nt_with_taxonomy_noheader.txt
+			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" > ./IDBA_TRAN/BLAST_output_nt_with_taxonomy_merge.txt && cat ./IDBA_TRAN/BLAST_output_nt_with_taxonomy_noheader.txt >> ./IDBA_TRAN/BLAST_output_nt_with_taxonomy_merge.txt
 
-			# Assign BLAST taxonomy - SILVA 
-			assign_taxonomy_NCBI_staxids.sh -b ./IDBA-tran/CLASSIFICATION/BLAST/BLAST_output_SILVA -c 13 -e ~/.etetoolkit/taxa.sqlite
-			mv _with_taxonomy.txt ./IDBA-tran/BLAST_output_SILVA_with_taxonomy.txt
-			sed '1d' ./IDBA-tran/BLAST_output_SILVA_with_taxonomy.txt > ./IDBA-tran/BLAST_output_SILVA_with_taxonomy_noheader.txt
-			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" > ./IDBA-tran/BLAST_output_SILVA_with_taxonomy_merge.txt && cat ./IDBA-tran/BLAST_output_SILVA_with_taxonomy_noheader.txt >> ./IDBA-tran/BLAST_output_SILVA_with_taxonomy_merge.txt
+			# Assign BLAST taxonomy - SILVA
+			assign_taxonomy_NCBI_staxids.sh -b ./IDBA_TRAN/CLASSIFICATION/BLAST/BLAST_output_SILVA -c 13 -e ~/.etetoolkit/taxa.sqlite
+			mv _with_taxonomy.txt ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy.txt
+			sed '1d' ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy.txt > ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy_noheader.txt
+			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" > ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy_merge.txt && cat ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy_noheader.txt >> ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy_merge.txt
 
-			rm ./IDBA-tran/BLAST_output_nt_with_taxonomy.txt ./IDBA-tran/BLAST_output_nt_with_taxonomy_noheader.txt ./IDBA-tran/BLAST_output_SILVA_with_taxonomy.txt ./IDBA-tran/BLAST_output_SILVA_with_taxonomy_noheader.txt
+			rm ./IDBA_TRAN/BLAST_output_nt_with_taxonomy.txt ./IDBA_TRAN/BLAST_output_nt_with_taxonomy_noheader.txt ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy.txt ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy_noheader.txt
 
 			echo "taxonomy has been assigned to BLAST files."
 			echo "BLAST files are ready."
 
 
 			# Prepare CREST file - remove 1st/3rd column, add a header
-			assign_NCBI_staxids_to_CREST_v3.py /hdd1/databases/SILVA_database_mar_2020/taxonomy/files_to_make_NCBI_staxids/NCBI_staxids_scientific.txt /hdd1/databases/SILVA_database_mar_2020/taxonomy/files_to_make_NCBI_staxids/NCBI_staxids_non_scientific.txt ./IDBA-tran/CLASSIFICATION/CREST/otus.csv ./IDBA-tran/CLASSIFICATION/CREST/CREST_output.txt
-			sed 's|:|\t|g' ./IDBA-tran/CLASSIFICATION/CREST/CREST_output.txt > ./IDBA-tran/CREST_seperated.txt
-			cut -f2,4 ./IDBA-tran/CREST_seperated.txt > ./IDBA-tran/CREST_header.txt
-			sed '1d' ./IDBA-tran/CREST_header.txt > ./IDBA-tran/CREST_tax_ready.txt
-			assign_taxonomy_NCBI_staxids.sh -b ./IDBA-tran/CREST_tax_ready.txt -c 2 -e ~/.etetoolkit/taxa.sqlite
-			mv CREST_tax_ready_with_taxonomy.txt ./IDBA-tran/
-			sed '1d' ./IDBA-tran/CREST_tax_ready_with_taxonomy.txt > ./IDBA-tran/CREST_tax_ready_with_taxonomy_noheader.txt
+			assign_NCBI_staxids_to_CREST_v3.py /hdd1/databases/SILVA_database_mar_2020/taxonomy/files_to_make_NCBI_staxids/NCBI_staxids_scientific.txt /hdd1/databases/SILVA_database_mar_2020/taxonomy/files_to_make_NCBI_staxids/NCBI_staxids_non_scientific.txt ./IDBA_TRAN/CLASSIFICATION/CREST/otus.csv ./IDBA_TRAN/CLASSIFICATION/CREST/CREST_output.txt
+			sed 's|:|\t|g' ./IDBA_TRAN/CLASSIFICATION/CREST/CREST_output.txt > ./IDBA_TRAN/CREST_seperated.txt
+			cut -f2,4 ./IDBA_TRAN/CREST_seperated.txt > ./IDBA_TRAN/CREST_header.txt
+			sed '1d' ./IDBA_TRAN/CREST_header.txt > ./IDBA_TRAN/CREST_tax_ready.txt
+			assign_taxonomy_NCBI_staxids.sh -b ./IDBA_TRAN/CREST_tax_ready.txt -c 2 -e ~/.etetoolkit/taxa.sqlite
+			mv CREST_tax_ready_with_taxonomy.txt ./IDBA_TRAN/
+			sed '1d' ./IDBA_TRAN/CREST_tax_ready_with_taxonomy.txt > ./IDBA_TRAN/CREST_tax_ready_with_taxonomy_noheader.txt
 
-			echo -e "contig_number\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" > ./IDBA-tran/CREST_merge.txt && cat ./IDBA-tran/CREST_tax_ready_with_taxonomy_noheader.txt >> ./IDBA-tran/CREST_merge.txt
+			echo -e "contig_number\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" > ./IDBA_TRAN/CREST_merge.txt && cat ./IDBA_TRAN/CREST_tax_ready_with_taxonomy_noheader.txt >> ./IDBA_TRAN/CREST_merge.txt
 
-			rm ./IDBA-tran/CREST_seperated.txt ./IDBA-tran/CREST_header.txt ./IDBA-tran/CREST_tax_ready.txt ./IDBA-tran/CREST_tax_ready_with_taxonomy.txt ./IDBA-tran/CREST_tax_ready_with_taxonomy_noheader.txt
+			rm ./IDBA_TRAN/CREST_seperated.txt ./IDBA_TRAN/CREST_header.txt ./IDBA_TRAN/CREST_tax_ready.txt ./IDBA_TRAN/CREST_tax_ready_with_taxonomy.txt ./IDBA_TRAN/CREST_tax_ready_with_taxonomy_noheader.txt
 
 			echo "CREST file is ready."
 
 			# Merge files together!!! (BWA with BLAST - nt and SILVA and CREST / BOWTIE2 with BLAST - nt and SILVA and CREST ) SHOULD have 6 output files in total
-			merge_mapped_reads_and_contigs.py ./IDBA-tran/CREST_merge.txt ./IDBA-tran/final_bwa_merge_ready.txt ./IDBA-tran/CREST_BWA.txt
-			merge_mapped_reads_and_contigs.py ./IDBA-tran/CREST_merge.txt ./IDBA-tran/final_bowtie2_merge_ready.txt ./IDBA-tran/CREST_BOWTIE2.txt
+			merge_mapped_reads_and_contigs.py ./IDBA_TRAN/CREST_merge.txt ./IDBA_TRAN/final_bwa_merge_ready.txt ./IDBA_TRAN/CREST_BWA.txt
+			merge_mapped_reads_and_contigs.py ./IDBA_TRAN/CREST_merge.txt ./IDBA_TRAN/final_bowtie2_merge_ready.txt ./IDBA_TRAN/CREST_BOWTIE2.txt
 
-			merge_mapped_reads_and_contigs.py ./IDBA-tran/BLAST_output_SILVA_with_taxonomy_merge.txt ./IDBA-tran/final_bowtie2_merge_ready.txt ./IDBA-tran/BLAST_SILVA_BOWTIE2.txt
-			merge_mapped_reads_and_contigs.py ./IDBA-tran/BLAST_output_nt_with_taxonomy_merge.txt ./IDBA-tran/final_bowtie2_merge_ready.txt ./IDBA-tran/BLAST_nt_BOWTIE2.txt
+			merge_mapped_reads_and_contigs.py ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy_merge.txt ./IDBA_TRAN/final_bowtie2_merge_ready.txt ./IDBA_TRAN/BLAST_SILVA_BOWTIE2.txt
+			merge_mapped_reads_and_contigs.py ./IDBA_TRAN/BLAST_output_nt_with_taxonomy_merge.txt ./IDBA_TRAN/final_bowtie2_merge_ready.txt ./IDBA_TRAN/BLAST_nt_BOWTIE2.txt
 
-			merge_mapped_reads_and_contigs.py ./IDBA-tran/BLAST_output_SILVA_with_taxonomy_merge.txt ./IDBA-tran/final_bwa_merge_ready.txt ./IDBA-tran/BLAST_SILVA_BWA.txt
-			merge_mapped_reads_and_contigs.py ./IDBA-tran/BLAST_output_nt_with_taxonomy_merge.txt ./IDBA-tran/final_bwa_merge_ready.txt ./IDBA-tran/BLAST_nt_BWA.txt
+			merge_mapped_reads_and_contigs.py ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy_merge.txt ./IDBA_TRAN/final_bwa_merge_ready.txt ./IDBA_TRAN/BLAST_SILVA_BWA.txt
+			merge_mapped_reads_and_contigs.py ./IDBA_TRAN/BLAST_output_nt_with_taxonomy_merge.txt ./IDBA_TRAN/final_bwa_merge_ready.txt ./IDBA_TRAN/BLAST_nt_BWA.txt
 
 			# Move all files - easy to find!!!
-			mkdir ./IDBA-tran/MERGE_FILES
-			mv ./IDBA-tran/final_bwa_merge_ready.txt ./IDBA-tran/final_bowtie2_merge_ready.txt ./IDBA-tran/CREST_merge.txt ./IDBA-tran/BLAST_output_SILVA_with_taxonomy_merge.txt ./IDBA-tran/BLAST_output_nt_with_taxonomy_merge.txt ./IDBA-tran/MERGE_FILES/
+			mkdir ./IDBA_TRAN/MERGE_FILES
+			mv ./IDBA_TRAN/final_bwa_merge_ready.txt ./IDBA_TRAN/final_bowtie2_merge_ready.txt ./IDBA_TRAN/CREST_merge.txt ./IDBA_TRAN/BLAST_output_SILVA_with_taxonomy_merge.txt ./IDBA_TRAN/BLAST_output_nt_with_taxonomy_merge.txt ./IDBA_TRAN/MERGE_FILES/
 
 
 			# Edit contig-* in all the final files
 			# CREST files
-			sed '1d' ./IDBA-tran/CREST_BWA.txt > ./IDBA-tran/new.txt
-			sed 's/_/\t/1' ./IDBA-tran/new.txt > ./IDBA-tran/new2.txt
-			cut -f2-18 ./IDBA-tran/new2.txt > ./IDBA-tran/new3.txt
-			echo -e "contig_number\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./IDBA-tran/CREST_BWA_final.txt && cat ./IDBA-tran/new3.txt >> ./IDBA-tran/CREST_BWA_final.txt
-			rm ./IDBA-tran/new*.txt ./IDBA-tran/CREST_BWA.txt
+			sed '1d' ./IDBA_TRAN/CREST_BWA.txt > ./IDBA_TRAN/new.txt
+			sed 's/_/\t/1' ./IDBA_TRAN/new.txt > ./IDBA_TRAN/new2.txt
+			cut -f2-18 ./IDBA_TRAN/new2.txt > ./IDBA_TRAN/new3.txt
+			echo -e "contig_number\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./IDBA_TRAN/CREST_BWA_final.txt && cat ./IDBA_TRAN/new3.txt >> ./IDBA_TRAN/CREST_BWA_final.txt
+			rm ./IDBA_TRAN/new*.txt ./IDBA_TRAN/CREST_BWA.txt
 
-			sed '1d' ./IDBA-tran/CREST_BOWTIE2.txt > ./IDBA-tran/new.txt
-			sed 's/_/\t/1' ./IDBA-tran/new.txt > ./IDBA-tran/new2.txt
-			cut -f2-18 ./IDBA-tran/new2.txt > ./IDBA-tran/new3.txt
-			echo -e "contig_number\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./IDBA-tran/CREST_BOWTIE2_final.txt && cat ./IDBA-tran/new3.txt >> ./IDBA-tran/CREST_BOWTIE2_final.txt
-			rm ./IDBA-tran/new*.txt ./IDBA-tran/CREST_BOWTIE2.txt
+			sed '1d' ./IDBA_TRAN/CREST_BOWTIE2.txt > ./IDBA_TRAN/new.txt
+			sed 's/_/\t/1' ./IDBA_TRAN/new.txt > ./IDBA_TRAN/new2.txt
+			cut -f2-18 ./IDBA_TRAN/new2.txt > ./IDBA_TRAN/new3.txt
+			echo -e "contig_number\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./IDBA_TRAN/CREST_BOWTIE2_final.txt && cat ./IDBA_TRAN/new3.txt >> ./IDBA_TRAN/CREST_BOWTIE2_final.txt
+			rm ./IDBA_TRAN/new*.txt ./IDBA_TRAN/CREST_BOWTIE2.txt
 
 			# BLAST nt files
-			sed '1d' ./IDBA-tran/BLAST_nt_BWA.txt > ./IDBA-tran/new.txt
-			sed 's/_/\t/1' ./IDBA-tran/new.txt > ./IDBA-tran/new2.txt
-			cut -f2-29 ./IDBA-tran/new2.txt > ./IDBA-tran/new3.txt
-			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./IDBA-tran/BLAST_nt_BWA_final.txt && cat ./IDBA-tran/new3.txt >> ./IDBA-tran/BLAST_nt_BWA_final.txt
-			rm ./IDBA-tran/new*.txt ./IDBA-tran/BLAST_nt_BWA.txt
+			sed '1d' ./IDBA_TRAN/BLAST_nt_BWA.txt > ./IDBA_TRAN/new.txt
+			sed 's/_/\t/1' ./IDBA_TRAN/new.txt > ./IDBA_TRAN/new2.txt
+			cut -f2-29 ./IDBA_TRAN/new2.txt > ./IDBA_TRAN/new3.txt
+			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./IDBA_TRAN/BLAST_nt_BWA_final.txt && cat ./IDBA_TRAN/new3.txt >> ./IDBA_TRAN/BLAST_nt_BWA_final.txt
+			rm ./IDBA_TRAN/new*.txt ./IDBA_TRAN/BLAST_nt_BWA.txt
 
-			sed '1d' ./IDBA-tran/BLAST_nt_BOWTIE2.txt > ./IDBA-tran/new.txt
-			sed 's/_/\t/1' ./IDBA-tran/new.txt > ./IDBA-tran/new2.txt
-			cut -f2-29 ./IDBA-tran/new2.txt > ./IDBA-tran/new3.txt
-			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./IDBA-tran/BLAST_nt_BOWTIE2_final.txt && cat ./IDBA-tran/new3.txt >> ./IDBA-tran/BLAST_nt_BOWTIE2_final.txt
-			rm ./IDBA-tran/new*.txt ./IDBA-tran/BLAST_nt_BOWTIE2.txt
+			sed '1d' ./IDBA_TRAN/BLAST_nt_BOWTIE2.txt > ./IDBA_TRAN/new.txt
+			sed 's/_/\t/1' ./IDBA_TRAN/new.txt > ./IDBA_TRAN/new2.txt
+			cut -f2-29 ./IDBA_TRAN/new2.txt > ./IDBA_TRAN/new3.txt
+			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./IDBA_TRAN/BLAST_nt_BOWTIE2_final.txt && cat ./IDBA_TRAN/new3.txt >> ./IDBA_TRAN/BLAST_nt_BOWTIE2_final.txt
+			rm ./IDBA_TRAN/new*.txt ./IDBA_TRAN/BLAST_nt_BOWTIE2.txt
 
 			# BLAST SILVA files
-			sed '1d' ./IDBA-tran/BLAST_SILVA_BWA.txt > ./IDBA-tran/new.txt
-			sed 's/_/\t/1' ./IDBA-tran/new.txt > ./IDBA-tran/new2.txt
-			cut -f2-29 ./IDBA-tran/new2.txt > ./IDBA-tran/new3.txt
-			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./IDBA-tran/BLAST_SILVA_BWA_final.txt && cat ./IDBA-tran/new3.txt >> ./IDBA-tran/BLAST_SILVA_BWA_final.txt
-			rm ./IDBA-tran/new*.txt ./IDBA-tran/BLAST_SILVA_BWA.txt
+			sed '1d' ./IDBA_TRAN/BLAST_SILVA_BWA.txt > ./IDBA_TRAN/new.txt
+			sed 's/_/\t/1' ./IDBA_TRAN/new.txt > ./IDBA_TRAN/new2.txt
+			cut -f2-29 ./IDBA_TRAN/new2.txt > ./IDBA_TRAN/new3.txt
+			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./IDBA_TRAN/BLAST_SILVA_BWA_final.txt && cat ./IDBA_TRAN/new3.txt >> ./IDBA_TRAN/BLAST_SILVA_BWA_final.txt
+			rm ./IDBA_TRAN/new*.txt ./IDBA_TRAN/BLAST_SILVA_BWA.txt
 
-			sed '1d' ./IDBA-tran/BLAST_SILVA_BOWTIE2.txt > ./IDBA-tran/new.txt
-			sed 's/_/\t/1' ./IDBA-tran/new.txt > ./IDBA-tran/new2.txt
-			cut -f2-29 ./IDBA-tran/new2.txt > ./IDBA-tran/new3.txt
-			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./IDBA-tran/BLAST_SILVA_BOWTIE2_final.txt && cat ./IDBA-tran/new3.txt >> ./IDBA-tran/BLAST_SILVA_BOWTIE2_final.txt
-			rm ./IDBA-tran/new*.txt ./IDBA-tran/BLAST_SILVA_BOWTIE2.txt
+			sed '1d' ./IDBA_TRAN/BLAST_SILVA_BOWTIE2.txt > ./IDBA_TRAN/new.txt
+			sed 's/_/\t/1' ./IDBA_TRAN/new.txt > ./IDBA_TRAN/new2.txt
+			cut -f2-29 ./IDBA_TRAN/new2.txt > ./IDBA_TRAN/new3.txt
+			echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./IDBA_TRAN/BLAST_SILVA_BOWTIE2_final.txt && cat ./IDBA_TRAN/new3.txt >> ./IDBA_TRAN/BLAST_SILVA_BOWTIE2_final.txt
+			rm ./IDBA_TRAN/new*.txt ./IDBA_TRAN/BLAST_SILVA_BOWTIE2.txt
 
-			mkdir ./IDBA-tran/FINAL_FILES_IDBA-tran
-			mv ./IDBA-tran/CREST_BWA_final.txt ./IDBA-tran/CREST_BOWTIE2_final.txt ./IDBA-tran/BLAST_SILVA_BOWTIE2_final.txt ./IDBA-tran/BLAST_nt_BOWTIE2_final.txt ./IDBA-tran/BLAST_SILVA_BWA_final.txt ./IDBA-tran/BLAST_nt_BWA_final.txt ./IDBA-tran/FINAL_FILES_IDBA-tran/
+			mkdir ./IDBA_TRAN/FINAL_FILES_IDBA_TRAN
+			mv ./IDBA_TRAN/CREST_BWA_final.txt ./IDBA_TRAN/CREST_BOWTIE2_final.txt ./IDBA_TRAN/BLAST_SILVA_BOWTIE2_final.txt ./IDBA_TRAN/BLAST_nt_BOWTIE2_final.txt ./IDBA_TRAN/BLAST_SILVA_BWA_final.txt ./IDBA_TRAN/BLAST_nt_BWA_final.txt ./IDBA_TRAN/FINAL_FILES_IDBA_TRAN/
 
-			echo "final IDBA-tran output generated."
+			echo "final IDBA_TRAN output generated."
 
 		fi
 
-	else 
+	else
 
 		echo "no FINAL merge generated."
 
 	fi
 
 else
-	echo "no IDBA-tran output generated."
-fi 
+	echo "no IDBA_TRAN output generated."
+fi
 
 
 
@@ -772,7 +772,7 @@ if [[ $TRINITY == 'true' ]] ; then
 
 		mv BWA/ BOWTIE2/ TRINITY/
 
-	else 
+	else
 
 		echo "no BWA and BOWTIE2 output generated"
 
@@ -799,9 +799,9 @@ if [[ $TRINITY == 'true' ]] ; then
 		mv CREST TRINITY/
 
 		mkdir TRINITY/CLASSIFICATION
-		mv TRINITY/BLAST TRINITY/CREST TRINITY/CLASSIFICATION/		
+		mv TRINITY/BLAST TRINITY/CREST TRINITY/CLASSIFICATION/
 
-	else 
+	else
 
 		echo "no BLAST or CREST output generated"
 
@@ -813,7 +813,7 @@ if [[ $FINAL == 'true' ]]; then
 			# Adding full assembly sequence to BWA or BOWTIE2 and prepares to merge with BLAST or CREST
 			fasta_to_tab ./TRINITY/Trinity_with_length.fasta > ./TRINITY/fasta_to_tabbed.txt
 			sed 's/ /\t/1' ./TRINITY/fasta_to_tabbed.txt > ./TRINITY/tabbed.txt
-			cut -f1,3 ./TRINITY/tabbed.txt > ./TRINITY/ready.txt 
+			cut -f1,3 ./TRINITY/tabbed.txt > ./TRINITY/ready.txt
 
 
 			mergeFilesOnColumn.pl ./TRINITY/BWA/merge_input_mapped_bwa.txt ./TRINITY/ready.txt 2 1 > ./TRINITY/merged_original_bwa.txt
@@ -833,19 +833,19 @@ if [[ $FINAL == 'true' ]]; then
 			echo "assembly sequence was included."
 			echo "BWA and BOWTIE2 files are ready."
 
-		else 
+		else
 			# Prepares to merge with BLAST of CREST - does not include assembly sequence
 			awk 'BEGIN {FS="\t";OFS="\t"} {print $2, $1}' ./TRINITY/BWA/merge_input_mapped_bwa.txt > ./TRINITY/temp.txt
 			sed 's/$/\tno assembly sequence was included/' ./TRINITY/temp.txt > ./TRINITY/temp2.txt
 			sed '1d' ./TRINITY/temp2.txt > ./TRINITY/temp3.txt
 			echo -e "contig_number\tcounts\tassembly_sequence" > ./TRINITY/final_bwa_merge_ready.txt && cat ./TRINITY/temp3.txt >> ./TRINITY/final_bwa_merge_ready.txt
- 			rm ./TRINITY/temp*.txt 
+ 			rm ./TRINITY/temp*.txt
 
 			awk 'BEGIN {FS="\t";OFS="\t"} {print $2, $1}' ./TRINITY/BOWTIE2/merge_input_mapped_bowtie2.txt > ./TRINITY/temp.txt
 			sed 's/$/\tno assembly sequence was included/' ./TRINITY/temp.txt > ./TRINITY/temp2.txt
 			sed '1d' ./TRINITY/temp2.txt > ./TRINITY/temp3.txt
 			echo -e "contig_number\tcounts\tassembly_sequence" > ./TRINITY/final_bowtie2_merge_ready.txt && cat ./TRINITY/temp3.txt >> ./TRINITY/final_bowtie2_merge_ready.txt
-			rm ./TRINITY/temp*.txt 
+			rm ./TRINITY/temp*.txt
 
 			echo "no assembly sequence was included."
 			echo "BWA and BOWTIE2 files are ready."
@@ -857,7 +857,7 @@ if [[ $FINAL == 'true' ]]; then
 		sed '1d' ./TRINITY/BLAST_output_nt_with_taxonomy.txt > ./TRINITY/BLAST_output_nt_with_taxonomy_noheader.txt
 		echo -e "contig_number\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" > ./TRINITY/BLAST_output_nt_with_taxonomy_merge.txt && cat ./TRINITY/BLAST_output_nt_with_taxonomy_noheader.txt >> ./TRINITY/BLAST_output_nt_with_taxonomy_merge.txt
 
-		# Assign BLAST taxonomy - SILVA 
+		# Assign BLAST taxonomy - SILVA
 		assign_taxonomy_NCBI_staxids.sh -b ./TRINITY/CLASSIFICATION/BLAST/BLAST_output_SILVA -c 13 -e ~/.etetoolkit/taxa.sqlite
 		mv _with_taxonomy.txt ./TRINITY/BLAST_output_SILVA_with_taxonomy.txt
 		sed '1d' ./TRINITY/BLAST_output_SILVA_with_taxonomy.txt > ./TRINITY/BLAST_output_SILVA_with_taxonomy_noheader.txt
@@ -941,7 +941,7 @@ if [[ $FINAL == 'true' ]]; then
 
 		echo "final TRINITY output generated."
 
-	else 
+	else
 
 		echo "no FINAL merge generated."
 
@@ -952,7 +952,7 @@ else
 fi
 
 mkdir ASSEMBLERS
-mv rnaSPAdes IDBA-tran TRINITY ASSEMBLERS/
+mv rnaSPAdes IDBA_TRAN TRINITY ASSEMBLERS/
 
 # Display runtime
 echo -e "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\nSCRIPT RUNTIME: $((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m"
