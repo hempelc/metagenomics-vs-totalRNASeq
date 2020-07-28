@@ -48,8 +48,15 @@ fi
 # Run script
 blast_file_out_tmp=${blast_file%.*}_with_taxonomy.txt
 blast_file_out=$(echo ${blast_file_out_tmp##*/}) # Creating variable so that output is saved in working directory
-ete3 ncbiquery --info --search $(cut -f $column $blast_file) > matching_lineages.tsv
+touch matching_lineages.tsv
+cut -f $column $blast_file > tmp
+split -l 100000 --numeric-suffixes tmp tmp_chunk_
+for id in tmp_chunk_*; do
+  ete3 ncbiquery --info --search $(cat $id) >> matching_lineages.tsv
+done
+sed -i '1!{/^#/d;}' matching_lineages.tsv
+#ete3 ncbiquery --info --search $(cut -f $column $blast_file) > matching_lineages.tsv
 LookupTaxonDetails3.py -b $blast_file -l matching_lineages.tsv -o $blast_file_out -t $column -e $etetoolkit
 echo 'qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxid lowest_rank lowest_hit superkingdom kingdom phylum subphylum class subclass order suborder infraorder family genus'| sed -e 's/ /\t/g' | cat - $blast_file_out > temp2 && mv temp2 $blast_file_out
 
-rm matching_lineages.tsv
+rm matching_lineages.tsv tmp*
