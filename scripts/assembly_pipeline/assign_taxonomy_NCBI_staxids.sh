@@ -29,7 +29,7 @@ while getopts ':b:c:e:h' opt; do
 	   exit ;;
    \?) printf "Invalid option: -$OPTARG"
 	   echo -e "\n$usage"
-	   exit 
+	   exit
   esac
 done
 shift $((OPTIND - 1))
