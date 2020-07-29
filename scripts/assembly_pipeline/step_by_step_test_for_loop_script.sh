@@ -247,6 +247,10 @@ for trimming_results in step_1_trimming/trimmomatic/*/; do
 		cat TRINITY/Trinity.fasta | sed 's/ len/_len/g' > TRINITY/Trinity_with_length.fasta
 		echo -e "\n======== TRINITY DONE ========\n"
 
+		echo -e "\n======== RUNNING TRANSABYSS ========\n"
+		# TRANSABYSS CODE
+		echo -e "\n======== TRANSABYSS DONE ========\n"
+
   done
 
 # Display runtime
