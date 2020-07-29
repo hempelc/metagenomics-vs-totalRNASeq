@@ -22,8 +22,8 @@ Usage:
 	-h Display this help and exit"
 
 # Set default options
-Forward_read_trimmed=''
-Reverse_read_trimmed=''
+forward_reads=''
+reverse_reads=''
 SPADES='false'
 METASPADES='false'
 MEGAHIT='false'
@@ -39,8 +39,8 @@ READS='false'
 # Set specified options
 while getopts ':1:2:aDRSMmUrtTBCfsh' opt; do
  	case "${opt}" in
-		1) Forward_read_trimmed="${OPTARG}" ;;
-		2) Reverse_read_trimmed="${OPTARG}" ;;
+		1) forward_reads="${OPTARG}" ;;
+		2) reverse_reads="${OPTARG}" ;;
 		a) SPADES='true'
 			 METASPADES='true'
 			 MEGAHIT='true'
@@ -91,7 +91,7 @@ done
 shift $((OPTIND - 1))
 
 # Check if required options are set
-if [[ -z "$Forward_read_trimmed" || -z "$Reverse_read_trimmed" ]]
+if [[ -z "$forward_reads" || -z "$reverse_reads" ]]
 then
    echo -e "-1 and -2 must be set.\n"
    echo -e "$usage\n\n"
@@ -114,63 +114,155 @@ echo -e "=================================================================\n\n"
 # Output specified options
 echo -e "======== OPTIONS ========\n"
 
-echo -e "Forward reads were defined as $Forward_read_trimmed.\n"
-echo -e "Reverse reads were defined as $Reverse_read_trimmed.\n"
+echo -e "Forward reads were defined as $forward_reads.\n"
+echo -e "Reverse reads were defined as $reverse_reads.\n"
 echo -e "Script started with full command: $cmd\n"
 
 echo -e "======== START RUNNING SCRIPT ========\n"
 
 
-######################### Beginning of DNA pipelines ########################
-mkdir PIPELINE_ASSEMBLERS
-cd PIPELINE_ASSEMBLERS
+######################### Step 1: trimming ################################
+echo -e "======== START STEP 1: TRIMMING ========\n"
 
-mkdir PIPELINE_DNA
-cd PIPELINE_DNA/
+# Trimming is done with separate script:
+trimming_with_phred_scores_and_fastqc_report.sh -T /hdd1/programs_for_pilot/Trimmomatic-0.39/trimmomatic-0.39.jar -1 $forward_reads -2 $reverse_reads
+mv trimming_with_phred_scores_and_fastqc_report_output/ step_1_trimming/
 
-if [[ $SPADES == 'true' ]] ; then
-	echo -e "\n======== RUNNING SPADES ========\n"
-	mkdir SPADES
-	spades.py -1 $Forward_read_trimmed -2 $Reverse_read_trimmed -o SPADES
-	echo -e "\n======== SPADES DONE ========\n"
-else
-	echo -e "\n======== no SPADES output generated ========\n"
+# trimmed reads are then in ./step_1_trimming/trimmomatic/*_trimmed_at_phred_*/*P.fastq <-- *1P.fastq for forward, *2P.fastq for reverse
 
-fi
+echo -e "======== FINISHED STEP 1: TRIMMING ========\n"
+
+######################### Step 2: rRNA sorting ################################
+
+echo -e "======== START STEP 2: rRNA SORTING ========\n"
+for trimming_results in step_1_trimming/trimmomatic/*/; do
+	mkdir ${trimming_results}step_2_rrna_sorting/
+	cd ${trimming_results}step_2_rrna_sorting/
+
+	echo -e "\n======== SORTING TRIMMED READS IN FOLDER $trimming_results ========\n"
+
+	echo -e "\n======== RUNNING SORTMERNA ========\n"
+	mkdir SORTMERNA/
+	sortmerna --ref /hdd1/databases/sortmerna_silva_databases/silva-bac-16s-id90.fasta \
+	--ref /hdd1/databases/sortmerna_silva_databases/silva-arc-16s-id95.fasta \
+	--ref /hdd1/databases/sortmerna_silva_databases/silva-euk-18s-id95.fasta \
+	--reads ../*1P.fastq --reads ../*2P.fastq --paired_in -other -fastx 1 \
+	-num_alignments 1 -v \
+	-workdir SORTMERNA/
+	deinterleave_fastq_reads.sh < SORTMERNA/out/aligned.fq SORTMERNA/out/aligned_R1.fq SORTMERNA/out/aligned_R2.fq
+
+	echo -e "\n======== SORTMERNA DONE ========\n"
+
+	echo -e "\n======== RUNNING rRNAFILTER ========\n"
+	mkdir rRNAFILTER/
+	cd rRNAFILTER/
+	fq2fa ../../*1P.fastq R1.fa
+	fq2fa ../../*2P.fastq R2.fa
+	wget http://hulab.ucf.edu/research/projects/rRNAFilter/software/rRNAFilter.zip
+	unzip rRNAFilter.zip
+	cd rRNAFilter/
+	java -jar -Xmx7g rRNAFilter_commandline.jar -i ../R1.fa -r 0
+	java -jar -Xmx7g rRNAFilter_commandline.jar -i ../R2.fa -r 0
+	cd ..
+	rm -r rRNAFilter rRNAFilter.zip
+	fasta_to_tab R1.fa_rRNA | cut -f 1 | cut -f1 -d " " > names.txt
+	fasta_to_tab R2.fa_rRNA | cut -f 1 | cut -f1 -d " " >> names.txt
+	sort -u names.txt > names_sorted.txt
+	seqtk subseq R1.fa names_sorted.txt > rRNAFilter_paired_R1.fa
+	seqtk subseq R2.fa names_sorted.txt > rRNAFilter_paired_R2.fa
+	rm names_sorted.txt names.txt
+	cd ..
+	echo -e "\n======== rRNAFILTER DONE ========\n"
+
+	echo -e "\n======== RUNNING BARRNAP ========\n"
+# code for barrnap
+	echo -e "\n======== BARRNAP DONE ========\n"
+
+	echo -e "\n======== MAKING FOLDER UNSORTED/ AND COPYING UNSORTED READS IN THERE TO KEEP THE FOLDER STRUCTURE CONSTANT ========\n"
+	mkdir UNSORTED/
+	cp ../*1P.fastq ../*2P.fastq UNSORTED/
+
+	echo -e "\n======== FINISHED SORTING TRIMMED READS IN FOLDER $trimming_results ========\n"
+#	cd ../../../../
+
+	echo -e "======== FINISHED STEP 2: rRNA SORTING ========\n"
+
+	######################### Step 3: Assembly ################################
+
+	echo -e "======== START STEP 3: ASSEMBLY ========\n"
+
+  rrna_filter_results_list=(rRNAFILTER SORTMERNA UNSORTED) # <-- MISSES BARRNAP YET, NEEDS TO BE ADDED
+	for rrna_filter_results in $rrna_filter_results_list; do
+		if [[ $rrna_filter_results == 'rRNAFILTER' ]] ; then
+			R1_sorted='rRNAFILTER/rRNAFilter_paired_R1.fa'
+			R2_sorted='rRNAFILTER/rRNAFilter_paired_R2.fa'
+  	elif [[ $rrna_filter_results == 'SORTMERNA' ]] ; then
+			R1_sorted='SORTMERNA/out/aligned_R1.fq'
+			R2_sorted='SORTMERNA/out/aligned_R2.fq'
+# 	elif [[ $rrna_filter_results == 'BARRNAP' ]] ; then
+#			R1_sorted=
+#			R2_sorted=
+	  else
+			R1_sorted='UNSORTED/*1P.fastq'
+			R2_sorted='UNSORTED/*2P.fastq'
+		fi
+
+		mkdir $rrna_filter_results/step_3_assembly/
+    cd $rrna_filter_results/step_3_assembly/
+
+			echo -e "\n======== RUNNING SPADES ========\n"
+			mkdir SPADES/
+			spades.py -1 $R1_sorted -2 $R2_sorted -o SPADES/
+			echo -e "\n======== SPADES DONE ========\n"
+
+			echo -e "\n======== RUNNING METASPADES ========\n"
+			mkdir METASPADES/
+			metaspades.py -1 $R1_sorted -2 $R2_sorted -o METASPADES/
+			echo -e "\n======== METASPADES DONE ========\n"
+
+			echo -e "\n======== RUNNING MEGAHIT ========\n"
+			mkdir MEGAHIT/
+			megahit --presets meta-large -t 16 -1 $R1_sorted -2 $R2_sorted -o MEGAHIT/
+			echo -e "\n======== MEGAHIT DONE ========\n"
+
+			echo -e "\n======== RUNNING IDBA_UD ========\n"
+			fq2fa --merge --filter $R1_sorted $R2_sorted idba_ud_input.fa
+			idba_ud --num_threads 16 --pre_correction -r idba_ud_input.fa -o IDBA_UD/
+			mv idba_ud_input.fa IDBA_UD/
+			echo -e "\n======== IDBA_UD DONE ========\n"
+
+			echo -e "\n======== RUNNING RNASPADES ========\n"
+			mkdir RNASPADES/
+			rnaspades.py -1 $R1_sorted -2 $R2_sorted -o RNASPADES/
+			echo -e "\n======== RNASPADES DONE ========\n"
+
+			echo -e "\n======== RUNNING IDBA_TRAN ========\n"
+			fq2fa --merge --filter $R1_sorted $R2_sorted idba_tran_input.fa
+			idba_tran --num_threads 16 --pre_correction -r idba_tran_input.fa -o IDBA_TRAN/
+			mv idba_ud_input.fa IDBA_TRAN/
+			echo -e "\n======== IDBA_TRAN DONE ========\n"
+
+			echo -e "\n======== RUNNING TRINITY ========\n"
+			Trinity --seqType fq --max_memory 64G --left $R1_sorted --right $R2_sorted --CPU 16 --output TRINITY/
+			cat TRINITY/Trinity.fasta | sed 's/ len/_len/g' > TRINITY/Trinity_with_length.fasta
+			echo -e "\n======== TRINITY DONE ========\n"
+
+  done
 
 
-if [[ $METASPADES == 'true' ]] ; then
-	echo -e "\n======== RUNNING METASPADES ========\n"
-	mkdir METASPADES
-	metaspades.py -1 $Forward_read_trimmed -2 $Reverse_read_trimmed -o METASPADES
-	echo -e "\n======== METASPADES DONE ========\n"
-else
-	echo -e "\n======== no METASPADES output generated ========\n"
-
-fi
-
-
-if [[ $MEGAHIT == 'true' ]] ; then
-	echo -e "\n======== RUNNING MEGAHIT ========\n"
-	mkdir MEGAHIT
-	megahit --presets meta-large -t 16 -1 $Forward_read_trimmed -2 $Reverse_read_trimmed -o ./MEGAHIT
-	echo -e "\n======== MEGAHIT DONE ========\n"
-else
-	echo -e "\n======== no MEGAHIT output generated ========\n"
-
-fi
 
 
 
-if [[ $IDBA_UD == 'true' ]] ; then
-	echo -e "\n======== RUNNING IDBA_UD ========\n"
-	fq2fa --merge --filter $Forward_read_trimmed $Reverse_read_trimmed new_input.fa
-	idba_ud --num_threads 16 --pre_correction -r ./new_input.fa -o IDBA_UD
-	echo -e "\n======== IDBA_UD DONE ========\n"
-else
-	echo -e "\n======== no IDBA_UD output generated ========\n"
 
-fi
+
+
+
+
+
+
+
+
+
 
 
 assembly_dna_outputs=(./SPADES/scaffolds.fasta ./METASPADES/scaffolds.fasta ./MEGAHIT/final.contigs.fa ./IDBA_UD/contig.fa)
@@ -185,7 +277,7 @@ do
 
 		echo -e "\n======== bwa index complete. Starting bwa ========\n"
 
-		bwa mem -t 10 bwa_index $Forward_read_trimmed $Reverse_read_trimmed > bwa_output.sam
+		bwa mem -t 10 bwa_index $forward_reads $reverse_reads > bwa_output.sam
 
 		rm bwa_index*
 
@@ -213,7 +305,7 @@ do
 
 		echo -e "\n======== bowtie2 index complete. Starting bowtie2 ========\n"
 
-		bowtie2 -q -x bowtie_index -1 $Forward_read_trimmed -2 $Reverse_read_trimmed -S bowtie2_output.sam
+		bowtie2 -q -x bowtie_index -1 $forward_reads -2 $reverse_reads -S bowtie2_output.sam
 
 		rm bowtie_index*
 
@@ -257,13 +349,13 @@ do
 				mv BWA/ BOWTIE2/ MEGAHIT/
 
 				elif [[ $assembly_dna_outputs == './IDBA_UD/contig.fa' ]] ; then
-					
+
 				mv BWA/ BOWTIE2/ IDBA_UD/
 
 			else
 				echo "if statement does not work"
 
-			fi 
+			fi
 
 		else
 
@@ -336,14 +428,14 @@ do
 				mv BLAST_output_nt* BLAST_output_SILVA* MEGAHIT/BLAST/
 
 				elif [[ $assembly_dna_outputs == './IDBA_UD/contig.fa' ]] ; then
-					
+
 				mkdir IDBA_UD/BLAST
 				mv BLAST_output_nt* BLAST_output_SILVA* IDBA_UD/BLAST/
 
 			else
 				echo "if statement does not work"
 
-			fi 
+			fi
 
 
 		echo -e "\n======== RUNNING CREST ========\n"
@@ -374,7 +466,7 @@ do
 				mv MEGAHIT/BLAST MEGAHIT/CREST MEGAHIT/CLASSIFICATION/
 
 				elif [[ $assembly_dna_outputs == './IDBA_UD/contig.fa' ]] ; then
-					
+
 				mv CREST IDBA_UD/
 
 				mkdir IDBA_UD/CLASSIFICATION
@@ -383,7 +475,7 @@ do
 			else
 				echo "if statement does not work"
 
-			fi 
+			fi
 
 		echo -e "\n======== CREST DONE ========\n"
 
@@ -1412,7 +1504,7 @@ cd PIPELINE_RNA/
 
 echo -e "\n======== RUNNING SORTMERNA ========\n"
 mkdir SORTMERNA
-sortmerna --ref /hdd1/databases/sortmerna_silva_databases/silva-bac-16s-id90.fasta --ref /hdd1/databases/sortmerna_silva_databases/silva-arc-16s-id95.fasta --ref /hdd1/databases/sortmerna_silva_databases/silva-euk-18s-id95.fasta --reads $Forward_read_trimmed --reads $Reverse_read_trimmed --paired_in -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA
+sortmerna --ref /hdd1/databases/sortmerna_silva_databases/silva-bac-16s-id90.fasta --ref /hdd1/databases/sortmerna_silva_databases/silva-arc-16s-id95.fasta --ref /hdd1/databases/sortmerna_silva_databases/silva-euk-18s-id95.fasta --reads $forward_reads --reads $reverse_reads --paired_in -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA
 echo -e "\n======== SORTMERNA DONE ========\n"
 
 if [[ $RNASPADES == 'true' ]] ; then
@@ -1538,7 +1630,7 @@ do
 			else
 				echo "if statement does not work"
 
-			fi 
+			fi
 
 	else
 
@@ -1602,7 +1694,7 @@ do
 				elif [[ $assembly_dna_outputs == './IDBA_TRAN/contig.fa' ]] ; then
 
 				mkdir IDBA_TRAN/BLAST
-				mv BLAST_output_nt* BLAST_output_SILVA* IDBA_TRAN/BLAST/	
+				mv BLAST_output_nt* BLAST_output_SILVA* IDBA_TRAN/BLAST/
 
 				elif [[ $assembly_dna_outputs == './TRINITY/Trinity_with_length.fasta' ]] ; then
 
@@ -1612,7 +1704,7 @@ do
 			else
 				echo "if statement does not work"
 
-			fi 
+			fi
 
 		echo -e "\n======== RUNNING CREST ========\n"
 		blastn -db ~/programs/CREST/LCAClassifier/parts/flatdb/silvamod/silvamod128.fasta -query $assembly_rna_outputs -outfmt "5" -max_target_seqs 5 -num_threads 16 -out BLAST_output.xml
@@ -1632,7 +1724,7 @@ do
 				mv CREST IDBA_TRAN/
 
 				mkdir IDBA_TRAN/CLASSIFICATION
-				mv IDBA_TRAN/BLAST IDBA_TRAN/CREST IDBA_TRAN/CLASSIFICATION/	
+				mv IDBA_TRAN/BLAST IDBA_TRAN/CREST IDBA_TRAN/CLASSIFICATION/
 
 				elif [[ $assembly_dna_outputs == './TRINITY/Trinity_with_length.fasta' ]] ; then
 
@@ -1644,7 +1736,7 @@ do
 			else
 				echo "if statement does not work"
 
-			fi 
+			fi
 
 
 		echo -e "\n======== CREST DONE ========\n"
