@@ -122,42 +122,57 @@ echo -e "======== START RUNNING SCRIPT ========\n"
 
 
 ######################### Step 1: trimming ################################
-echo -e "======== START STEP 1: TRIMMING ========\n"
+echo -e "======== START STEP 1: TRIMMING AND ERROR CORRECTION ========\n"
 
 # Trimming is done with separate script:
 trimming_with_phred_scores_and_fastqc_report.sh -T /hdd1/programs_for_pilot/Trimmomatic-0.39/trimmomatic-0.39.jar -1 $forward_reads -2 $reverse_reads
 mv trimming_with_phred_scores_and_fastqc_report_output/ step_1_trimming/
 
-# trimmed reads are then in ./step_1_trimming/trimmomatic/*_trimmed_at_phred_*/*P.fastq <-- *1P.fastq for forward, *2P.fastq for reverse
+# Running error correction module of SPAdes on trimmed reads
+for trimming_results in step_1_trimming/trimmomatic/*; do
+	echo -e "\n======== ERROR-CORRECTING READS IN FOLDER $trimming_results ========\n"
+	spades.py -1 $trimming_results/*1P.fastq -2 $trimming_results/*2P.fastq \
+	--only-error-correction --disable-gzip-output -o $trimming_results/error_correction
+	mv $trimming_results/error_correction/corrected/*1P*.fastq \
+	$trimming_results/error_correction/corrected/*2P*.fastq $trimming_results
+	R1=$(echo $trimming_results/*1P.00.0_0.cor.fastq) \
+  && 	mv $trimming_results/*1P.00.0_0.cor.fastq ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
+	R2=$(echo $trimming_results/*2P.00.0_0.cor.fastq) \
+  && mv $trimming_results/*2P.00.0_0.cor.fastq ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
+	rm -r $trimming_results/error_correction/
+	echo -e "\n======== FINISHED ERROR-CORRECTING READS IN FOLDER $trimming_results ========\n"
+done
 
-echo -e "======== FINISHED STEP 1: TRIMMING ========\n"
+echo -e "======== FINISHED STEP 1: TRIMMING AND ERROR CORRECTION ========\n"
 
 ######################### Step 2: rRNA sorting ################################
 
-echo -e "======== START STEP 2: rRNA SORTING ========\n"
-for trimming_results in step_1_trimming/trimmomatic/*/; do
-	mkdir ${trimming_results}step_2_rrna_sorting/
-	cd ${trimming_results}step_2_rrna_sorting/
+for trimming_results in step_1_trimming/trimmomatic/*; do
+	mkdir $trimming_results/step_2_rrna_sorting/
+	cd $trimming_results/step_2_rrna_sorting/
 
-	echo -e "\n======== SORTING TRIMMED READS IN FOLDER $trimming_results ========\n"
+	echo -e "======== START STEP 2: rRNA SORTING FOR TRIMMED READS IN FOLDER $trimming_results ========\n"
 
 	echo -e "\n======== RUNNING SORTMERNA ========\n"
 	mkdir SORTMERNA/
 	sortmerna --ref /hdd1/databases/sortmerna_silva_databases/silva-bac-16s-id90.fasta \
 	--ref /hdd1/databases/sortmerna_silva_databases/silva-arc-16s-id95.fasta \
 	--ref /hdd1/databases/sortmerna_silva_databases/silva-euk-18s-id95.fasta \
-	--reads ../*1P.fastq --reads ../*2P.fastq --paired_in -other -fastx 1 \
+	--reads ../*1P_error_corrected.fastq --reads ../*2P_error_corrected.fastq \
+	--paired_in -other -fastx 1 \
 	-num_alignments 1 -v \
 	-workdir SORTMERNA/
-	deinterleave_fastq_reads.sh < SORTMERNA/out/aligned.fq SORTMERNA/out/aligned_R1.fq SORTMERNA/out/aligned_R2.fq
-
+	pwd
+	deinterleave_fastq_reads.sh < SORTMERNA/out/aligned.fq \
+	SORTMERNA/out/aligned_R1.fq SORTMERNA/out/aligned_R2.fq
+	pwd
 	echo -e "\n======== SORTMERNA DONE ========\n"
 
 	echo -e "\n======== RUNNING rRNAFILTER ========\n"
 	mkdir rRNAFILTER/
 	cd rRNAFILTER/
-	fq2fa ../../*1P.fastq R1.fa
-	fq2fa ../../*2P.fastq R2.fa
+	fq2fa ../../*1P_error_corrected.fastq R1.fa
+	fq2fa ../../*2P_error_corrected.fastq R2.fa
 	wget http://hulab.ucf.edu/research/projects/rRNAFilter/software/rRNAFilter.zip
 	unzip rRNAFilter.zip
 	cd rRNAFilter/
@@ -180,18 +195,15 @@ for trimming_results in step_1_trimming/trimmomatic/*/; do
 
 	echo -e "\n======== MAKING FOLDER UNSORTED/ AND COPYING UNSORTED READS IN THERE TO KEEP THE FOLDER STRUCTURE CONSTANT ========\n"
 	mkdir UNSORTED/
-	cp ../*1P.fastq ../*2P.fastq UNSORTED/
+	cp ../*1P_error_corrected.fastq ../*2P_error_corrected.fastq UNSORTED/
 
-	echo -e "\n======== FINISHED SORTING TRIMMED READS IN FOLDER $trimming_results ========\n"
-#	cd ../../../../
-
-	echo -e "======== FINISHED STEP 2: rRNA SORTING ========\n"
+	echo -e "\n======== FINISHED STEP 2: rRNA SORTING FOR TRIMMED READS IN FOLDER $trimming_results ========\n"
 
 	######################### Step 3: Assembly ################################
 
-	echo -e "======== START STEP 3: ASSEMBLY ========\n"
+	echo -e "======== START STEP 3: ASSEMBLY FOR TRIMMED READS IN FOLDER $trimming_results ========\n"
 
-  rrna_filter_results_list=(rRNAFILTER SORTMERNA UNSORTED) # <-- MISSES BARRNAP YET, NEEDS TO BE ADDED
+  rrna_filter_results_list="rRNAFILTER SORTMERNA UNSORTED" # <-- MISSES BARRNAP YET, NEEDS TO BE ADDED
 	for rrna_filter_results in $rrna_filter_results_list; do
 		if [[ $rrna_filter_results == 'rRNAFILTER' ]] ; then
 			R1_sorted='rRNAFILTER/rRNAFilter_paired_R1.fa'
@@ -203,68 +215,73 @@ for trimming_results in step_1_trimming/trimmomatic/*/; do
 #			R1_sorted=
 #			R2_sorted=
 	  else
-			R1_sorted='UNSORTED/*1P.fastq'
-			R2_sorted='UNSORTED/*2P.fastq'
+			R1_sorted='UNSORTED/*1P_error_corrected.fastq'
+			R2_sorted='UNSORTED/*2P_error_corrected.fastq'
 		fi
 
 		mkdir $rrna_filter_results/step_3_assembly/
-    cd $rrna_filter_results/step_3_assembly/
 
-			echo -e "\n======== RUNNING SPADES ========\n"
-			mkdir SPADES/
-			spades.py -1 $R1_sorted -2 $R2_sorted -o SPADES/
-			echo -e "\n======== SPADES DONE ========\n"
+		echo -e "\n======== RUNNING SPADES ========\n"
+		mkdir $rrna_filter_results/step_3_assembly/SPADES/
+		spades.py -1 $R1_sorted -2 $R2_sorted --only-assembler \
+    -o $rrna_filter_results/step_3_assembly/SPADES/
+		echo -e "\n======== SPADES DONE ========\n"
 
-			echo -e "\n======== RUNNING METASPADES ========\n"
-			mkdir METASPADES/
-			metaspades.py -1 $R1_sorted -2 $R2_sorted -o METASPADES/
-			echo -e "\n======== METASPADES DONE ========\n"
+		echo -e "\n======== RUNNING METASPADES ========\n"
+		mkdir $rrna_filter_results/step_3_assembly/METASPADES/
+		metaspades.py -1 $R1_sorted -2 $R2_sorted --only-assembler \
+    -o $rrna_filter_results/step_3_assembly/METASPADES/
+		echo -e "\n======== METASPADES DONE ========\n"
 
-			echo -e "\n======== RUNNING MEGAHIT ========\n"
-			mkdir MEGAHIT/
-			megahit --presets meta-large -t 16 -1 $R1_sorted -2 $R2_sorted -o MEGAHIT/
-			echo -e "\n======== MEGAHIT DONE ========\n"
+		echo -e "\n======== RUNNING MEGAHIT ========\n"
+		megahit --presets meta-large -t 16 -1 $R1_sorted -2 $R2_sorted \
+    -o $rrna_filter_results/step_3_assembly/MEGAHIT/
+		echo -e "\n======== MEGAHIT DONE ========\n"
 
-			echo -e "\n======== RUNNING IDBA_UD ========\n"
-			fq2fa --merge --filter $R1_sorted $R2_sorted idba_ud_input.fa
-			idba_ud --num_threads 16 --pre_correction -r idba_ud_input.fa -o IDBA_UD/
-			mv idba_ud_input.fa IDBA_UD/
-			echo -e "\n======== IDBA_UD DONE ========\n"
+		echo -e "\n======== RUNNING IDBA_UD ========\n"
+		fq2fa --merge --filter $R1_sorted $R2_sorted idba_ud_input.fa
+		idba_ud --num_threads 16 --pre_correction -r idba_ud_input.fa \
+    -o $rrna_filter_results/step_3_assembly/IDBA_UD/
+		mv idba_ud_input.fa IDBA_UD/
+		echo -e "\n======== IDBA_UD DONE ========\n"
 
-			echo -e "\n======== RUNNING RNASPADES ========\n"
-			mkdir RNASPADES/
-			rnaspades.py -1 $R1_sorted -2 $R2_sorted -o RNASPADES/
-			echo -e "\n======== RNASPADES DONE ========\n"
+		echo -e "\n======== RUNNING RNASPADES ========\n"
+		mkdir RNASPADES/
+		rnaspades.py -1 $R1_sorted -2 $R2_sorted --only-assembler -o RNASPADES/
+		echo -e "\n======== RNASPADES DONE ========\n"
 
-			echo -e "\n======== RUNNING IDBA_TRAN ========\n"
-			fq2fa --merge --filter $R1_sorted $R2_sorted idba_tran_input.fa
-			idba_tran --num_threads 16 --pre_correction -r idba_tran_input.fa -o IDBA_TRAN/
-			mv idba_ud_input.fa IDBA_TRAN/
-			echo -e "\n======== IDBA_TRAN DONE ========\n"
+		echo -e "\n======== RUNNING IDBA_TRAN ========\n"
+		fq2fa --merge --filter $R1_sorted $R2_sorted idba_tran_input.fa
+		idba_tran --num_threads 16 --pre_correction -r idba_tran_input.fa \
+    -o $rrna_filter_results/step_3_assembly/IDBA_TRAN/
+		mv idba_tran_input.fa $rrna_filter_results/step_3_assembly/IDBA_TRAN/
+		echo -e "\n======== IDBA_TRAN DONE ========\n"
 
-			echo -e "\n======== RUNNING TRINITY ========\n"
-			Trinity --seqType fq --max_memory 64G --left $R1_sorted --right $R2_sorted --CPU 16 --output TRINITY/
-			cat TRINITY/Trinity.fasta | sed 's/ len/_len/g' > TRINITY/Trinity_with_length.fasta
-			echo -e "\n======== TRINITY DONE ========\n"
+		echo -e "\n======== RUNNING TRINITY ========\n"
+		Trinity --seqType fq --max_memory 64G --left $R1_sorted --right $R2_sorted \
+    --CPU 16 --output $rrna_filter_results/step_3_assembly/TRINITY/
+		cat $rrna_filter_results/step_3_assembly/TRINITY/Trinity.fasta \
+    | sed 's/ len/_len/g' > $rrna_filter_results/step_3_assembly/TRINITY/Trinity_with_length.fasta
+		echo -e "\n======== TRINITY DONE ========\n"
 
-			echo -e "\n======== RUNNING TRANSABYSS ========\n"
-			# TRANSABYSS CODE
-			echo -e "\n======== TRANSABYSS DONE ========\n"
+		echo -e "\n======== RUNNING TRANSABYSS ========\n"
+    transabyss --pe $R1_sorted $R2_sorted --threads 16 \
+    --outdir $rrna_filter_results/step_3_assembly/TRANSABYSS/
+    sed 's/ /_/g' $rrna_filter_results/step_3_assembly/TRANSABYSS/transabyss-final.fa \
+    > $rrna_filter_results/step_3_assembly/TRANSABYSS/transabyss-final_edited.fa
+		echo -e "\n======== TRANSABYSS DONE ========\n"
 
+		echo -e "\n======== FINISHED STEP 3: ASSEMBLY FOR TRIMMED READS IN FOLDER $trimming_results ========\n"
 
-  done
+		#assembly_outputs=(./SPADES/scaffolds.fasta ./METASPADES/scaffolds.fasta ./MEGAHIT/final.contigs.fa ./IDBA_UD/contig.fa)
+		#for assembly_file in $assembly_outputs
+		#do
+		#	cd ${assembly_file%/*}
+		#done
 
-
-
-
-
-
-
-
-
-
-
-
+	done
+	cd ../../../../../
+done
 
 
 
