@@ -247,7 +247,8 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
 		echo -e "\n======== RUNNING RNASPADES ========\n"
 		mkdir RNASPADES/
-		rnaspades.py -1 $R1_sorted -2 $R2_sorted --only-assembler -o RNASPADES/
+		rnaspades.py -1 $R1_sorted -2 $R2_sorted --only-assembler \
+		-o $rrna_filter_results/RNASPADES/
 		echo -e "\n======== RNASPADES DONE ========\n"
 
 		echo -e "\n======== RUNNING IDBA_TRAN ========\n"
@@ -272,7 +273,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 		echo -e "\n======== TRANSABYSS DONE ========\n"
 
 		echo -e "\n======== FINISHED STEP 3: ASSEMBLY FOR TRIMMED READS IN FOLDER $trimming_results ========\n"
-
+		pwd
 		#assembly_outputs=(./SPADES/scaffolds.fasta ./METASPADES/scaffolds.fasta ./MEGAHIT/final.contigs.fa ./IDBA_UD/contig.fa)
 		#for assembly_file in $assembly_outputs
 		#do

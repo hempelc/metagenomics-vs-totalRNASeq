@@ -272,7 +272,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 		echo -e "\n======== TRANSABYSS DONE ========\n"
 
 		echo -e "\n======== FINISHED STEP 3: ASSEMBLY FOR TRIMMED READS IN FOLDER $trimming_results ========\n"
-
+    cd ../../../../
 		#assembly_outputs=(./SPADES/scaffolds.fasta ./METASPADES/scaffolds.fasta ./MEGAHIT/final.contigs.fa ./IDBA_UD/contig.fa)
 		#for assembly_file in $assembly_outputs
 		#do
