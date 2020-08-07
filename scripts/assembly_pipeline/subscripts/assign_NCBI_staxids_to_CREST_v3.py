@@ -60,7 +60,7 @@ for key,value in CREST_lower_dict_split_inverted.items():
                 else:
                         output_dict[key]='0'
                         l += 1
-                    
+
 # Convert dictionaries into pandas dataframes and merge them on the CREST OTU columns
 CREST_df = pd.DataFrame(list(CREST_dict.items()), columns=['OTU','classification']).iloc[1:]
 output_df = pd.DataFrame(list(output_dict.items()), columns=['OTU','NCBI_staxid']).iloc[1:]
