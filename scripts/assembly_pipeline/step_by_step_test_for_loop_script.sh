@@ -1,83 +1,21 @@
 #!/bin/bash
 
 cmd="$0 $@" # Make variable containing full used command to print command in logfile
-usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> [aDRSMmUrtTBCfsh]
+usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq>
 Usage:
 	-1 Forward reads trimmed - must state full path from root to the file
 	-2 Reverse reads trimmed - must state full path from root to the file
-	-a Main flag to indicate that all following flags should be used
-	-D Flag to use completely pipeline only for DNA assemblers
-	-R Flag to use completely pipeline only for RNA assemblers
-	-S Flag to generate SPADES assembly output
-	-M Flag to generate METASPADES assembly output
-	-m Flag to generate MEGAHIT assembly output
-	-U Flag to generate IDBA-UD assembly output
-	-r Flag to generate RNASPADES assembly output
-	-t Flag to generate IDBA-tran assembly output
-	-T Flag to generate TRINITY assembly output
-	-B Flag to use BWA and BOWTIE2 - mapping
-	-C Flag to use BLAST and CREST - classification
-	-f Flag to produce final output files
-	-s Flag to include original assembly contig/scaffold sequences in the final output files
 	-h Display this help and exit"
 
 # Set default options
 forward_reads=''
 reverse_reads=''
-SPADES='false'
-METASPADES='false'
-MEGAHIT='false'
-IDBA_UD='false'
-RNASPADES='false'
-IDBA_TRAN='false'
-TRINITY='false'
-MAP='false'
-CLASSIFICATION='false'
-FINAL='false'
-READS='false'
 
 # Set specified options
 while getopts ':1:2:aDRSMmUrtTBCfsh' opt; do
  	case "${opt}" in
 		1) forward_reads="${OPTARG}" ;;
 		2) reverse_reads="${OPTARG}" ;;
-		a) SPADES='true'
-			 METASPADES='true'
-			 MEGAHIT='true'
-			 IDBA_UD='true'
-			 RNASPADES='true'
-	 		 IDBA_TRAN='true'
-	 		 TRINITY='true'
-			 MAP='true'
-			 CLASSIFICATION='true'
-			 FINAL='true'
-			 READS='true' ;;
-		D) SPADES='true'
-			 METASPADES='true'
-			 MEGAHIT='true'
-			 IDBA_UD='true'
-			 MAP='true'
-			 CLASSIFICATION='true'
-			 FINAL='true'
-			 READS='true' ;;
-		R) RNASPADES='true'
-		   IDBA_TRAN='true'
-		   TRINITY='true'
-		   MAP='true'
-		   CLASSIFICATION='true'
-		   FINAL='true'
-		   READS='true' ;;
-		S) SPADES='true' ;;
-		M) METASPADES='true' ;;
-		m) MEGAHIT='true' ;;
-		U) IDBA_UD='true' ;;
-		r) RNASPADES='true' ;;
-		t) IDBA_TRAN='true' ;;
-		T) TRINITY='true' ;;
-		B) MAP='true' ;;
-		C) CLASSIFICATION='true' ;;
-		f) FINAL='true' ;;
-		s) READS='true' ;;
 		h) echo "$usage"
 			 exit ;;
 		:) printf "Option -$OPTARG requires an argument."
@@ -385,6 +323,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 					blastDB="/hdd1/databases/nt_database_feb_2020_indexed/nt"
 				fi
 
+        mkdir $DB
 				mkdir $DB/step_6_classification
 				cd $DB/step_6_classification
 
