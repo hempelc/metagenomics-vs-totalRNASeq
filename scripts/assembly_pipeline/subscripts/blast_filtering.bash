@@ -222,9 +222,8 @@ if [[ $type == 'strict' ]] ; then
 
   # Sort files
   mkdir intermediate_files/
-  mv $(\ls -1 . \
-  | grep -v blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt) \
-  intermediate_files/
+  mv blast_output* intermediate_files/
+  mv intermediate_files/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt .
 fi
 
 # Display runtime
