@@ -1,83 +1,21 @@
 #!/bin/bash
 
 cmd="$0 $@" # Make variable containing full used command to print command in logfile
-usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> [aDRSMmUrtTBCfsh]
+usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq>
 Usage:
 	-1 Forward reads trimmed - must state full path from root to the file
 	-2 Reverse reads trimmed - must state full path from root to the file
-	-a Main flag to indicate that all following flags should be used
-	-D Flag to use completely pipeline only for DNA assemblers
-	-R Flag to use completely pipeline only for RNA assemblers
-	-S Flag to generate SPADES assembly output
-	-M Flag to generate METASPADES assembly output
-	-m Flag to generate MEGAHIT assembly output
-	-U Flag to generate IDBA-UD assembly output
-	-r Flag to generate RNASPADES assembly output
-	-t Flag to generate IDBA-tran assembly output
-	-T Flag to generate TRINITY assembly output
-	-B Flag to use BWA and BOWTIE2 - mapping
-	-C Flag to use BLAST and CREST - classification
-	-f Flag to produce final output files
-	-s Flag to include original assembly contig/scaffold sequences in the final output files
 	-h Display this help and exit"
 
 # Set default options
 forward_reads=''
 reverse_reads=''
-SPADES='false'
-METASPADES='false'
-MEGAHIT='false'
-IDBA_UD='false'
-RNASPADES='false'
-IDBA_TRAN='false'
-TRINITY='false'
-MAP='false'
-CLASSIFICATION='false'
-FINAL='false'
-READS='false'
 
 # Set specified options
 while getopts ':1:2:aDRSMmUrtTBCfsh' opt; do
  	case "${opt}" in
 		1) forward_reads="${OPTARG}" ;;
 		2) reverse_reads="${OPTARG}" ;;
-		a) SPADES='true'
-			 METASPADES='true'
-			 MEGAHIT='true'
-			 IDBA_UD='true'
-			 RNASPADES='true'
-	 		 IDBA_TRAN='true'
-	 		 TRINITY='true'
-			 MAP='true'
-			 CLASSIFICATION='true'
-			 FINAL='true'
-			 READS='true' ;;
-		D) SPADES='true'
-			 METASPADES='true'
-			 MEGAHIT='true'
-			 IDBA_UD='true'
-			 MAP='true'
-			 CLASSIFICATION='true'
-			 FINAL='true'
-			 READS='true' ;;
-		R) RNASPADES='true'
-		   IDBA_TRAN='true'
-		   TRINITY='true'
-		   MAP='true'
-		   CLASSIFICATION='true'
-		   FINAL='true'
-		   READS='true' ;;
-		S) SPADES='true' ;;
-		M) METASPADES='true' ;;
-		m) MEGAHIT='true' ;;
-		U) IDBA_UD='true' ;;
-		r) RNASPADES='true' ;;
-		t) IDBA_TRAN='true' ;;
-		T) TRINITY='true' ;;
-		B) MAP='true' ;;
-		C) CLASSIFICATION='true' ;;
-		f) FINAL='true' ;;
-		s) READS='true' ;;
 		h) echo "$usage"
 			 exit ;;
 		:) printf "Option -$OPTARG requires an argument."
@@ -120,6 +58,8 @@ echo -e "Script started with full command: $cmd\n"
 
 echo -e "======== START RUNNING SCRIPT ========\n"
 
+# Save current path in variable to make navigation between directories easier
+base_directory=$(pwd)
 
 ######################### Step 1: trimming ################################
 echo -e "======== START STEP 1: TRIMMING AND ERROR CORRECTION ========\n"
@@ -153,7 +93,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	mkdir $trimming_results/step_2_rrna_sorting/
 	cd $trimming_results/step_2_rrna_sorting/
 
-	echo -e "======== START STEP 2: rRNA SORTING FOR TRIMMED READS IN FOLDER $trimming_results ========\n"
+	echo -e "======== START STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER $trimming_results ========\n"
 
 	echo -e "\n======== RUNNING SORTMERNA ========\n"
 	mkdir SORTMERNA/
@@ -164,7 +104,8 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	--paired_in -other -fastx 1 \
 	-num_alignments 1 -v \
 	-workdir SORTMERNA/
-	deinterleave_fastq_reads.sh < SORTMERNA/out/aligned.fq \
+  pwd
+	deinterleave_fastq_reads.sh < SORTMERNA/out/aligned.fastq \
 	SORTMERNA/out/aligned_R1.fq SORTMERNA/out/aligned_R2.fq
 	echo -e "\n======== SORTMERNA DONE ========\n"
 
@@ -197,7 +138,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	mkdir UNSORTED/
 	cp ../*1P_error_corrected.fastq ../*2P_error_corrected.fastq UNSORTED/
 
-	echo -e "\n======== FINISHED STEP 2: rRNA SORTING FOR TRIMMED READS IN FOLDER $trimming_results ========\n"
+	echo -e "\n======== FINISHED STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER $trimming_results ========\n"
 
 	######################### Step 3: Assembly ################################
 
@@ -217,26 +158,26 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 			R2_sorted='UNSORTED/*2P_error_corrected.fastq'
 		fi
 
-		echo -e "======== START STEP 3: ASSEMBLY FOR TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ ========\n"
+		echo -e "======== START STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ ========\n"
 		mkdir $rrna_filter_results/step_3_assembly/
 		cd $rrna_filter_results/step_3_assembly/
 
 		echo -e "\n======== RUNNING SPADES ========\n"
 		mkdir SPADES/
-		spades.py -1 $R1_sorted -2 $R2_sorted --only-assembler -o SPADES/
+		spades.py -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler -o SPADES/
 		echo -e "\n======== SPADES DONE ========\n"
 
 		echo -e "\n======== RUNNING METASPADES ========\n"
 		mkdir METASPADES/
-		metaspades.py -1 $R1_sorted -2 $R2_sorted --only-assembler -o METASPADES/
+		metaspades.py -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler -o METASPADES/
 		echo -e "\n======== METASPADES DONE ========\n"
 
 		echo -e "\n======== RUNNING MEGAHIT ========\n"
-		megahit --presets meta-large -t 16 -1 $R1_sorted -2 $R2_sorted -o MEGAHIT/
+		megahit --presets meta-large -t 16 -1 ../../$R1_sorted -2 ../../$R2_sorted -o MEGAHIT/
 		echo -e "\n======== MEGAHIT DONE ========\n"
 
 		echo -e "\n======== RUNNING IDBA_UD ========\n"
-		fq2fa --merge --filter $R1_sorted $R2_sorted idba_ud_input.fa
+		fq2fa --merge --filter ../../$R1_sorted ../../$R2_sorted idba_ud_input.fa
 		idba_ud --num_threads 16 --pre_correction -r idba_ud_input.fa \
     -o IDBA_UD/
 		mv idba_ud_input.fa IDBA_UD/
@@ -244,30 +185,35 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
 		echo -e "\n======== RUNNING RNASPADES ========\n"
 		mkdir RNASPADES/
-		rnaspades.py -1 $R1_sorted -2 $R2_sorted --only-assembler -o RNASPADES/
+		rnaspades.py -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler -o RNASPADES/
 		echo -e "\n======== RNASPADES DONE ========\n"
 
 		echo -e "\n======== RUNNING IDBA_TRAN ========\n"
-		fq2fa --merge --filter $R1_sorted $R2_sorted idba_tran_input.fa
+		fq2fa --merge --filter ../../$R1_sorted ../../$R2_sorted idba_tran_input.fa
 		idba_tran --num_threads 16 --pre_correction -r idba_tran_input.fa \
     -o IDBA_TRAN/
 		mv idba_tran_input.fa IDBA_TRAN/
 		echo -e "\n======== IDBA_TRAN DONE ========\n"
 
 		echo -e "\n======== RUNNING TRINITY ========\n"
-		Trinity --seqType fq --max_memory 64G --left $R1_sorted --right $R2_sorted \
-    --CPU 16 --output $rrna_filter_results/step_3_assembly/TRINITY/
-		cat TRINITY/Trinity.fasta \
+    if [[ $rrna_filter_results == "rRNAFILTER" ]]; then
+  		Trinity --seqType fa --max_memory 64G --left ../../$R1_sorted --right \
+      ../../$R2_sorted --CPU 16 --output TRINITY/
+    else
+      Trinity --seqType fq --max_memory 64G --left ../../$R1_sorted --right \
+      ../../$R2_sorted --CPU 16 --output TRINITY/
+    fi
+    cat TRINITY/Trinity.fasta \
     | sed 's/ len/_len/g' > TRINITY/Trinity_with_length.fasta
 		echo -e "\n======== TRINITY DONE ========\n"
 
 		echo -e "\n======== RUNNING TRANSABYSS ========\n"
-    transabyss --pe $R1_sorted $R2_sorted --threads 16 \
+    transabyss --pe ../../$R1_sorted ../../$R2_sorted --threads 16 \
     --outdir TRANSABYSS/
     sed 's/ /_/g' TRANSABYSS/transabyss-final.fa > TRANSABYSS/transabyss-final_edited.fa
 		echo -e "\n======== TRANSABYSS DONE ========\n"
 
-		echo -e "\n======== FINISHED STEP 3: ASSEMBLY FOR TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ ========\n"
+		echo -e "\n======== FINISHED STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ ========\n"
 
 		assembly_results_list="SPADES METASPADES MEGAHIT IDBA_UD RNASPADES IDBA_TRAN TRINITY TRANSABYSS"
 		for assembly_results in $assembly_results_list; do
@@ -289,7 +235,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				scaffolds='TRANSABYSS/transabyss-final_edited.fa'
 			fi
 
-			echo -e "======== START STEP 4: MAPPING FOR TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results ========\n"
+			echo -e "======== START STEP 4: MAPPING OF TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ ========\n"
 			mkdir $assembly_results/step_4_mapping/
 			cd $assembly_results/step_4_mapping/
 
@@ -357,13 +303,47 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 			mv bwa_output.sam merge_input_mapped_bwa.txt merge_input_unmapped_bwa.txt BWA/
 			mv bowtie2_output.sam merge_input_mapped_bowtie2.txt merge_input_unmapped_bowtie2.txt BOWTIE2/
 
-			# DB then classification
+      cd $(realpath --relative-to=$(pwd) ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/)
 
-			cd ../../
+			echo -e "======== FINISHED STEP 4: MAPPING FOR TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results ========\n"
+
+			echo -e "======== START STEP 5 AND 6: CLASSIFICATION OF ASSEMBLED SCAFFOLDS FROM TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results ========\n"
+			mkdir $assembly_results/step_5_reference_DB/
+			cd $assembly_results/step_5_reference_DB/
+
+			ref_DB_list="SILVA NCBI_NT"
+			for DB in $ref_DB_list; do
+				if [[ $DB == "SILVA" ]] ; then
+					krakenDB="/hdd1/databases/kraken2_SILVA_DB"
+					#centrifugeDB=XX
+					blastDB="/hdd1/databases/SILVA_database_mar_2020/SILVA_138_SSURef_NR99_tax_silva.fasta"
+				else
+					krakenDB="/hdd1/databases/kraken2_nt_DB"
+					#centrifugeDB=XX
+					blastDB="/hdd1/databases/nt_database_feb_2020_indexed/nt"
+				fi
+
+        mkdir $DB
+				mkdir $DB/step_6_classification
+				cd $DB/step_6_classification
+
+				blast_filtering.bash -s ../../$scaffolds -d $blastDB -t soft -T 16
+				mv blast_filtering BLAST_FIRST_HIT
+
+				blast_filtering.bash -s ../../$scaffolds -d $blastDB -t strict -T 16
+				mv blast_filtering BLAST_FILTERED
+
+				# kraken code
+
+				# centrifuge code
+
+				cd $(realpath --relative-to=$(pwd) ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_5_reference_DB/)
+			done
+			cd $(realpath --relative-to=$(pwd) ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/)
 		done
-    cd ../
+		cd $(realpath --relative-to=$(pwd) ${base_directory}/${trimming_results}/step_2_rrna_sorting/)
 	done
-	cd ../../../../../
+	cd $(realpath --relative-to=$(pwd) $base_directory)
 done
 
 assembly_rna_outputs=(./RNASPADES/transcripts.fasta ./IDBA_TRAN/contig.fa ./TRINITY/Trinity_with_length.fasta)
