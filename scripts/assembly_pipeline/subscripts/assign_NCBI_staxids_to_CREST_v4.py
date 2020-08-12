@@ -4,7 +4,7 @@
 # Assigns NCBI staxids to CREST taxonomy
 
 
-import csv,sys,pandas as pd
+import csv,sys,re,pandas as pd
 
 # Set variable names
 NCBI_scientific_input=sys.argv[1]
@@ -34,17 +34,20 @@ reader3=csv.reader(CREST_modified, delimiter='\t')
 CREST_dict={}
 for row in reader3:
 	CREST_dict[row[0]]=row[2]
+
 CREST_lower_dict=dict((k, v.lower()) for k,v in CREST_dict.items())  # Converts CREST taxonomy to lowercases for matching with NCBI names
+CREST_lower_no_mt_dict = {key: re.sub("\ \(mitochondrion\)", "", value) for key,value in CREST_lower_dict.items()}
+CREST_lower_no_mt_chl_dict = {key: re.sub("\ \(chloroplast\)", "", value) for key,value in CREST_lower_no_mt_dict.items()}
 
 # Split up CREST taxonomy and invert it
-CREST_lower_dict_split_inverted={}
-for key,value in CREST_lower_dict.items():
-	CREST_lower_dict_split_inverted[key] = value.split(";")[::-1]
+CREST_lower_no_mt_chl_dict_split_inverted={}
+for key,value in CREST_lower_no_mt_chl_dict.items():
+	CREST_lower_no_mt_chl_dict_split_inverted[key] = value.split(";")[::-1]
 
 # Loop CREST taxonomy dictionary over NCBI taxonomy dictionary for each line and match with NCBI staxid when a hit is found
 output_dict={} # Make empty dictionary for matching lines
 exceptions=["environmental", "uncultured", "unidentified", "metagenome"] # when exception are found in SILVA taxonomy, the respective rank is skipped
-for key,value in CREST_lower_dict_split_inverted.items():
+for key,value in CREST_lower_no_mt_chl_dict_split_inverted.items():
 	l=0
 	while l < len(value):
                 for exception in value[l].split(" "):
@@ -62,8 +65,8 @@ for key,value in CREST_lower_dict_split_inverted.items():
                         l += 1
 
 # Convert dictionaries into pandas dataframes and merge them on the CREST OTU columns
-CREST_df = pd.DataFrame(list(CREST_dict.items()), columns=['OTU','classification']).iloc[1:]
-output_df = pd.DataFrame(list(output_dict.items()), columns=['OTU','NCBI_staxid']).iloc[1:]
+CREST_df = pd.DataFrame(list(CREST_dict.items()), columns=['OTU','classification']).iloc[0:]
+output_df = pd.DataFrame(list(output_dict.items()), columns=['OTU','NCBI_staxid']).iloc[0:]
 output_merged = pd.merge(CREST_df, output_df, on='OTU')
 
 # Write merged dataframe to output

@@ -127,14 +127,32 @@ if [[ $type == 'soft' ]] ; then
   echo -e "\n======== ASSIGNING TAXONOMY ========\n"
   assign_taxonomy_NCBI_staxids.sh -b blast_output.txt -c 13 \
   -e ~/.etetoolkit/taxa.sqlite
+  sed -i '1d' blast_output_with_taxonomy.txt
 
   echo -e "\n======== KEEPING ONLY BEST HIT PER SEQUENCE ========\n"
   sort -k1,1n -k12,12nr blast_output_with_taxonomy.txt \
-  | sort -u -k1,1 > blast_output_with_taxonomy_and_best_hit.txt
+  | sort -u -k1,1 > blast_output_with_taxonomy_sorted.txt
+
+  # Edit file format
+  cut -f1,16- blast_output_with_taxonomy_sorted.txt \
+  > blast_output_with_taxonomy_sorted_cut.txt
+
+  awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $2}' \
+  blast_output_with_taxonomy_sorted_cut.txt \
+  > blast_output_with_taxonomy_sorted_cut_reorganized.txt
+
+
+  echo -e "sequence\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies" \
+  > blast_output_with_taxonomy_and_best_hit.txt \
+  && cat blast_output_with_taxonomy_sorted_cut_reorganized.txt \
+  >> blast_output_with_taxonomy_and_best_hit.txt
+
 
   # Sort files
   mkdir intermediate_files/
-  mv blast_output.txt blast_output_with_taxonomy.txt intermediate_files/
+  mv blast_output.txt blast_output_with_taxonomy.txt \
+  blast_output_with_taxonomy_sorted.txt blast_output_with_taxonomy_sorted_cut.txt \
+  blast_output_with_taxonomy_sorted_cut_reorganized.txt intermediate_files/
 fi
 
 if [[ $type == 'strict' ]] ; then
@@ -213,7 +231,7 @@ if [[ $type == 'strict' ]] ; then
   awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $2}' \
   blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA_noheader.txt \
   > tmp
-  echo -e "sequence\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies" \
+  echo -e "sequence\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit" \
   > blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt \
   && cat tmp \
   >> blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt
@@ -231,9 +249,7 @@ echo -e "=================================================================\n"
 echo "SCRIPT DONE AFTER $((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m"
 
 
-
+rm $sequences.fai
 
 # Create log
 ) 2>&1 | tee blast_filtering_log.txt
-
-rm $sequences.fai
