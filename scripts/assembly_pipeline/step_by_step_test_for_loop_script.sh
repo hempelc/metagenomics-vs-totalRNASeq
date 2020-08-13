@@ -79,8 +79,10 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	$trimming_results/error_correction/corrected/*2P*.fastq $trimming_results
 	R1=$(echo $trimming_results/*1P.00.0_0.cor.fastq) \
   && 	mv $trimming_results/*1P.00.0_0.cor.fastq ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
+  sed -r -i 's/ BH:.{2,6}//g' ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
 	R2=$(echo $trimming_results/*2P.00.0_0.cor.fastq) \
   && mv $trimming_results/*2P.00.0_0.cor.fastq ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
+  sed -r -i 's/ BH:.{2,6}//g' ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
 	rm -r $trimming_results/error_correction/
 	echo -e "\n++++++++ FINISHED ERROR-CORRECTING READS IN FOLDER $trimming_results ++++++++\n"
 done
@@ -240,69 +242,56 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 			mkdir $assembly_results/step_4_mapping/
 			cd $assembly_results/step_4_mapping/
 
-			echo -e "\n++++++++ starting bwa index ========\n"
+      for mapper in BWA BOWTIE2; do
 
-			bwa index -p bwa_index ../../$scaffolds
+        mkdir $mapper
+        cd $mapper
 
-			echo -e "\n======== bwa index complete. Starting bwa ========\n"
+        if [[ $assembly_results == 'BWA' ]] ; then
+          echo -e "\n======== starting bwa index ========\n"
 
-			bwa mem -t 10 bwa_index ../../../../../*1P_error_corrected.fastq ../../../../../*2P_error_corrected.fastq > bwa_output.sam
+          bwa index -p bwa_index ../../../$scaffolds
 
-			rm bwa_index*
+          echo -e "\n======== bwa index complete. Starting bwa ========\n"
 
-			# Output file (.sam) - edit
-			samtools view -F 4 bwa_output.sam > mapped_reads_bwa.sam
-			samtools view -f 4 bwa_output.sam > unmapped_reads_bwa.sam
-			cat mapped_reads_bwa.sam > mapped_reads_bwa.txt
-			cat unmapped_reads_bwa.sam > unmapped_reads_bwa.txt
-			cut -f3 mapped_reads_bwa.txt > mapped_column3_reads_bwa.txt
-			cut -f3 unmapped_reads_bwa.txt > unmapped_column3_reads_bwa.txt
-			sort mapped_column3_reads_bwa.txt | uniq -c > sorted_mapped_column3_reads_bwa.txt
-			sort unmapped_column3_reads_bwa.txt | uniq -c > sorted_unmapped_column3_reads_bwa.txt
-			column -t sorted_mapped_column3_reads_bwa.txt > aligned_mapped_bwa.txt
-			column -t sorted_unmapped_column3_reads_bwa.txt > aligned_unmapped_bwa.txt
-			sed 's/  */\t/g' aligned_mapped_bwa.txt > out_mapped_bwa.txt
-			sed 's/  */\t/g' aligned_unmapped_bwa.txt > out_unmappped_bwa.txt
-			echo -e "counts\tcontig_number" > merge_input_mapped_bwa.txt && cat out_mapped_bwa.txt >> merge_input_mapped_bwa.txt
-			echo -e "counts\tcontig_number" > merge_input_unmapped_bwa.txt && cat out_unmappped_bwa.txt >> merge_input_unmapped_bwa.txt
+          bwa mem -t 10 bwa_index ../../../../../../*1P_error_corrected.fastq ../../../../../../*2P_error_corrected.fastq > bwa_output.sam
 
-			rm mapped_reads_bwa.sam unmapped_reads_bwa.sam mapped_reads_bwa.txt unmapped_reads_bwa.txt mapped_column3_reads_bwa.txt unmapped_column3_reads_bwa.txt sorted_mapped_column3_reads_bwa.txt sorted_unmapped_column3_reads_bwa.txt aligned_mapped_bwa.txt aligned_unmapped_bwa.txt out_mapped_bwa.txt out_unmappped_bwa.txt
+          rm bwa_index*
 
-			echo -e "\n======== bwa complete. Starting bowtie2 index ========\n"
+  			else
 
-			bowtie2-build -f ../../$scaffolds bowtie_index
+          echo -e "\n======== bwa complete. Starting bowtie2 index ========\n"
 
-			echo -e "\n======== bowtie2 index complete. Starting bowtie2 ========\n"
+    			bowtie2-build -f ../../../$scaffolds bowtie_index
 
-			bowtie2 -q -x bowtie_index -1 ../../../../../*1P_error_corrected.fastq -2 ../../../../../*2P_error_corrected.fastq -S bowtie2_output.sam
+    			echo -e "\n======== bowtie2 index complete. Starting bowtie2 ========\n"
 
-			rm bowtie_index*
+    			bowtie2 -q -x bowtie_index -1 ../../../../../../*1P_error_corrected.fastq -2 ../../../../../../*2P_error_corrected.fastq -S bowtie2_output.sam
 
-			# Output file (.sam) - edit
-			samtools view -F 4 bowtie2_output.sam > mapped_reads_bowtie.sam
-			samtools view -f 4 bowtie2_output.sam > unmapped_reads_bowtie.sam
-			cat mapped_reads_bowtie.sam > mapped_reads_bowtie.txt
-			cat unmapped_reads_bowtie.sam > unmapped_reads_bowtie.txt
-			cut -f3 mapped_reads_bowtie.txt > mapped_column3_reads_bowtie.txt
-			cut -f3 unmapped_reads_bowtie.txt > unmapped_column3_reads_bowtie.txt
-			sort mapped_column3_reads_bowtie.txt | uniq -c > sorted_mapped_column3_reads_bowtie.txt
-			sort unmapped_column3_reads_bowtie.txt | uniq -c > sorted_unmapped_column3_reads_bowtie.txt
-			column -t sorted_mapped_column3_reads_bowtie.txt > aligned_mapped_bowtie.txt
-			column -t sorted_unmapped_column3_reads_bowtie.txt > aligned_unmapped_bowtie.txt
-			sed 's/  */\t/g' aligned_mapped_bowtie.txt > out_mapped_bowtie.txt
-			sed 's/  */\t/g' aligned_unmapped_bowtie.txt > out_unmappped_bowtie.txt
-			echo -e "counts\tcontig_number" > merge_input_mapped_bowtie2.txt && cat out_mapped_bowtie.txt >> merge_input_mapped_bowtie2.txt
-			echo -e "counts\tcontig_number" > merge_input_unmapped_bowtie2.txt && cat out_unmappped_bowtie.txt >> merge_input_unmapped_bowtie2.txt
+    			rm bowtie_index*
 
-			rm mapped_reads_bowtie.sam unmapped_reads_bowtie.sam mapped_reads_bowtie.txt unmapped_reads_bowtie.txt mapped_column3_reads_bowtie.txt unmapped_column3_reads_bowtie.txt sorted_mapped_column3_reads_bowtie.txt sorted_unmapped_column3_reads_bowtie.txt aligned_mapped_bowtie.txt aligned_unmapped_bowtie.txt out_mapped_bowtie.txt out_unmappped_bowtie.txt
+          echo -e "\n======== bowtie2 complete ========\n"
+        fi
 
-			echo -e "\n======== bowtie2 complete ========\n"
+  			# Output file (.sam) - edit
+  			samtools view -F 4 ${mapper}_output.sam > mapped_reads_${mapper}.sam
+  			samtools view -f 4 ${mapper}_output.sam > unmapped_reads_${mapper}.sam
+  			cat mapped_reads_${mapper}.sam > mapped_reads_${mapper}.txt
+  			cat unmapped_reads_${mapper}.sam > unmapped_reads_${mapper}.txt
+  			cut -f3 mapped_reads_${mapper}.txt > mapped_column3_reads_${mapper}.txt
+  			cut -f3 unmapped_reads_${mapper}.txt > unmapped_column3_reads_${mapper}.txt
+  			sort mapped_column3_reads_${mapper}.txt | uniq -c > sorted_mapped_column3_reads_${mapper}.txt
+  			sort unmapped_column3_reads_${mapper}.txt | uniq -c > sorted_unmapped_column3_reads_${mapper}.txt
+  			column -t sorted_mapped_column3_reads_${mapper}.txt > aligned_mapped_${mapper}.txt
+  			column -t sorted_unmapped_column3_reads_${mapper}.txt > aligned_unmapped_${mapper}.txt
+  			sed 's/  */\t/g' aligned_mapped_${mapper}.txt > out_mapped_${mapper}.txt
+  			sed 's/  */\t/g' aligned_unmapped_${mapper}.txt > out_unmappped_${mapper}.txt
+  			echo -e "counts\tcontig_number" > merge_input_mapped_${mapper}.txt && cat out_mapped_${mapper}.txt >> merge_input_mapped_${mapper}.txt
+  			echo -e "counts\tcontig_number" > merge_input_unmapped_${mapper}.txt && cat out_unmappped_${mapper}.txt >> merge_input_unmapped_${mapper}.txt
 
-			mkdir BWA/
-			mkdir BOWTIE2/
-
-			mv bwa_output.sam merge_input_mapped_bwa.txt merge_input_unmapped_bwa.txt BWA/
-			mv bowtie2_output.sam merge_input_mapped_bowtie2.txt merge_input_unmapped_bowtie2.txt BOWTIE2/
+  			rm *_index* mapped_reads_${mapper}.sam unmapped_reads_${mapper}.sam mapped_reads_${mapper}.txt unmapped_reads_${mapper}.txt mapped_column3_reads_${mapper}.txt unmapped_column3_reads_${mapper}.txt sorted_mapped_column3_reads_${mapper}.txt sorted_unmapped_column3_reads_${mapper}.txt aligned_mapped_${mapper}.txt aligned_unmapped_${mapper}.txt out_mapped_${mapper}.txt out_unmappped_${mapper}.txt
+        cd ..
+      done
 
       cd $(realpath --relative-to=$(pwd) ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/)
 
@@ -328,13 +317,17 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				mkdir $DB/step_6_classification
 				cd $DB/step_6_classification
 
+        echo -e "\n======== RUNNING BLAST FIRST HIT WITH DATABASE $DB ========\n"
 				blast_filtering.bash -s ../../../../$scaffolds -d $blastDB -t soft -T 16
-				mv blast_filtering BLAST_FIRST_HIT
+				mv blast_filtering/ BLAST_FIRST_HIT/
+        echo -e "\n======== BLAST FIRST HIT WITH DATABASE $DB DONE========\n"
 
+        echo -e "\n======== RUNNING BLAST FILTERED WITH DATABASE $DB ========\n"
 				blast_filtering.bash -s ../../../../$scaffolds -d $blastDB -t strict -T 16
-				mv blast_filtering BLAST_FILTERED
+				mv blast_filtering/ BLAST_FILTERED/
+        echo -e "\n======== BLAST FILTERED WITH DATABASE $DB DONE========\n"
 
-				# ====== Kraken2
+        echo -e "\n======== RUNNING KRAKEN2 WITH DATABASE $DB ========\n"
         mkdir KRAKEN2/
         cd KRAKEN2/
         # Run kraken2
@@ -395,13 +388,28 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
           echo -e "contig\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
           > kraken_final.txt && cat kraken_output_contig_taxid.txt \
           >> kraken_final.txt # Add header
+
+          # Sort files
+          mkdir intermediate_files
+          mv kraken_output* intermediate_files/
         fi
 
         cd ..
+        echo -e "\n======== KRAKEN2 WITH DATABASE $DB DONE========\n"
 
 				# centrifuge code
 
         # Nat's code
+        for classification_tool in KRAKEN2 BLAST_FILTERED BLAST_FIRST_HIT; do #Centrifuge needs to be added
+          cd $classification_tool
+          mkdir FINAL_FILES
+          # Nat's code - eventually move the generated final files into the created folder FINAL_FILES
+          # Here you can refer to the BWA and BOWTIE files by using:
+            #realpath --relative-to=$(pwd) ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_4_mapping/BOWTIE2
+            #realpath --relative-to=$(pwd) ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_4_mapping/BWA
+          # And refer to the used assemblers by using the variable $assembler_results and to the classification tools by using the variable $classification_tool
+          cd ..
+        done
 
 				cd $(realpath --relative-to=$(pwd) ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_5_reference_DB/)
 			done

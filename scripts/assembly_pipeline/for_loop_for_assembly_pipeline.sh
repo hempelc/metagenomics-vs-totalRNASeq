@@ -56,13 +56,13 @@ echo -e "Forward reads were defined as $forward_reads.\n"
 echo -e "Reverse reads were defined as $reverse_reads.\n"
 echo -e "Script started with full command: $cmd\n"
 
-echo -e "======== START RUNNING SCRIPT ========\n"
+echo -e "++++++++ START RUNNING SCRIPT ========\n"
 
 # Save current path in variable to make navigation between directories easier
 base_directory=$(pwd)
 
 ######################### Step 1: trimming ################################
-echo -e "======== START STEP 1: TRIMMING AND ERROR CORRECTION ========\n"
+echo -e "++++++++ START STEP 1: TRIMMING AND ERROR CORRECTION ========\n"
 
 # Trimming is done with separate script:
 trimming_with_phred_scores_and_fastqc_report.sh \
@@ -72,20 +72,22 @@ mv trimming_with_phred_scores_and_fastqc_report_output/ step_1_trimming/
 
 # Running error correction module of SPAdes on trimmed reads
 for trimming_results in step_1_trimming/trimmomatic/*; do
-	echo -e "\n======== ERROR-CORRECTING READS IN FOLDER $trimming_results ========\n"
+	echo -e "\n======== ERROR-CORRECTING READS IN FOLDER $trimming_results ++++++++\n"
 	spades.py -1 $trimming_results/*1P.fastq -2 $trimming_results/*2P.fastq \
 	--only-error-correction --disable-gzip-output -o $trimming_results/error_correction
 	mv $trimming_results/error_correction/corrected/*1P*.fastq \
 	$trimming_results/error_correction/corrected/*2P*.fastq $trimming_results
 	R1=$(echo $trimming_results/*1P.00.0_0.cor.fastq) \
   && 	mv $trimming_results/*1P.00.0_0.cor.fastq ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
+  sed -r -i 's/ BH:.{2,6}//g' ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
 	R2=$(echo $trimming_results/*2P.00.0_0.cor.fastq) \
   && mv $trimming_results/*2P.00.0_0.cor.fastq ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
+  sed -r -i 's/ BH:.{2,6}//g' ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
 	rm -r $trimming_results/error_correction/
-	echo -e "\n======== FINISHED ERROR-CORRECTING READS IN FOLDER $trimming_results ========\n"
+	echo -e "\n++++++++ FINISHED ERROR-CORRECTING READS IN FOLDER $trimming_results ++++++++\n"
 done
 
-echo -e "======== FINISHED STEP 1: TRIMMING AND ERROR CORRECTION ========\n"
+echo -e "++++++++ FINISHED STEP 1: TRIMMING AND ERROR CORRECTION ========\n"
 
 ######################### Step 2: rRNA sorting ################################
 
@@ -93,7 +95,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	mkdir $trimming_results/step_2_rrna_sorting/
 	cd $trimming_results/step_2_rrna_sorting/
 
-	echo -e "======== START STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER $trimming_results ========\n"
+	echo -e "++++++++ START STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER $trimming_results ++++++++\n"
 
 	echo -e "\n======== RUNNING SORTMERNA ========\n"
 	mkdir SORTMERNA/
@@ -112,33 +114,41 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	echo -e "\n======== RUNNING rRNAFILTER ========\n"
 	mkdir rRNAFILTER/
 	cd rRNAFILTER/
-	fq2fa ../../*1P_error_corrected.fastq R1.fa
-	fq2fa ../../*2P_error_corrected.fastq R2.fa
+	fq2fa ../../*1P_error_corrected.fastq rnafilter_R1.fa
+	fq2fa ../../*2P_error_corrected.fastq rnafilter_R2.fa
 	wget http://hulab.ucf.edu/research/projects/rRNAFilter/software/rRNAFilter.zip
 	unzip rRNAFilter.zip
 	cd rRNAFilter/
-	java -jar -Xmx7g rRNAFilter_commandline.jar -i ../R1.fa -r 0
-	java -jar -Xmx7g rRNAFilter_commandline.jar -i ../R2.fa -r 0
+	java -jar -Xmx7g rRNAFilter_commandline.jar -i ../rnafilter_R1.fa -r 0
+	java -jar -Xmx7g rRNAFilter_commandline.jar -i ../rnafilter_R2.fa -r 0
 	cd ..
 	rm -r rRNAFilter rRNAFilter.zip
-	fasta_to_tab R1.fa_rRNA | cut -f 1 | cut -f1 -d " " > names.txt
-	fasta_to_tab R2.fa_rRNA | cut -f 1 | cut -f1 -d " " >> names.txt
+	fasta_to_tab rnafilter_R1.fa_rRNA | cut -f 1 | cut -f1 -d " " > names.txt
+	fasta_to_tab rnafilter_R2.fa_rRNA | cut -f 1 | cut -f1 -d " " >> names.txt
 	sort -u names.txt > names_sorted.txt
-	seqtk subseq R1.fa names_sorted.txt > rRNAFilter_paired_R1.fa
-	seqtk subseq R2.fa names_sorted.txt > rRNAFilter_paired_R2.fa
+	seqtk subseq rnafilter_R1.fa names_sorted.txt > rRNAFilter_paired_R1.fa
+	seqtk subseq rnafilter_R2.fa names_sorted.txt > rRNAFilter_paired_R2.fa
 	rm names_sorted.txt names.txt
 	cd ..
 	echo -e "\n======== rRNAFILTER DONE ========\n"
 
-	echo -e "\n======== RUNNING BARRNAP ========\n"
-# code for barrnap
-	echo -e "\n======== BARRNAP DONE ========\n"
+	echo -e "\n======== RUNNING RNAMMER ========\n"
+	#mkdir RNAMMER
+	#cd RNAMMER
+	#fq2fa ../../*1P_error_corrected.fastq ../../*2P_error_corrected.fastq rnammer_R1.fa
+	#fq2fa ../../*2P_error_corrected.fastq ../../*2P_error_corrected.fastq rnammer_R2.fa
+	#for group in bac arc euk; do
+  	#perl rnammer -S $group -m lsu,ssu,tsu -multi -gff rnammer_${group}_R1.gff < rnammer_R1.fa
+		#perl rnammer -S $group -m lsu,ssu,tsu -multi -gff rnammer_${group}_R2.gff < rnammer_R2.fa
+	#done
+	#cd ..
+	echo -e "\n======== RNAMMER DONE ========\n"
 
 	echo -e "\n======== MAKING FOLDER UNSORTED/ AND COPYING UNSORTED READS IN THERE TO KEEP THE FOLDER STRUCTURE CONSTANT ========\n"
 	mkdir UNSORTED/
 	cp ../*1P_error_corrected.fastq ../*2P_error_corrected.fastq UNSORTED/
 
-	echo -e "\n======== FINISHED STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER $trimming_results ========\n"
+	echo -e "\n++++++++ FINISHED STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER $trimming_results ++++++++\n"
 
 	######################### Step 3: Assembly ################################
 
@@ -158,7 +168,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 			R2_sorted='UNSORTED/*2P_error_corrected.fastq'
 		fi
 
-		echo -e "======== START STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ ========\n"
+		echo -e "++++++++ START STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ ++++++++\n"
 		mkdir $rrna_filter_results/step_3_assembly/
 		cd $rrna_filter_results/step_3_assembly/
 
@@ -213,7 +223,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
     sed 's/ /_/g' TRANSABYSS/transabyss-final.fa > TRANSABYSS/transabyss-final_edited.fa
 		echo -e "\n======== TRANSABYSS DONE ========\n"
 
-		echo -e "\n======== FINISHED STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ ========\n"
+		echo -e "\n++++++++ FINISHED STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ ++++++++\n"
 
 		assembly_results_list="SPADES METASPADES MEGAHIT IDBA_UD RNASPADES IDBA_TRAN TRINITY TRANSABYSS"
 		for assembly_results in $assembly_results_list; do
@@ -235,79 +245,67 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				scaffolds='TRANSABYSS/transabyss-final_edited.fa'
 			fi
 
-			echo -e "======== START STEP 4: MAPPING OF TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ ========\n"
+
+			echo -e "++++++++ START STEP 4: MAPPING OF TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ ++++++++\n"
 			mkdir $assembly_results/step_4_mapping/
 			cd $assembly_results/step_4_mapping/
 
-			echo -e "\n======== starting bwa index ========\n"
+      for mapper in BWA BOWTIE2; do
 
-			bwa index -p bwa_index ../../$scaffolds
+        mkdir $mapper
+        cd $mapper
 
-			echo -e "\n======== bwa index complete. Starting bwa ========\n"
+        if [[ $assembly_results == 'BWA' ]] ; then
+          echo -e "\n======== starting bwa index ========\n"
 
-			bwa mem -t 10 bwa_index ../../../../../*1P_error_corrected.fastq ../../../../../*2P_error_corrected.fastq > bwa_output.sam
+          bwa index -p bwa_index ../../../$scaffolds
 
-			rm bwa_index*
+          echo -e "\n======== bwa index complete. Starting bwa ========\n"
 
-			# Output file (.sam) - edit
-			samtools view -F 4 bwa_output.sam > mapped_reads_bwa.sam
-			samtools view -f 4 bwa_output.sam > unmapped_reads_bwa.sam
-			cat mapped_reads_bwa.sam > mapped_reads_bwa.txt
-			cat unmapped_reads_bwa.sam > unmapped_reads_bwa.txt
-			cut -f3 mapped_reads_bwa.txt > mapped_column3_reads_bwa.txt
-			cut -f3 unmapped_reads_bwa.txt > unmapped_column3_reads_bwa.txt
-			sort mapped_column3_reads_bwa.txt | uniq -c > sorted_mapped_column3_reads_bwa.txt
-			sort unmapped_column3_reads_bwa.txt | uniq -c > sorted_unmapped_column3_reads_bwa.txt
-			column -t sorted_mapped_column3_reads_bwa.txt > aligned_mapped_bwa.txt
-			column -t sorted_unmapped_column3_reads_bwa.txt > aligned_unmapped_bwa.txt
-			sed 's/  */\t/g' aligned_mapped_bwa.txt > out_mapped_bwa.txt
-			sed 's/  */\t/g' aligned_unmapped_bwa.txt > out_unmappped_bwa.txt
-			echo -e "counts\tcontig_number" > merge_input_mapped_bwa.txt && cat out_mapped_bwa.txt >> merge_input_mapped_bwa.txt
-			echo -e "counts\tcontig_number" > merge_input_unmapped_bwa.txt && cat out_unmappped_bwa.txt >> merge_input_unmapped_bwa.txt
+          bwa mem -t 10 bwa_index ../../../../../../*1P_error_corrected.fastq ../../../../../../*2P_error_corrected.fastq > bwa_output.sam
 
-			rm mapped_reads_bwa.sam unmapped_reads_bwa.sam mapped_reads_bwa.txt unmapped_reads_bwa.txt mapped_column3_reads_bwa.txt unmapped_column3_reads_bwa.txt sorted_mapped_column3_reads_bwa.txt sorted_unmapped_column3_reads_bwa.txt aligned_mapped_bwa.txt aligned_unmapped_bwa.txt out_mapped_bwa.txt out_unmappped_bwa.txt
+          rm bwa_index*
 
-			echo -e "\n======== bwa complete. Starting bowtie2 index ========\n"
+  			else
 
-			bowtie2-build -f ../../$scaffolds bowtie_index
+          echo -e "\n======== bwa complete. Starting bowtie2 index ========\n"
 
-			echo -e "\n======== bowtie2 index complete. Starting bowtie2 ========\n"
+    			bowtie2-build -f ../../../$scaffolds bowtie_index
 
-			bowtie2 -q -x bowtie_index -1 ../../../../../*1P_error_corrected.fastq -2 ../../../../../*2P_error_corrected.fastq -S bowtie2_output.sam
+    			echo -e "\n======== bowtie2 index complete. Starting bowtie2 ========\n"
 
-			rm bowtie_index*
+    			bowtie2 -q -x bowtie_index -1 ../../../../../../*1P_error_corrected.fastq -2 ../../../../../../*2P_error_corrected.fastq -S bowtie2_output.sam
 
-			# Output file (.sam) - edit
-			samtools view -F 4 bowtie2_output.sam > mapped_reads_bowtie.sam
-			samtools view -f 4 bowtie2_output.sam > unmapped_reads_bowtie.sam
-			cat mapped_reads_bowtie.sam > mapped_reads_bowtie.txt
-			cat unmapped_reads_bowtie.sam > unmapped_reads_bowtie.txt
-			cut -f3 mapped_reads_bowtie.txt > mapped_column3_reads_bowtie.txt
-			cut -f3 unmapped_reads_bowtie.txt > unmapped_column3_reads_bowtie.txt
-			sort mapped_column3_reads_bowtie.txt | uniq -c > sorted_mapped_column3_reads_bowtie.txt
-			sort unmapped_column3_reads_bowtie.txt | uniq -c > sorted_unmapped_column3_reads_bowtie.txt
-			column -t sorted_mapped_column3_reads_bowtie.txt > aligned_mapped_bowtie.txt
-			column -t sorted_unmapped_column3_reads_bowtie.txt > aligned_unmapped_bowtie.txt
-			sed 's/  */\t/g' aligned_mapped_bowtie.txt > out_mapped_bowtie.txt
-			sed 's/  */\t/g' aligned_unmapped_bowtie.txt > out_unmappped_bowtie.txt
-			echo -e "counts\tcontig_number" > merge_input_mapped_bowtie2.txt && cat out_mapped_bowtie.txt >> merge_input_mapped_bowtie2.txt
-			echo -e "counts\tcontig_number" > merge_input_unmapped_bowtie2.txt && cat out_unmappped_bowtie.txt >> merge_input_unmapped_bowtie2.txt
+    			rm bowtie_index*
 
-			rm mapped_reads_bowtie.sam unmapped_reads_bowtie.sam mapped_reads_bowtie.txt unmapped_reads_bowtie.txt mapped_column3_reads_bowtie.txt unmapped_column3_reads_bowtie.txt sorted_mapped_column3_reads_bowtie.txt sorted_unmapped_column3_reads_bowtie.txt aligned_mapped_bowtie.txt aligned_unmapped_bowtie.txt out_mapped_bowtie.txt out_unmappped_bowtie.txt
+          echo -e "\n======== bowtie2 complete ========\n"
+        fi
 
-			echo -e "\n======== bowtie2 complete ========\n"
+  			# Output file (.sam) - edit
+  			samtools view -F 4 ${mapper}_output.sam > mapped_reads_${mapper}.sam
+  			samtools view -f 4 ${mapper}_output.sam > unmapped_reads_${mapper}.sam
+  			cat mapped_reads_${mapper}.sam > mapped_reads_${mapper}.txt
+  			cat unmapped_reads_${mapper}.sam > unmapped_reads_${mapper}.txt
+  			cut -f3 mapped_reads_${mapper}.txt > mapped_column3_reads_${mapper}.txt
+  			cut -f3 unmapped_reads_${mapper}.txt > unmapped_column3_reads_${mapper}.txt
+  			sort mapped_column3_reads_${mapper}.txt | uniq -c > sorted_mapped_column3_reads_${mapper}.txt
+  			sort unmapped_column3_reads_${mapper}.txt | uniq -c > sorted_unmapped_column3_reads_${mapper}.txt
+  			column -t sorted_mapped_column3_reads_${mapper}.txt > aligned_mapped_${mapper}.txt
+  			column -t sorted_unmapped_column3_reads_${mapper}.txt > aligned_unmapped_${mapper}.txt
+  			sed 's/  */\t/g' aligned_mapped_${mapper}.txt > out_mapped_${mapper}.txt
+  			sed 's/  */\t/g' aligned_unmapped_${mapper}.txt > out_unmappped_${mapper}.txt
+  			echo -e "counts\tcontig_number" > merge_input_mapped_${mapper}.txt && cat out_mapped_${mapper}.txt >> merge_input_mapped_${mapper}.txt
+  			echo -e "counts\tcontig_number" > merge_input_unmapped_${mapper}.txt && cat out_unmappped_${mapper}.txt >> merge_input_unmapped_${mapper}.txt
 
-			mkdir BWA/
-			mkdir BOWTIE2/
+  			rm *_index* mapped_reads_${mapper}.sam unmapped_reads_${mapper}.sam mapped_reads_${mapper}.txt unmapped_reads_${mapper}.txt mapped_column3_reads_${mapper}.txt unmapped_column3_reads_${mapper}.txt sorted_mapped_column3_reads_${mapper}.txt sorted_unmapped_column3_reads_${mapper}.txt aligned_mapped_${mapper}.txt aligned_unmapped_${mapper}.txt out_mapped_${mapper}.txt out_unmappped_${mapper}.txt
+        cd ..
+        done
 
-			mv bwa_output.sam merge_input_mapped_bwa.txt merge_input_unmapped_bwa.txt BWA/
-			mv bowtie2_output.sam merge_input_mapped_bowtie2.txt merge_input_unmapped_bowtie2.txt BOWTIE2/
+        cd $(realpath --relative-to=$(pwd) ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/)
 
-      cd $(realpath --relative-to=$(pwd) ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/)
+			echo -e "++++++++ FINISHED STEP 4: MAPPING FOR TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results ========\n"
 
-			echo -e "======== FINISHED STEP 4: MAPPING FOR TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results ========\n"
-
-			echo -e "======== START STEP 5 AND 6: CLASSIFICATION OF ASSEMBLED SCAFFOLDS FROM TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results ========\n"
+			echo -e "++++++++ START STEP 5 AND 6: CLASSIFICATION OF ASSEMBLED SCAFFOLDS FROM TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results ========\n"
 			mkdir $assembly_results/step_5_reference_DB/
 			cd $assembly_results/step_5_reference_DB/
 
@@ -327,15 +325,89 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				mkdir $DB/step_6_classification
 				cd $DB/step_6_classification
 
-				blast_filtering.bash -s ../../$scaffolds -d $blastDB -t soft -T 16
-				mv blast_filtering BLAST_FIRST_HIT
+        echo -e "\n======== RUNNING BLAST FIRST HIT WITH DATABASE $DB ========\n"
+				blast_filtering.bash -s ../../../../$scaffolds -d $blastDB -t soft -T 16
+				mv blast_filtering/ BLAST_FIRST_HIT/
+        echo -e "\n======== BLAST FIRST HIT WITH DATABASE $DB DONE========\n"
 
-				blast_filtering.bash -s ../../$scaffolds -d $blastDB -t strict -T 16
-				mv blast_filtering BLAST_FILTERED
+        echo -e "\n======== RUNNING BLAST FILTERED WITH DATABASE $DB ========\n"
+				blast_filtering.bash -s ../../../../$scaffolds -d $blastDB -t strict -T 16
+				mv blast_filtering/ BLAST_FILTERED/
+        echo -e "\n======== BLAST FILTERED WITH DATABASE $DB DONE========\n"
 
-				# kraken code
+        echo -e "\n======== RUNNING KRAKEN2 WITH DATABASE $DB ========\n"
+        mkdir KRAKEN2/
+        cd KRAKEN2/
+        # Run kraken2
+        kraken2 --db $krakenDB --threads 16 \
+        ../../../../../$scaffolds > kraken_output.txt
+
+        if [[ $DB == "SILVA" ]] ; then
+          # Now we're gonna edit the output so that is has the same format as CREST output,
+          # since we already have a script to deal with SILVA CREST output
+          # Extract the taxids column of the standard kraken output
+          cut -f3 kraken_output.txt > kraken_taxids.txt
+          # Access the SILVA taxonomy file and generate a file containing one column for
+          # each SILVA taxid and one column for the respective SILVA taxonomy path:
+          tail -n +2 /hdd1/databases/SILVA_database_mar_2020/taxonomy/files_to_make_NCBI_staxids/taxmap_slv_ssu_ref_nr_138.txt \
+          | cut -f 4,6 | sort -u > SILVA_paths_and_taxids.txt
+          # Kraken2 spits out the taxid 0 when no hit is found, but 0 doesn't exist in
+          # the SILVA taxonomy, so manually add taxid 0 with path “No hits” to the SILVA
+          # path file:
+          echo -e "No hits;\t0" > tmp && cat SILVA_paths_and_taxids.txt >> tmp \
+          && mv tmp SILVA_paths_and_taxids.txt
+          # Merge your kraken taxids with the SILVA path file to assign a SILVA taxonomy
+          # path to every kraken hit
+          mergeFilesOnColumn.pl SILVA_paths_and_taxids.txt kraken_taxids.txt 2 1 > merged.txt
+          cut -f -2 merged.txt | sed 's/;\t/\t/g' > merged_edit.txt # Edit the output
+          # Extract the sequence names from the kraken output and generate a final file
+          # with sequence name, taxid, and SILVA path
+          cut -f 3 kraken_output.txt > names.txt
+          paste names.txt merged_edit.txt | awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $3, $2}' \
+          > kraken_SILVA_formatted.txt
+          # This file has now the same format as the output of CREST and can be translated
+          # into NCBI taxonomy the same way as CREST output
+
+          assign_NCBI_staxids_to_CREST_v4.py /hdd1/databases/SILVA_database_mar_2020/taxonomy/files_to_make_NCBI_staxids/NCBI_staxids_scientific.txt \
+          /hdd1/databases/SILVA_database_mar_2020/taxonomy/files_to_make_NCBI_staxids/NCBI_staxids_non_scientific.txt \
+          kraken_SILVA_formatted.txt kraken_SILVA_formatted_with_NCBI_taxids.txt
+          sed -i '1d' kraken_SILVA_formatted_with_NCBI_taxids.txt # Remove header
+          mergeFilesOnColumn.pl kraken_SILVA_formatted_with_NCBI_taxids.txt \
+          kraken_SILVA_formatted.txt 1 1 > merged_final.txt # Merge SILVA output with taxids
+          cut -f3 merged_final.txt > NCBItaxids.txt # Extract taxids
+          assign_taxonomy_NCBI_staxids.sh -b NCBItaxids.txt -c 1 -e ~/.etetoolkit/taxa.sqlite
+          sed -i '1d' NCBItaxids_with_taxonomy.txt # Remove header
+          cut -f2 kraken_output.txt > contig_names.txt # Get contig names from original kraken2 output
+          paste contig_names.txt NCBItaxids_with_taxonomy.txt \
+          > contigs_with_NCBItaxids_and_taxonomy.txt # Add contig names to taxonomy file
+          echo -e "contig\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
+          > kraken_final.txt && cat contigs_with_NCBItaxids_and_taxonomy.txt \
+          >> kraken_final.txt # Add header
+
+          # Sort files
+          mkdir intermediate_files
+          mv kraken_output.txt kraken_taxids.txt SILVA_paths_and_taxids.txt merged* \
+          names.txt kraken_SILVA_formatted* NCBItaxids* contig* intermediate_files/
+
+        else
+          cut -f 2-3 kraken_output.txt > kraken_output_contig_taxid.txt # Isolate contig names and taxids
+          assign_taxonomy_NCBI_staxids.sh -b kraken_output_contig_taxid.txt -c 2 -e ~/.etetoolkit/taxa.sqlite
+          sed -i '1d' kraken_output_contig_taxid_with_taxonomy.txt # Remove header
+          echo -e "contig\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
+          > kraken_final.txt && cat kraken_output_contig_taxid.txt \
+          >> kraken_final.txt # Add header
+
+          # Sort files
+          mkdir intermediate_files
+          mv kraken_output* intermediate_files/
+        fi
+
+        cd ..
+        echo -e "\n======== KRAKEN2 WITH DATABASE $DB DONE========\n"
 
 				# centrifuge code
+
+        # Nat's code
 
 				cd $(realpath --relative-to=$(pwd) ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_5_reference_DB/)
 			done
