@@ -247,14 +247,14 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
         mkdir $mapper
         cd $mapper
 
-        if [[ $assembly_results == 'BWA' ]] ; then
+        if [[ $mapper == 'BWA' ]] ; then
           echo -e "\n======== starting bwa index ========\n"
 
           bwa index -p bwa_index ../../../$scaffolds
 
           echo -e "\n======== bwa index complete. Starting bwa ========\n"
 
-          bwa mem -t 10 bwa_index ../../../../../../*1P_error_corrected.fastq ../../../../../../*2P_error_corrected.fastq > bwa_output.sam
+          bwa mem -t 10 bwa_index ../../../../../../*1P_error_corrected.fastq ../../../../../../*2P_error_corrected.fastq > ${mapper}_output.sam
 
           rm bwa_index*
 
@@ -266,7 +266,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
     			echo -e "\n======== bowtie2 index complete. Starting bowtie2 ========\n"
 
-    			bowtie2 -q -x bowtie_index -1 ../../../../../../*1P_error_corrected.fastq -2 ../../../../../../*2P_error_corrected.fastq -S bowtie2_output.sam
+    			bowtie2 -q -x bowtie_index -1 ../../../../../../*1P_error_corrected.fastq -2 ../../../../../../*2P_error_corrected.fastq -S ${mapper}_output.sam
 
     			rm bowtie_index*
 
