@@ -317,15 +317,23 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				mkdir $DB/step_6_classification
 				cd $DB/step_6_classification
 
-        echo -e "\n======== RUNNING BLAST FIRST HIT WITH DATABASE $DB ========\n"
-				blast_filtering.bash -s ../../../../$scaffolds -d $blastDB -t soft -T 16
-				mv blast_filtering/ BLAST_FIRST_HIT/
-        echo -e "\n======== BLAST FIRST HIT WITH DATABASE $DB DONE========\n"
+				echo -e "\n======== RUNNING JUSTBLAST WITH DATABASE $DB ========\n"
+				justblast ../../../../$scaffolds $db --cpus $threads --evalue 1e-05 \
+				--outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend \
+				sstart send evalue bitscore staxids" --out_filename blast_output.txt
+				echo -e "\n======== JUSTBLAST WITH DATABASE $DB DONE ========\n"
 
-        echo -e "\n======== RUNNING BLAST FILTERED WITH DATABASE $DB ========\n"
-				blast_filtering.bash -s ../../../../$scaffolds -d $blastDB -t strict -T 16
-				mv blast_filtering/ BLAST_FILTERED/
-        echo -e "\n======== BLAST FILTERED WITH DATABASE $DB DONE========\n"
+        echo -e "\n======== RUNNING BLAST FIRST HIT ========\n"
+				blast_filtering.bash -i blast_output.txt -f blast -t soft -T 16
+				cp blast_output.txt blast_filtering_results/
+				mv blast_filtering_results/ BLAST_FIRST_HIT/
+        echo -e "\n======== BLAST FIRST HIT DONE ========\n"
+
+        echo -e "\n======== RUNNING BLAST FILTERED ========\n"
+				blast_filtering.bash -i blast_output.txt -f blast -t strict -T 16
+				mv blast_output.txt blast_filtering_results/
+				mv blast_filtering_results/ BLAST_FILTERED/
+        echo -e "\n======== BLAST FILTERED DONE========\n"
 
         echo -e "\n======== RUNNING KRAKEN2 WITH DATABASE $DB ========\n"
         mkdir KRAKEN2/
@@ -372,7 +380,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
           cut -f2 kraken_output.txt > contig_names.txt # Get contig names from original kraken2 output
           paste contig_names.txt NCBItaxids_with_taxonomy.txt \
           > contigs_with_NCBItaxids_and_taxonomy.txt # Add contig names to taxonomy file
-          echo -e "contig\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
+          echo -e "sequence\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
           > kraken_final.txt && cat contigs_with_NCBItaxids_and_taxonomy.txt \
           >> kraken_final.txt # Add header
 
@@ -385,8 +393,8 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
           cut -f 2-3 kraken_output.txt > kraken_output_contig_taxid.txt # Isolate contig names and taxids
           assign_taxonomy_NCBI_staxids.sh -b kraken_output_contig_taxid.txt -c 2 -e ~/.etetoolkit/taxa.sqlite
           sed -i '1d' kraken_output_contig_taxid_with_taxonomy.txt # Remove header
-          echo -e "contig\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
-          > kraken_final.txt && cat kraken_output_contig_taxid.txt \
+          echo -e "sequence\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
+          > kraken_final.txt && cat kraken_output_contig_taxid_with_taxonomy.txt \
           >> kraken_final.txt # Add header
 
           # Sort files
@@ -399,7 +407,6 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
 				# centrifuge code
 
-        # Nat's code
         for classification_tool in KRAKEN2 BLAST_FILTERED BLAST_FIRST_HIT; do #Centrifuge needs to be added
           cd $classification_tool
           mkdir FINAL_FILES
