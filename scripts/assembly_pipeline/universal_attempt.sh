@@ -440,9 +440,10 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 							fasta_to_tab ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${scaffolds} > ./FINAL_FILES/fasta_to_tabbed.txt
 							sed 's/_/\t/2' ./FINAL_FILES/fasta_to_tabbed.txt > ./FINAL_FILES/fasta_to_tabbed_2.txt
 							sed 's/_/\t/3' ./FINAL_FILES/fasta_to_tabbed_2.txt > ./FINAL_FILES/fasta_to_tabbed_3.txt
-							sed 's/ /\t/g' ./FINAL_FILES/fasta_to_tabbed_3.txt > ./FINAL_FILES/cut_tab_ready.txt
+							sed 's/ /\t/g' ./FINAL_FILES/fasta_to_tabbed_3.txt > ./FINAL_FILES/cut_tab_ready.txt # you don't need to save every result of 'sed' in a separate file. Let me introduce you to pipes ( | ). Instead of the 3 sed commands you do here and teh cut after, you can do the following: sed 's/_/\t/2' ./FINAL_FILES/fasta_to_tabbed.txt | sed 's/_/\t/3' | sed 's/ /\t/g' | cut -f1,3,5,6 > ./FINAL_FILES/${assembly_results}_tab_to_merge.txt <-- this will result in the same final file, but is shorter and there is no need to save a ton of intermediate files. A pipe says "take the result from the command before and run another command on it" so you can pass one file through many commands after another without saving intermediate results. There are many instances in your code where you can do that to save a loooot of space in the code and also to skip the need to write the results of every command to a file. Try to find all these instances in your code and simplify them by using pipes. If you have questions, there's a lot on pipes on google, or ask me.
 							cut -f1,3,5,6 ./FINAL_FILES/cut_tab_ready.txt > ./FINAL_FILES/${assembly_results}_tab_to_merge.txt
 							rm ./FINAL_FILES/fasta_to_tabbed.txt ./FINAL_FILES/fasta_to_tabbed_2.txt ./FINAL_FILES/fasta_to_tabbed_3.txt ./FINAL_FILES/cut_tab_ready.txt
+
 
 							mergeFilesOnColumn.pl ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_4_mapping/${mapper}/merge_input_mapped_${mapper}.txt ./FINAL_FILES/${assembly_results}_tab_to_merge.txt 2 1 > ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt
 							cut -f1,2,4,5,6 ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt > ./FINAL_FILES/important_columns_${mapper}_${assembly_results}.txt
@@ -529,7 +530,8 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 									echo -e "sequence_number\tcontig_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" > ./FINAL_FILES/${assembly_results}_${ref_DB_list}_${classification_tool}_${mapper}_final.txt && cat ./FINAL_FILES/new3.txt >> ./FINAL_FILES/${assembly_results}_${ref_DB_list}_${classification_tool}_${mapper}_final.txt
 									rm ./FINAL_FILES/new*.txt
 
-								fi
+								fi # In every single if statement, you run the identical first and last line. That means, these commands are universal and do not need to be within every if statement because they are not specific for the used assembler. Instead, these commands can be run a single time before/after all the if statements. This scenario appears several times in your code also for the other classification tools, so try to simplify your code by moving the identical commands out of the if statements and placing them before/after the code, just a single time.
+								# PS: if a line of code is universal for some of the assemblers but not all of them, make a single if statement, listing the specific assemblers, and run only that single line that is specific for these asseblers in that if statement. That also saves space.
 
 						elif [[ $classification_tool == 'BLAST_FIRST_HIT' ]] ; then
  	 						tool='BLAST_FIRST_HIT/blast_output_with_taxonomy_and_best_hit.txt'
