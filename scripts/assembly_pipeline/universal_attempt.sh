@@ -552,7 +552,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
 								if [[ $assembly_results == 'SPADES' || $assembly_results == 'METASPADES' ]] ; then
 
-									sed 's/_/\t/2' ./FINAL_FILES/${assembly_results}_${ref_DB_list}_${classification_tool}_${mapper}_merged.txt | sed 's/_/\t/3' | sed 's/NODE_//g' | sed 's/length_//g' | sed 's/cov_//g' | sed '1d' > ./FINAL_FILES/new.txt
+									sed '1d' ./FINAL_FILES/${assembly_results}_${ref_DB_list}_${classification_tool}_${mapper}_merged.txt | sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' | sed 's/length_//g' | sed 's/cov_//g' > ./FINAL_FILES/new.txt
 									echo -e "sequence_number\tcontig_length\tcontig_coverage\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/${assembly_results}_${ref_DB_list}_${classification_tool}_${mapper}_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/${assembly_results}_${ref_DB_list}_${classification_tool}_${mapper}_final.txt
 
 								elif [[ $assembly_results == 'IDBA_UD' ]] ; then
@@ -567,7 +567,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
 								elif [[ $assembly_results == 'RNASPADES' ]] ; then
 
-									sed 's/_/\t/2' ./FINAL_FILES/${assembly_results}_${ref_DB_list}_${classification_tool}_${mapper}_merged.txt | sed 's/_/\t/3' | sed 's/NODE_//g' | sed 's/length_//g' | sed 's/cov_//g' | sed '1d' | sed 's/_/\t/1' | cut -f1,2,3,5-20  > ./FINAL_FILES/new.txt
+									sed '1d' ./FINAL_FILES/${assembly_results}_${ref_DB_list}_${classification_tool}_${mapper}_merged.txt | sed 's/_/\t/2' |sed 's/_/\t/3' | sed 's/NODE_//g' | sed 's/length_//g' | sed 's/cov_//g' | sed 's/_/\t/1' | cut -f1,2,3,5-20 > ./FINAL_FILES/new.txt
 									echo -e "sequence_number\tcontig_length\tcontig_coverage\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/${assembly_results}_${ref_DB_list}_${classification_tool}_${mapper}_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/${assembly_results}_${ref_DB_list}_${classification_tool}_${mapper}_final.txt
 
 								elif [[ $assembly_results == 'IDBA_TRAN' ]] ; then
