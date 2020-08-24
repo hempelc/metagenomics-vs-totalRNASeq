@@ -506,8 +506,6 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 						elif [[ $classification_tool == 'BLAST_FIRST_HIT' ]] ; then
  	 						tool='BLAST_FIRST_HIT/blast_output_with_taxonomy_and_best_hit.txt'
 
-							merge_mapped_reads_and_contigs.py ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_5_reference_DB/${ref_DB_list}/step_6_classification/${tool} ./FINAL_FILES/${assembly_results}_final_${mapper}_merge_ready.txt ./FINAL_FILES/${assembly_results}_${ref_DB_list}_${classification_tool}_${mapper}_merged.txt
-
 								if [[ $assembly_results == 'SPADES' || $assembly_results == 'METASPADES' ]] ; then
 
 									sed '1d' ./FINAL_FILES/${assembly_results}_${ref_DB_list}_${classification_tool}_${mapper}_merged.txt | sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' | sed 's/length_//g' | sed 's/cov_//g' > ./FINAL_FILES/new.txt
@@ -547,8 +545,6 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
 						else
 							tool='KRAKEN2/kraken_final.txt'
-
-							merge_mapped_reads_and_contigs.py ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_5_reference_DB/${ref_DB_list}/step_6_classification/${tool} ./FINAL_FILES/${assembly_results}_final_${mapper}_merge_ready.txt ./FINAL_FILES/${assembly_results}_${ref_DB_list}_${classification_tool}_${mapper}_merged.txt
 
 								if [[ $assembly_results == 'SPADES' || $assembly_results == 'METASPADES' ]] ; then
 
