@@ -26,7 +26,7 @@ Usage:
               is just filtered based on option -t. Requires blast input to be in
               the following outformat: '6 qseqid sseqid pident length mismatch
               gapopen qstart qend sstart send evalue bitscore staxids'
-  -t       Type:
+  -t       Type of filtering:
            soft:
               Simply keeps the best hit (highest bitscore) for each sequence
            strict:
@@ -55,7 +55,7 @@ Usage:
 input=''
 format=''
 db=''
-type=''
+filtering=''
 bitscore='155'
 percentage='0.02'
 cutoff='99 97 95 90 85 80'
@@ -67,7 +67,7 @@ while getopts ':i:f:d:t:b:p:c:T:h' opt; do
 		i) input="${OPTARG}" ;;
     f) format="${OPTARG}" ;;
 		d) db="${OPTARG}" ;;
-		t) type="${OPTARG}" ;;
+		t) filtering="${OPTARG}" ;;
 		b) bitscore="${OPTARG}" ;;
 		p) percentage="${OPTARG}" ;;
     c) cutoff="${OPTARG}" ;;
@@ -85,15 +85,15 @@ done
 shift $((OPTIND - 1))
 
 # Check if required options are set
-if [[ -z "$input" || -z "$db" || -z "$type" ]]
+if [[ -z "$input" || -z "$format" || -z "$filtering" ]]
 then
-   echo -e "-f, -d, and -t must be set\n"
+   echo -e "-i, -f, and -t must be set\n"
    echo -e "$usage\n\n"
    echo -e "Exiting script\n"
    exit
 fi
 
-if [[ $type != 'soft' && $type != 'strict' ]]
+if [[ $filtering != 'soft' && $filtering != 'strict' ]]
 then
   echo -e "Invalid option for -t, must be set to either 'soft' or 'strict'\n"
   echo -e "$usage\n\n"
@@ -125,7 +125,7 @@ echo -e "======== OPTIONS ========\n"
 
 echo "Input (-i) was defined as $input"
 echo "Database (-d) was defined as $db"
-echo "Type (-t) was set to $type"
+echo "Type (-t) was set to $filtering"
 echo "Bitscore threshold (-b) is $bitscore"
 echo "Percentage threshold (-p) is $percentage"
 echo "Cutoff (-c) is $cutoff"
@@ -147,7 +147,7 @@ else
 
 fi
 
-if [[ $type == 'soft' ]] ; then
+if [[ $filtering == 'soft' ]] ; then
   echo -e "\n======== ASSIGNING TAXONOMY ========\n"
   assign_taxonomy_NCBI_staxids.sh -b $assign_taxonomy_input -c 13 \
   -e ~/.etetoolkit/taxa.sqlite
@@ -181,7 +181,7 @@ if [[ $type == 'soft' ]] ; then
   blast_filtering_results/intermediate_files/
 fi
 
-if [[ $type == 'strict' ]] ; then
+if [[ $filtering == 'strict' ]] ; then
   echo -e "\n======== ASSIGNING TAXONOMY ========\n"
   assign_taxonomy_NCBI_staxids.sh -b $assign_taxonomy_input -c 13 \
   -e ~/.etetoolkit/taxa.sqlite

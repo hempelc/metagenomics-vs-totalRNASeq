@@ -41,7 +41,7 @@ fi
 ##################### Write time, options etc. to output ######################
 
 # Make open bracket to later tell script to write everything that follows into a logfile
-(
+#(
 
 # Define starting time of script for total runtime calculation
 start=$(date +%s)
@@ -97,6 +97,12 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
 	echo -e "++++++++ START STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER $trimming_results ++++++++\n"
 
+	echo -e "\n======== CONVERT READS IN FASTA FORMAT FOR rRNAFILTER AND BARRNAP ========\n"
+	mkdir reads_in_fasta_format/
+	fq2fa ../*1P_error_corrected.fastq reads_in_fasta_format/R1.fa
+	fq2fa ../*2P_error_corrected.fastq reads_in_fasta_format/R2.fa
+	echo -e "\n======== READS TO FASTA CONVERSION DONE ========\n"
+
 	echo -e "\n======== RUNNING SORTMERNA ========\n"
 	mkdir SORTMERNA/
 	sortmerna --ref /hdd1/databases/sortmerna_silva_databases/silva-bac-16s-id90.fasta \
@@ -106,7 +112,6 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	--paired_in -other -fastx 1 \
 	-num_alignments 1 -v \
 	-workdir SORTMERNA/
-  pwd
 	deinterleave_fastq_reads.sh < SORTMERNA/out/aligned.fastq \
 	SORTMERNA/out/aligned_R1.fq SORTMERNA/out/aligned_R2.fq
 	echo -e "\n======== SORTMERNA DONE ========\n"
@@ -114,26 +119,52 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	echo -e "\n======== RUNNING rRNAFILTER ========\n"
 	mkdir rRNAFILTER/
 	cd rRNAFILTER/
-	fq2fa ../../*1P_error_corrected.fastq R1.fa
-	fq2fa ../../*2P_error_corrected.fastq R2.fa
 	wget http://hulab.ucf.edu/research/projects/rRNAFilter/software/rRNAFilter.zip
 	unzip rRNAFilter.zip
 	cd rRNAFilter/
-	java -jar -Xmx7g rRNAFilter_commandline.jar -i ../R1.fa -r 0
-	java -jar -Xmx7g rRNAFilter_commandline.jar -i ../R2.fa -r 0
+	java -jar -Xmx7g rRNAFilter_commandline.jar \
+	-i ../../reads_in_fasta_format/R1.fa -r 0
+	java -jar -Xmx7g rRNAFilter_commandline.jar \
+	-i ../../reads_in_fasta_format/R2.fa -r 0
+	mv ../../reads_in_fasta_format/R*_error_corrected.fa_rRNA ..
 	cd ..
 	rm -r rRNAFilter rRNAFilter.zip
 	fasta_to_tab R1.fa_rRNA | cut -f 1 | cut -f1 -d " " > names.txt
 	fasta_to_tab R2.fa_rRNA | cut -f 1 | cut -f1 -d " " >> names.txt
 	sort -u names.txt > names_sorted.txt
-	seqtk subseq R1.fa names_sorted.txt > rRNAFilter_paired_R1.fa
-	seqtk subseq R2.fa names_sorted.txt > rRNAFilter_paired_R2.fa
+	seqtk subseq ../reads_in_fasta_format/R1.fa names_sorted.txt \
+	> rRNAFilter_paired_R1.fa
+	seqtk subseq ../reads_in_fasta_format/R2.fa names_sorted.txt \
+	> rRNAFilter_paired_R2.fa
 	rm names_sorted.txt names.txt
 	cd ..
 	echo -e "\n======== rRNAFILTER DONE ========\n"
 
 	echo -e "\n======== RUNNING BARRNAP ========\n"
-# code for barrnap
+	mkdir BARRNAP/
+	for kingdom in euk bac arc; do
+		echo -e "\n======== RUNNING BARRNAP ON KINGDOM $kingdom AND R1 READS ========\n"
+		barrnap --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
+		--threads 16 --outseq BARRNAP/${kingdom}_reads1.fa \
+		reads_in_fasta_format/R1.fa
+		echo -e "\n======== RUNNING BARRNAP ON KINGDOM $kingdom AND R2 READS ========\n"
+		barrnap --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
+		--threads 16 --outseq BARRNAP/${kingdom}_reads2.fa \
+		reads_in_fasta_format/R2.fa
+		rm reads_in_fasta_format/*.fai
+		sed 's/.*::/>/g' BARRNAP/${kingdom}_reads1.fa | sed 's/:.*//g' \
+		> BARRNAP/${kingdom}_reads1_edited.fa
+		sed 's/.*::/>/g' BARRNAP/${kingdom}_reads2.fa | sed 's/:.*//g' \
+		> BARRNAP/${kingdom}_reads2_edited.fa
+	done
+	cat BARRNAP/*edited.fa > BARRNAP/all_reads.fa
+	fasta_to_tab BARRNAP/all_reads.fa | cut -f 1 | cut -f1 -d " " | sort -u \
+	> BARRNAP/names_sorted.txt
+	seqtk subseq reads_in_fasta_format/R1.fa BARRNAP/names_sorted.txt \
+	> BARRNAP/barrnap_paired_R1.fa
+	seqtk subseq reads_in_fasta_format/R2.fa BARRNAP/names_sorted.txt \
+	> BARRNAP/barrnap_paired_R2.fa
+	rm BARRNAP/names_sorted.txt
 	echo -e "\n======== BARRNAP DONE ========\n"
 
 	echo -e "\n======== MAKING FOLDER UNSORTED/ AND COPYING UNSORTED READS IN THERE TO KEEP THE FOLDER STRUCTURE CONSTANT ========\n"
@@ -144,7 +175,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
 	######################### Step 3: Assembly ################################
 
-	rrna_filter_results_list="rRNAFILTER SORTMERNA UNSORTED" # <-- MISSES BARRNAP YET, NEEDS TO BE ADDED
+	rrna_filter_results_list="rRNAFILTER SORTMERNA BARRNAP UNSORTED"
   for rrna_filter_results in $rrna_filter_results_list; do
 		if [[ $rrna_filter_results == 'rRNAFILTER' ]] ; then
 			R1_sorted='rRNAFILTER/rRNAFilter_paired_R1.fa'
@@ -152,9 +183,9 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
   	elif [[ $rrna_filter_results == 'SORTMERNA' ]] ; then
 			R1_sorted='SORTMERNA/out/aligned_R1.fq'
 			R2_sorted='SORTMERNA/out/aligned_R2.fq'
-# 	elif [[ $rrna_filter_results == 'BARRNAP' ]] ; then
-#			R1_sorted=
-#			R2_sorted=
+		elif [[ $rrna_filter_results == 'BARRNAP' ]] ; then
+			R1_sorted='BARRNAP/barrnap_paired_R1.fa'
+			R1_sorted='BARRNAP/barrnap_paired_R2.fa'
 	  else
 			R1_sorted='UNSORTED/*1P_error_corrected.fastq'
 			R2_sorted='UNSORTED/*2P_error_corrected.fastq'
@@ -412,17 +443,14 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 					mkdir FINAL_FILES
 
 					# Add assembly sequence to BWA and BOWTIE file
-					if [[ $assembly_results == 'SPADES' || $assembly_results == 'METASPADES' || $assembly_results == 'IDBA_UD' || $assembly_results == 'RNASPADES' || $assembly_results == 'TRANSABYSS']] ; then
-
+					if [[ $assembly_results == 'SPADES' || $assembly_results == 'METASPADES' || $assembly_results == 'IDBA_UD' || $assembly_results == 'RNASPADES' || $assembly_results == 'TRANSABYSS' ]] ; then
 							fasta_to_tab ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${scaffolds} > ./FINAL_FILES/${assembly_results}_tab_to_merge.txt
 							mergeFilesOnColumn.pl ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_4_mapping/${mapper}/merge_input_mapped_${mapper}.txt ./FINAL_FILES/${assembly_results}_tab_to_merge.txt 2 1 > ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt
 							cut -f1,2,4 ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt > ./FINAL_FILES/important_column_3_${mapper}_${assembly_results}.txt
 							awk 'BEGIN {FS="\t";OFS="\t"} {print $2, $1, $3}' ./FINAL_FILES/important_column_3_${mapper}_${assembly_results}.txt > ./FINAL_FILES/final_order_${mapper}_${assembly_results}.txt
 							echo -e "sequence\tcounts\tassembly_sequence" > ./FINAL_FILES/${assembly_results}_final_${mapper}_merge_ready.txt && cat ./FINAL_FILES/final_order_${mapper}_${assembly_results}.txt >> ./FINAL_FILES/${assembly_results}_final_${mapper}_merge_ready.txt
 							rm ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt ./FINAL_FILES/important_column_3_${mapper}_${assembly_results}.txt ./FINAL_FILES/final_order_${mapper}_${assembly_results}.txt
-
 					elif [[ $assembly_results == 'MEGAHIT' ]] ; then
-
 							fasta_to_tab ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${scaffolds} > ./FINAL_FILES/fasta_to_tabbed.txt
 							sed 's/ /\t/g' ./FINAL_FILES/fasta_to_tabbed.txt| cut -f1,4,5 | sed 's/len=//g' > ./FINAL_FILES/${assembly_results}_tab_to_merge.txt
 							rm ./FINAL_FILES/fasta_to_tabbed.txt
@@ -434,11 +462,9 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 							rm ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt ./FINAL_FILES/important_column_4_${mapper}_${assembly_results}.txt ./FINAL_FILES/final_order_${mapper}_${assembly_results}.txt
 
 					elif [[ $assembly_results == 'IDBA_TRAN' ]] ; then
-
 							fasta_to_tab ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${scaffolds} > ./FINAL_FILES/fasta_to_tabbed.txt
 							sed 's/_/\t/2' ./FINAL_FILES/fasta_to_tabbed.txt | sed 's/_/\t/3' | sed 's/ /\t/g' | cut -f1,3,5,6 > ./FINAL_FILES/${assembly_results}_tab_to_merge.txt
 							rm ./FINAL_FILES/fasta_to_tabbed.txt
-
 
 							mergeFilesOnColumn.pl ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_4_mapping/${mapper}/merge_input_mapped_${mapper}.txt ./FINAL_FILES/${assembly_results}_tab_to_merge.txt 2 1 > ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt
 							cut -f1,2,4,5,6 ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt > ./FINAL_FILES/important_columns_${mapper}_${assembly_results}.txt
@@ -447,7 +473,6 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 							rm ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt ./FINAL_FILES/important_columns_${mapper}_${assembly_results}.txt ./FINAL_FILES/final_order_${mapper}_${assembly_results}.txt
 
 					else
-
 							fasta_to_tab ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${scaffolds} > ./FINAL_FILES/fasta_to_tabbed.txt
 							sed 's/ /\t/1' ./FINAL_FILES/fasta_to_tabbed.txt | cut -f1,3 > ./FINAL_FILES/${assembly_results}_tab_to_merge.txt
 							rm ./FINAL_FILES/fasta_to_tabbed.txt
@@ -597,6 +622,5 @@ done
 echo -e "=================================================================\n"
 echo "SCRIPT DONE AFTER $((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m"
 
-
 # Create log
-) 2>&1 | tee PIPELINE_ASSEMBLERS_LOG.txt
+#) 2>&1 | tee PIPELINE_ASSEMBLERS_LOG.txt
