@@ -314,7 +314,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				cd $DB/step_6_classification
 
 				echo -e "\n======== RUNNING JUSTBLAST WITH DATABASE $DB ========\n"
-				justblast ../../../../$scaffolds $blastDB --cpus $threads --evalue 1e-05 \
+				justblast ../../../../$scaffolds $blastDB --cpus 16 --evalue 1e-05 \
 				--outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend \
 				sstart send evalue bitscore staxids" --out_filename blast_output.txt
 				echo -e "\n======== JUSTBLAST WITH DATABASE $DB DONE ========\n"
