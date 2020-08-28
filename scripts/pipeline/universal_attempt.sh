@@ -344,7 +344,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 			ref_DB_list="SILVA NCBI_NT"
 			for DB in $ref_DB_list; do
 				if [[ $DB == "SILVA" ]] ; then
-					krakenDB="/hdd1/databases/kraken2_SILVA_DB"
+					krakenDB="/hdd1/databases/kraken2_SILVA_SSU_LSU"
 					#centrifugeDB=XX
 					blastDB="/hdd1/databases/SILVA_database_mar_2020/SILVA_138_SSURef_NR99_tax_silva.fasta"
 				else
@@ -389,7 +389,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
           cut -f3 kraken_output.txt > kraken_taxids.txt
           # Access the SILVA taxonomy file and generate a file containing one column for
           # each SILVA taxid and one column for the respective SILVA taxonomy path:
-          tail -n +2 /hdd1/databases/SILVA_database_mar_2020/taxonomy/files_to_make_NCBI_staxids/taxmap_slv_ssu_ref_nr_138.txt \
+          tail -n +2 /hdd1/databases/kraken2_SILVA_SSU_LSU/taxmap_slv_lsu_ssu_ref_nr_138.1.txt \
           | cut -f 4,6 | sort -u > SILVA_paths_and_taxids.txt
           # Kraken2 spits out the taxid 0 when no hit is found, but 0 doesn't exist in
           # the SILVA taxonomy, so manually add taxid 0 with path “No hits” to the SILVA
