@@ -1,7 +1,7 @@
 #!/bin/bash
 
 cmd="$0 $@" # Make variable containing full used command to print command in logfile
-usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq>
+usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> [-t <n>]
 Usage:
 	-1 Forward reads - must state full path from root to the file
 	-2 Reverse reads - must state full path from root to the file
@@ -12,7 +12,7 @@ Usage:
 threads='16'
 
 # Set specified options
-while getopts ':1:2:h' opt; do
+while getopts ':1:2:t:h' opt; do
  	case "${opt}" in
 		1) forward_reads="${OPTARG}" ;;
 		2) reverse_reads="${OPTARG}" ;;
@@ -42,7 +42,7 @@ fi
 ##################### Write time, options etc. to output ######################
 
 # Make open bracket to later tell script to write everything that follows into a logfile
-#(
+(
 
 # Define starting time of script for total runtime calculation
 start=$(date +%s)
@@ -69,14 +69,15 @@ echo -e "++++++++ START STEP 1: TRIMMING AND ERROR CORRECTION ========\n"
 # Trimming is done with separate script:
 fastqc_on_R1_R2_and_optional_trimming.sh \
 -T /hdd1/programs_for_pilot/Trimmomatic-0.39/trimmomatic-0.39.jar \
--1 $forward_reads -2 $reverse_reads -t yes
+-1 $forward_reads -2 $reverse_reads -t yes -p $threads
 mv trimming_with_phred_scores_and_fastqc_report_output/ step_1_trimming/
 
 # Running error correction module of SPAdes on trimmed reads
 for trimming_results in step_1_trimming/trimmomatic/*; do
 	echo -e "\n======== ERROR-CORRECTING READS IN FOLDER $trimming_results ++++++++\n"
 	spades.py -1 $trimming_results/*1P.fastq -2 $trimming_results/*2P.fastq \
-	--only-error-correction --disable-gzip-output -o $trimming_results/error_correction
+	--only-error-correction --disable-gzip-output -o $trimming_results/error_correction \
+	-t $threads
 	mv $trimming_results/error_correction/corrected/*1P*.fastq \
 	$trimming_results/error_correction/corrected/*2P*.fastq $trimming_results
 	R1=$(echo $trimming_results/*1P.00.0_0.cor.fastq) \
@@ -111,9 +112,8 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	--ref /hdd1/databases/sortmerna_silva_databases/silva-arc-16s-id95.fasta \
 	--ref /hdd1/databases/sortmerna_silva_databases/silva-euk-18s-id95.fasta \
 	--reads ../*1P_error_corrected.fastq --reads ../*2P_error_corrected.fastq \
-	--paired_in -other -fastx 1 \
-	-num_alignments 1 -v \
-	-workdir SORTMERNA/
+	--paired_in -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA/ \
+	--threads $threads
 	deinterleave_fastq_reads.sh < SORTMERNA/out/aligned.fastq \
 	SORTMERNA/out/aligned_R1.fq SORTMERNA/out/aligned_R2.fq
 	echo -e "\n======== SORTMERNA DONE ========\n"
@@ -128,7 +128,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	-i ../../reads_in_fasta_format/R1.fa -r 0
 	java -jar -Xmx7g rRNAFilter_commandline.jar \
 	-i ../../reads_in_fasta_format/R2.fa -r 0
-	mv ../../reads_in_fasta_format/R*_error_corrected.fa_rRNA ..
+	mv ../../reads_in_fasta_format/R*.fa_rRNA ..
 	cd ..
 	rm -r rRNAFilter rRNAFilter.zip
 	fasta_to_tab R1.fa_rRNA | cut -f 1 | cut -f1 -d " " > names.txt
@@ -147,11 +147,11 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	for kingdom in euk bac arc; do
 		echo -e "\n======== RUNNING BARRNAP ON KINGDOM $kingdom AND R1 READS ========\n"
 		barrnap --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
-		--threads 16 --outseq BARRNAP/${kingdom}_reads1.fa \
+		--threads $threads --outseq BARRNAP/${kingdom}_reads1.fa \
 		reads_in_fasta_format/R1.fa
 		echo -e "\n======== RUNNING BARRNAP ON KINGDOM $kingdom AND R2 READS ========\n"
 		barrnap --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
-		--threads 16 --outseq BARRNAP/${kingdom}_reads2.fa \
+		--threads $threads --outseq BARRNAP/${kingdom}_reads2.fa \
 		reads_in_fasta_format/R2.fa
 		rm reads_in_fasta_format/*.fai
 		sed 's/.*::/>/g' BARRNAP/${kingdom}_reads1.fa | sed 's/:.*//g' \
@@ -199,51 +199,55 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
 		echo -e "\n======== RUNNING SPADES ========\n"
 		mkdir SPADES/
-		spades.py -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler -o SPADES/
+		spades.py -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler \
+		-o SPADES/ -t $threads
 		echo -e "\n======== SPADES DONE ========\n"
 
 		echo -e "\n======== RUNNING METASPADES ========\n"
 		mkdir METASPADES/
-		metaspades.py -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler -o METASPADES/
+		metaspades.py -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler \
+		-o METASPADES/ -t $threads
 		echo -e "\n======== METASPADES DONE ========\n"
 
 		echo -e "\n======== RUNNING MEGAHIT ========\n"
-		megahit --presets meta-large -t 16 -1 ../../$R1_sorted -2 ../../$R2_sorted -o MEGAHIT/
+		megahit --presets meta-large -t $threads -1 ../../$R1_sorted \
+		-2 ../../$R2_sorted -o MEGAHIT/
 		echo -e "\n======== MEGAHIT DONE ========\n"
 
 		echo -e "\n======== RUNNING IDBA_UD ========\n"
 		fq2fa --merge --filter ../../$R1_sorted ../../$R2_sorted idba_ud_input.fa
-		idba_ud --num_threads 16 --pre_correction -r idba_ud_input.fa \
+		idba_ud --num_threads $threads --pre_correction -r idba_ud_input.fa \
     -o IDBA_UD/
 		mv idba_ud_input.fa IDBA_UD/
 		echo -e "\n======== IDBA_UD DONE ========\n"
 
 		echo -e "\n======== RUNNING RNASPADES ========\n"
 		mkdir RNASPADES/
-		rnaspades.py -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler -o RNASPADES/
+		rnaspades.py -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler \
+		-o RNASPADES/ -t $threads
 		echo -e "\n======== RNASPADES DONE ========\n"
 
 		echo -e "\n======== RUNNING IDBA_TRAN ========\n"
 		fq2fa --merge --filter ../../$R1_sorted ../../$R2_sorted idba_tran_input.fa
-		idba_tran --num_threads 16 --pre_correction -r idba_tran_input.fa \
+		idba_tran --num_threads $threads --pre_correction -r idba_tran_input.fa \
     -o IDBA_TRAN/
 		mv idba_tran_input.fa IDBA_TRAN/
 		echo -e "\n======== IDBA_TRAN DONE ========\n"
 
 		echo -e "\n======== RUNNING TRINITY ========\n"
     if [[ $rrna_filter_results == "rRNAFILTER" ]]; then
-  		Trinity --seqType fa --max_memory 64G --left ../../$R1_sorted --right \
-      ../../$R2_sorted --CPU 16 --output TRINITY/
+  		Trinity --seqType fa --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024)-5)))G --left ../../$R1_sorted --right \
+      ../../$R2_sorted --CPU $threads --output TRINITY/
     else
-      Trinity --seqType fq --max_memory 64G --left ../../$R1_sorted --right \
-      ../../$R2_sorted --CPU 16 --output TRINITY/
+      Trinity --seqType fq --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024)-5)))G --left ../../$R1_sorted --right \
+      ../../$R2_sorted --CPU $threads --output TRINITY/
     fi
     cat TRINITY/Trinity.fasta \
     | sed 's/ len/_len/g' > TRINITY/Trinity_with_length.fasta
 		echo -e "\n======== TRINITY DONE ========\n"
 
 		echo -e "\n======== RUNNING TRANSABYSS ========\n"
-    transabyss --pe ../../$R1_sorted ../../$R2_sorted --threads 16 \
+    transabyss --pe ../../$R1_sorted ../../$R2_sorted --threads $threads \
     --outdir TRANSABYSS/
     sed 's/ /_/g' TRANSABYSS/transabyss-final.fa > TRANSABYSS/transabyss-final_edited.fa
 		echo -e "\n======== TRANSABYSS DONE ========\n"
@@ -287,7 +291,8 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
           echo -e "\n======== bwa index complete. Starting bwa ========\n"
 
-          bwa mem -t 10 bwa_index ../../../../../../*1P_error_corrected.fastq ../../../../../../*2P_error_corrected.fastq > ${mapper}_output.sam
+          bwa mem -t $threads bwa_index ../../../../../../*1P_error_corrected.fastq \
+					../../../../../../*2P_error_corrected.fastq > ${mapper}_output.sam
 
           rm bwa_index*
 
@@ -299,7 +304,9 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
     			echo -e "\n======== bowtie2 index complete. Starting bowtie2 ========\n"
 
-    			bowtie2 -q -x bowtie_index -1 ../../../../../../*1P_error_corrected.fastq -2 ../../../../../../*2P_error_corrected.fastq -S ${mapper}_output.sam
+    			bowtie2 -q -x bowtie_index -1 ../../../../../../*1P_error_corrected.fastq \
+					-2 ../../../../../../*2P_error_corrected.fastq -S ${mapper}_output.sam \
+					-p $threads
 
     			rm bowtie_index*
 
@@ -351,19 +358,19 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				cd $DB/step_6_classification
 
 				echo -e "\n======== RUNNING JUSTBLAST WITH DATABASE $DB ========\n"
-				justblast ../../../../$scaffolds $blastDB --cpus 16 --evalue 1e-05 \
+				justblast ../../../../$scaffolds $blastDB --cpus $threads --evalue 1e-05 \
 				--outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend \
 				sstart send evalue bitscore staxids" --out_filename blast_output.txt
 				echo -e "\n======== JUSTBLAST WITH DATABASE $DB DONE ========\n"
 
         echo -e "\n======== RUNNING BLAST FIRST HIT ========\n"
-				blast_filtering.bash -i blast_output.txt -f blast -t soft -T 16
+				blast_filtering.bash -i blast_output.txt -f blast -t soft -T $threads
 				cp blast_output.txt blast_filtering_results/
 				mv blast_filtering_results/ BLAST_FIRST_HIT/
         echo -e "\n======== BLAST FIRST HIT DONE ========\n"
 
         echo -e "\n======== RUNNING BLAST FILTERED ========\n"
-				blast_filtering.bash -i blast_output.txt -f blast -t strict -T 16
+				blast_filtering.bash -i blast_output.txt -f blast -t strict -T $threads
 				mv blast_output.txt blast_filtering_results/
 				mv blast_filtering_results/ BLAST_FILTERED/
         echo -e "\n======== BLAST FILTERED DONE========\n"
@@ -372,7 +379,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
         mkdir KRAKEN2/
         cd KRAKEN2/
         # Run kraken2
-        kraken2 --db $krakenDB --threads 16 \
+        kraken2 --db $krakenDB --threads $threads \
         ../../../../../$scaffolds > kraken_output.txt
 
         if [[ $DB == "SILVA" ]] ; then
@@ -631,4 +638,4 @@ echo -e "=================================================================\n"
 echo "SCRIPT DONE AFTER $((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m"
 
 # Create log
-#) 2>&1 | tee PIPELINE_ASSEMBLERS_LOG.txt
+) 2>&1 | tee PIPELINE_ASSEMBLERS_LOG.txt
