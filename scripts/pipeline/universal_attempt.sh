@@ -353,7 +353,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 					blastDB="/hdd1/databases/nt_database_feb_2020_indexed/nt"
 				fi
 
-        mkdir $DB
+				mkdir $DB
 				mkdir $DB/step_6_classification
 				cd $DB/step_6_classification
 
@@ -363,262 +363,270 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				sstart send evalue bitscore staxids" --out_filename blast_output.txt
 				echo -e "\n======== JUSTBLAST WITH DATABASE $DB DONE ========\n"
 
-        echo -e "\n======== RUNNING BLAST FIRST HIT ========\n"
+				echo -e "\n======== RUNNING BLAST FIRST HIT ========\n"
 				blast_filtering.bash -i blast_output.txt -f blast -t soft -T $threads
 				cp blast_output.txt blast_filtering_results/
 				mv blast_filtering_results/ BLAST_FIRST_HIT/
         echo -e "\n======== BLAST FIRST HIT DONE ========\n"
 
-        echo -e "\n======== RUNNING BLAST FILTERED ========\n"
+				echo -e "\n======== RUNNING BLAST FILTERED ========\n"
 				blast_filtering.bash -i blast_output.txt -f blast -t strict -T $threads
 				mv blast_output.txt blast_filtering_results/
 				mv blast_filtering_results/ BLAST_FILTERED/
         echo -e "\n======== BLAST FILTERED DONE========\n"
 
-        echo -e "\n======== RUNNING KRAKEN2 WITH DATABASE $DB ========\n"
-        mkdir KRAKEN2/
-        cd KRAKEN2/
-        # Run kraken2
-        kraken2 --db $krakenDB --threads $threads \
-        ../../../../../$scaffolds > kraken_output.txt
-
-        if [[ $DB == "SILVA" ]] ; then
-          # Now we're gonna edit the output so that is has the same format as CREST output,
-          # since we already have a script to deal with SILVA CREST output
-          # Extract the taxids column of the standard kraken output
-          cut -f3 kraken_output.txt > kraken_taxids.txt
-          # Access the SILVA taxonomy file and generate a file containing one column for
-          # each SILVA taxid and one column for the respective SILVA taxonomy path:
-          tail -n +2 /hdd1/databases/kraken2_SILVA_SSU_LSU/taxmap_slv_lsu_ssu_ref_nr_138.1.txt \
-          | cut -f 4,6 | sort -u > SILVA_paths_and_taxids.txt
-          # Kraken2 spits out the taxid 0 when no hit is found, but 0 doesn't exist in
-          # the SILVA taxonomy, so manually add taxid 0 with path “No hits” to the SILVA
-          # path file:
-          echo -e "No hits;\t0" > tmp && cat SILVA_paths_and_taxids.txt >> tmp \
-          && mv tmp SILVA_paths_and_taxids.txt
-          # Merge your kraken taxids with the SILVA path file to assign a SILVA taxonomy
-          # path to every kraken hit
-          mergeFilesOnColumn.pl SILVA_paths_and_taxids.txt kraken_taxids.txt 2 1 > merged.txt
-          cut -f -2 merged.txt | sed 's/;\t/\t/g' > merged_edit.txt # Edit the output
-          # Extract the sequence names from the kraken output and generate a final file
-          # with sequence name, taxid, and SILVA path
-          cut -f 3 kraken_output.txt > names.txt
-          paste names.txt merged_edit.txt | awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $3, $2}' \
-          > kraken_SILVA_formatted.txt
-          # This file has now the same format as the output of CREST and can be translated
-          # into NCBI taxonomy the same way as CREST output
-
-          assign_NCBI_staxids_to_CREST_v4.py /hdd1/databases/SILVA_database_mar_2020/taxonomy/files_to_make_NCBI_staxids/NCBI_staxids_scientific.txt \
-          /hdd1/databases/SILVA_database_mar_2020/taxonomy/files_to_make_NCBI_staxids/NCBI_staxids_non_scientific.txt \
-          kraken_SILVA_formatted.txt kraken_SILVA_formatted_with_NCBI_taxids.txt
-          sed -i '1d' kraken_SILVA_formatted_with_NCBI_taxids.txt # Remove header
-          mergeFilesOnColumn.pl kraken_SILVA_formatted_with_NCBI_taxids.txt \
-          kraken_SILVA_formatted.txt 1 1 > merged_final.txt # Merge SILVA output with taxids
-          cut -f3 merged_final.txt > NCBItaxids.txt # Extract taxids
-          assign_taxonomy_NCBI_staxids.sh -b NCBItaxids.txt -c 1 -e ~/.etetoolkit/taxa.sqlite
-          sed -i '1d' NCBItaxids_with_taxonomy.txt # Remove header
-          cut -f2 kraken_output.txt > contig_names.txt # Get contig names from original kraken2 output
-          paste contig_names.txt NCBItaxids_with_taxonomy.txt \
-          > contigs_with_NCBItaxids_and_taxonomy.txt # Add contig names to taxonomy file
-          echo -e "sequence\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
-          > kraken_final.txt && cat contigs_with_NCBItaxids_and_taxonomy.txt \
-          >> kraken_final.txt # Add header
-
-          # Sort files
-          mkdir intermediate_files
-          mv kraken_output.txt kraken_taxids.txt SILVA_paths_and_taxids.txt merged* \
-          names.txt kraken_SILVA_formatted* NCBItaxids* contig* intermediate_files/
-
-        else
-          cut -f 2-3 kraken_output.txt > kraken_output_contig_taxid.txt # Isolate contig names and taxids
-          assign_taxonomy_NCBI_staxids.sh -b kraken_output_contig_taxid.txt -c 2 -e ~/.etetoolkit/taxa.sqlite
-          sed -i '1d' kraken_output_contig_taxid_with_taxonomy.txt # Remove header
-          echo -e "sequence\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
-          > kraken_final.txt && cat kraken_output_contig_taxid_with_taxonomy.txt \
-          >> kraken_final.txt # Add header
-
-          # Sort files
-          mkdir intermediate_files
-          mv kraken_output* intermediate_files/
-        fi
-
-        cd ..
-        echo -e "\n======== KRAKEN2 WITH DATABASE $DB DONE========\n"
-
-					classification_tool="BLAST_FILTERED BLAST_FIRST_HIT KRAKEN2"
-					for tool in $classification_tool; do
-						cd $tool
-						mkdir ./FINAL_FILES
-
-						if [[ $assembly_results == 'SPADES' || $assembly_results == 'METASPADES' || $assembly_results == 'IDBA_UD' || $assembly_results == 'RNASPADES' || $assembly_results == 'TRANSABYSS' ]] ; then # Add assembly sequence to BWA and BOWTIE file
-								fasta_to_tab ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${scaffolds} > ./FINAL_FILES/${assembly_results}_tab_to_merge.txt
-								mergeFilesOnColumn.pl ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_4_mapping/${mapper}/merge_input_mapped_${mapper}.txt ./FINAL_FILES/${assembly_results}_tab_to_merge.txt 2 1 > ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt
-								cut -f1,2,4 ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt > ./FINAL_FILES/important_column_3_${mapper}_${assembly_results}.txt
-								awk 'BEGIN {FS="\t";OFS="\t"} {print $2, $1, $3}' ./FINAL_FILES/important_column_3_${mapper}_${assembly_results}.txt > ./FINAL_FILES/final_order_${mapper}_${assembly_results}.txt
-								echo -e "sequence\tcounts\tassembly_sequence" > ./FINAL_FILES/${assembly_results}_final_${mapper}_merge_ready.txt && cat ./FINAL_FILES/final_order_${mapper}_${assembly_results}.txt >> ./FINAL_FILES/${assembly_results}_final_${mapper}_merge_ready.txt
-								rm ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt ./FINAL_FILES/important_column_3_${mapper}_${assembly_results}.txt ./FINAL_FILES/final_order_${mapper}_${assembly_results}.txt
-
-						elif [[ $assembly_results == 'MEGAHIT' ]] ; then
-								fasta_to_tab ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${scaffolds} > ./FINAL_FILES/fasta_to_tabbed.txt
-								sed 's/ /\t/g' ./FINAL_FILES/fasta_to_tabbed.txt| cut -f1,4,5 | sed 's/len=//g' > ./FINAL_FILES/${assembly_results}_tab_to_merge.txt
-								rm ./FINAL_FILES/fasta_to_tabbed.txt
-
-								mergeFilesOnColumn.pl ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_4_mapping/${mapper}/merge_input_mapped_${mapper}.txt ./FINAL_FILES/${assembly_results}_tab_to_merge.txt 2 1 > ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt
-								cut -f1,2,4,5 ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt > ./FINAL_FILES/important_column_4_${mapper}_${assembly_results}.txt
-								awk 'BEGIN {FS="\t";OFS="\t"} {print $2, $3, $1, $4}' ./FINAL_FILES/important_column_4_${mapper}_${assembly_results}.txt > ./FINAL_FILES/final_order_${mapper}_${assembly_results}.txt
-								echo -e "sequence\tcontig_length\tcounts\tassembly_sequence" > ./FINAL_FILES/${assembly_results}_final_${mapper}_merge_ready.txt && cat ./FINAL_FILES/final_order_${mapper}_${assembly_results}.txt >> ./FINAL_FILES/${assembly_results}_final_${mapper}_merge_ready.txt
-								rm ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt ./FINAL_FILES/important_column_4_${mapper}_${assembly_results}.txt ./FINAL_FILES/final_order_${mapper}_${assembly_results}.txt
-
-						elif [[ $assembly_results == 'IDBA_TRAN' ]] ; then
-								fasta_to_tab ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${scaffolds} > ./FINAL_FILES/fasta_to_tabbed.txt
-								sed 's/_/\t/2' ./FINAL_FILES/fasta_to_tabbed.txt | sed 's/_/\t/3' | sed 's/ /\t/g' | cut -f1,3,5,6 > ./FINAL_FILES/${assembly_results}_tab_to_merge.txt
-								rm ./FINAL_FILES/fasta_to_tabbed.txt
-
-								mergeFilesOnColumn.pl ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_4_mapping/${mapper}/merge_input_mapped_${mapper}.txt ./FINAL_FILES/${assembly_results}_tab_to_merge.txt 2 1 > ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt
-								cut -f1,2,4,5,6 ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt > ./FINAL_FILES/important_columns_${mapper}_${assembly_results}.txt
-								awk 'BEGIN {FS="\t";OFS="\t"} {print $2, $3, $4, $1, $5}' ./FINAL_FILES/important_columns_${mapper}_${assembly_results}.txt > ./FINAL_FILES/final_order_${mapper}_${assembly_results}.txt
-								echo -e "sequence\tcontig_length\tcoverage\tcounts\tassembly_sequence" > ./FINAL_FILES/${assembly_results}_final_${mapper}_merge_ready.txt && cat ./FINAL_FILES/final_order_${mapper}_${assembly_results}.txt >> ./FINAL_FILES/${assembly_results}_final_${mapper}_merge_ready.txt
-								rm ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt ./FINAL_FILES/important_columns_${mapper}_${assembly_results}.txt ./FINAL_FILES/final_order_${mapper}_${assembly_results}.txt
+				echo -e "\n======== RUNNING KRAKEN2 WITH DATABASE $DB ========\n"
+				mkdir KRAKEN2/
+				cd KRAKEN2/
+	     	# Run kraken2
+				kraken2 --db $krakenDB --threads $threads \
+				../../../../../$scaffolds > kraken_output.txt
+
+				if [[ $DB == "SILVA" ]] ; then
+		      # Now we're gonna edit the output so that is has the same format as CREST output,
+		      # since we already have a script to deal with SILVA CREST output
+		      # Extract the taxids column of the standard kraken output
+					cut -f3 kraken_output.txt > kraken_taxids.txt
+		      # Access the SILVA taxonomy file and generate a file containing one column for
+		      # each SILVA taxid and one column for the respective SILVA taxonomy path:
+		     	tail -n +2 /hdd1/databases/kraken2_SILVA_SSU_LSU/taxmap_slv_lsu_ssu_ref_nr_138.1.txt \
+		      | cut -f 4,6 | sort -u > SILVA_paths_and_taxids.txt
+		      # Kraken2 spits out the taxid 0 when no hit is found, but 0 doesn't exist in
+		      # the SILVA taxonomy, so manually add taxid 0 with path “No hits” to the SILVA
+		      # path file:
+		      echo -e "No hits;\t0" > tmp && cat SILVA_paths_and_taxids.txt >> tmp \
+		      && mv tmp SILVA_paths_and_taxids.txt
+		      # Merge your kraken taxids with the SILVA path file to assign a SILVA taxonomy
+		      # path to every kraken hit
+		      mergeFilesOnColumn.pl SILVA_paths_and_taxids.txt kraken_taxids.txt 2 1 > merged.txt
+		      cut -f -2 merged.txt | sed 's/;\t/\t/g' > merged_edit.txt # Edit the output
+		      # Extract the sequence names from the kraken output and generate a final file
+		      # with sequence name, taxid, and SILVA path
+		     	cut -f 3 kraken_output.txt > names.txt
+		      paste names.txt merged_edit.txt | awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $3, $2}' \
+				 	> kraken_SILVA_formatted.txt
+		      # This file has now the same format as the output of CREST and can be translated
+		      # into NCBI taxonomy the same way as CREST output
+
+		      assign_NCBI_staxids_to_CREST_v4.py /hdd1/databases/SILVA_database_mar_2020/taxonomy/files_to_make_NCBI_staxids/NCBI_staxids_scientific.txt \
+		      /hdd1/databases/SILVA_database_mar_2020/taxonomy/files_to_make_NCBI_staxids/NCBI_staxids_non_scientific.txt \
+		      kraken_SILVA_formatted.txt kraken_SILVA_formatted_with_NCBI_taxids.txt
+		     	sed -i '1d' kraken_SILVA_formatted_with_NCBI_taxids.txt # Remove header
+		      mergeFilesOnColumn.pl kraken_SILVA_formatted_with_NCBI_taxids.txt \
+		      kraken_SILVA_formatted.txt 1 1 > merged_final.txt # Merge SILVA output with taxids
+		      cut -f3 merged_final.txt > NCBItaxids.txt # Extract taxids
+		      assign_taxonomy_NCBI_staxids.sh -b NCBItaxids.txt -c 1 -e ~/.etetoolkit/taxa.sqlite
+		      sed -i '1d' NCBItaxids_with_taxonomy.txt # Remove header
+		      cut -f2 kraken_output.txt > contig_names.txt # Get contig names from original kraken2 output
+	       	paste contig_names.txt NCBItaxids_with_taxonomy.txt \
+				 	> contigs_with_NCBItaxids_and_taxonomy.txt # Add contig names to taxonomy file
+		     	echo -e "sequence\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
+		     	> kraken_final.txt && cat contigs_with_NCBItaxids_and_taxonomy.txt \
+		    	>> kraken_final.txt # Add header
+
+		      # Sort files
+			   	mkdir intermediate_files
+		      mv kraken_output.txt kraken_taxids.txt SILVA_paths_and_taxids.txt merged* \
+		      names.txt kraken_SILVA_formatted* NCBItaxids* contig* intermediate_files/
+
+	      else
+	      	cut -f 2-3 kraken_output.txt > kraken_output_contig_taxid.txt # Isolate contig names and taxids
+	        assign_taxonomy_NCBI_staxids.sh -b kraken_output_contig_taxid.txt -c 2 -e ~/.etetoolkit/taxa.sqlite
+	        sed -i '1d' kraken_output_contig_taxid_with_taxonomy.txt # Remove header
+	        echo -e "sequence\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
+	        > kraken_final.txt && cat kraken_output_contig_taxid_with_taxonomy.txt \
+	        >> kraken_final.txt # Add header
+
+	       	# Sort files
+	        mkdir intermediate_files
+	        mv kraken_output* intermediate_files/
+	      fi
+
+	      echo -e "\n======== KRAKEN2 WITH DATABASE $DB DONE========\n"
+
+				classification_tool="BLAST_FILTERED BLAST_FIRST_HIT KRAKEN2"
+				for tool in $classification_tool; do
+
+					cd $(realpath --relative-to=$(pwd) ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_5_reference_DB/${ref_DB_list}/step_6_classification/)
+
+					if [[ $assembly_results == 'SPADES' || $assembly_results == 'METASPADES' || $assembly_results == 'IDBA_UD' || $assembly_results == 'RNASPADES' || $assembly_results == 'TRANSABYSS' ]] ; then # Add assembly sequence to BWA and BOWTIE file
+						fasta_to_tab ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${scaffolds} > ./${assembly_results}_tab_to_merge.txt
+						mergeFilesOnColumn.pl ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_4_mapping/${mapper}/merge_input_mapped_${mapper}.txt ./${assembly_results}_tab_to_merge.txt 2 1 > ./merged_original_${mapper}_${assembly_results}.txt
+						cut -f1,2,4 ./merged_original_${mapper}_${assembly_results}.txt > ./important_column_3_${mapper}_${assembly_results}.txt
+						awk 'BEGIN {FS="\t";OFS="\t"} {print $2, $1, $3}' ./important_column_3_${mapper}_${assembly_results}.txt > ./final_order_${mapper}_${assembly_results}.txt
+						echo -e "sequence\tcounts\tassembly_sequence" > ./${assembly_results}_final_${mapper}_merge_ready.txt && cat ./final_order_${mapper}_${assembly_results}.txt >> ./${assembly_results}_final_${mapper}_merge_ready.txt
+						rm ./merged_original_${mapper}_${assembly_results}.txt ./important_column_3_${mapper}_${assembly_results}.txt ./final_order_${mapper}_${assembly_results}.txt
+
+					elif [[ $assembly_results == 'MEGAHIT' ]] ; then
+						fasta_to_tab ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${scaffolds} > ./fasta_to_tabbed.txt
+						sed 's/ /\t/g' ./fasta_to_tabbed.txt| cut -f1,4,5 | sed 's/len=//g' > ./${assembly_results}_tab_to_merge.txt
+						rm ./fasta_to_tabbed.txt
+
+						mergeFilesOnColumn.pl ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_4_mapping/${mapper}/merge_input_mapped_${mapper}.txt ./${assembly_results}_tab_to_merge.txt 2 1 > ./merged_original_${mapper}_${assembly_results}.txt
+						cut -f1,2,4,5 ./merged_original_${mapper}_${assembly_results}.txt > ./important_column_4_${mapper}_${assembly_results}.txt
+						awk 'BEGIN {FS="\t";OFS="\t"} {print $2, $3, $1, $4}' ./important_column_4_${mapper}_${assembly_results}.txt > ./final_order_${mapper}_${assembly_results}.txt
+						echo -e "sequence\tcontig_length\tcounts\tassembly_sequence" > ./${assembly_results}_final_${mapper}_merge_ready.txt && cat ./final_order_${mapper}_${assembly_results}.txt >> ./${assembly_results}_final_${mapper}_merge_ready.txt
+						rm ./merged_original_${mapper}_${assembly_results}.txt ./important_column_4_${mapper}_${assembly_results}.txt ./final_order_${mapper}_${assembly_results}.txt
+
+					elif [[ $assembly_results == 'IDBA_TRAN' ]] ; then
+						fasta_to_tab ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${scaffolds} > ./fasta_to_tabbed.txt
+						sed 's/_/\t/2' ./fasta_to_tabbed.txt | sed 's/_/\t/3' | sed 's/ /\t/g' | cut -f1,3,5,6 > ./${assembly_results}_tab_to_merge.txt
+						rm ./fasta_to_tabbed.txt
+
+						mergeFilesOnColumn.pl ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_4_mapping/${mapper}/merge_input_mapped_${mapper}.txt ./${assembly_results}_tab_to_merge.txt 2 1 > ./merged_original_${mapper}_${assembly_results}.txt
+						cut -f1,2,4,5,6 ./merged_original_${mapper}_${assembly_results}.txt > ./important_columns_${mapper}_${assembly_results}.txt
+						awk 'BEGIN {FS="\t";OFS="\t"} {print $2, $3, $4, $1, $5}' ./important_columns_${mapper}_${assembly_results}.txt > ./final_order_${mapper}_${assembly_results}.txt
+						echo -e "sequence\tcontig_length\tcoverage\tcounts\tassembly_sequence" > ./${assembly_results}_final_${mapper}_merge_ready.txt && cat ./final_order_${mapper}_${assembly_results}.txt >> ./${assembly_results}_final_${mapper}_merge_ready.txt
+						rm ./merged_original_${mapper}_${assembly_results}.txt ./important_columns_${mapper}_${assembly_results}.txt ./final_order_${mapper}_${assembly_results}.txt
 
-						else
-								fasta_to_tab ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${scaffolds} > ./FINAL_FILES/fasta_to_tabbed.txt
-								sed 's/ /\t/1' ./FINAL_FILES/fasta_to_tabbed.txt | cut -f1,3 > ./FINAL_FILES/${assembly_results}_tab_to_merge.txt
-								rm ./FINAL_FILES/fasta_to_tabbed.txt
+					else
+						fasta_to_tab ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${scaffolds} > ./fasta_to_tabbed.txt
+						sed 's/ /\t/1' ./fasta_to_tabbed.txt | cut -f1,3 > ./${assembly_results}_tab_to_merge.txt
+						rm ./fasta_to_tabbed.txt
 
-								mergeFilesOnColumn.pl ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_4_mapping/${mapper}/merge_input_mapped_${mapper}.txt ./FINAL_FILES/${assembly_results}_tab_to_merge.txt 2 1 > ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt
-								cut -f1,2,4 ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt > ./FINAL_FILES/important_column_3_${mapper}_${assembly_results}.txt
-								awk 'BEGIN {FS="\t";OFS="\t"} {print $2, $1, $3}' ./FINAL_FILES/important_column_3_${mapper}_${assembly_results}.txt > ./FINAL_FILES/final_order_${mapper}_${assembly_results}.txt
-								echo -e "sequence\tcounts\tassembly_sequence" > ./FINAL_FILES/${assembly_results}_final_${mapper}_merge_ready.txt && cat ./FINAL_FILES/final_order_${mapper}_${assembly_results}.txt >> ./FINAL_FILES/${assembly_results}_final_${mapper}_merge_ready.txt
-								rm ./FINAL_FILES/merged_original_${mapper}_${assembly_results}.txt ./FINAL_FILES/important_column_3_${mapper}_${assembly_results}.txt ./FINAL_FILES/final_order_${mapper}_${assembly_results}.txt
-						fi
+						mergeFilesOnColumn.pl ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_4_mapping/${mapper}/merge_input_mapped_${mapper}.txt ./${assembly_results}_tab_to_merge.txt 2 1 > ./merged_original_${mapper}_${assembly_results}.txt
+						cut -f1,2,4 ./merged_original_${mapper}_${assembly_results}.txt > ./important_column_3_${mapper}_${assembly_results}.txt
+						awk 'BEGIN {FS="\t";OFS="\t"} {print $2, $1, $3}' ./important_column_3_${mapper}_${assembly_results}.txt > ./final_order_${mapper}_${assembly_results}.txt
+						echo -e "sequence\tcounts\tassembly_sequence" > ./${assembly_results}_final_${mapper}_merge_ready.txt && cat ./final_order_${mapper}_${assembly_results}.txt >> ./${assembly_results}_final_${mapper}_merge_ready.txt
+						rm ./merged_original_${mapper}_${assembly_results}.txt ./important_column_3_${mapper}_${assembly_results}.txt ./final_order_${mapper}_${assembly_results}.txt
+					fi
 
-						if [[ $tool == 'BLAST_FILTERED' ]] ; then # Add classification data to BWA and BOWTIE2
+					if [[ $tool == 'BLAST_FILTERED' ]] ; then # Add classification data to BWA and BOWTIE2
 
-							merge_mapped_reads_and_contigs.py ./blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt ./FINAL_FILES/${assembly_results}_final_${mapper}_merge_ready.txt ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt
+						mkdir BLAST_FILTERED/FINAL_FILES/
+						cd BLAST_FILTERED/
+						merge_mapped_reads_and_contigs.py ./blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_5_reference_DB/${ref_DB_list}/step_6_classification/${assembly_results}_final_${mapper}_merge_ready.txt ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt
 
-								if [ $assembly_results == 'SPADES' ] || [ $assembly_results == 'METASPADES' ] ; then
+							if [ $assembly_results == 'SPADES' ] || [ $assembly_results == 'METASPADES' ] ; then
 
-									sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' | sed 's/length_//g' | sed 's/cov_//g' > ./FINAL_FILES/new.txt
-									echo -e "sequence_number\tcontig_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' | sed 's/length_//g' | sed 's/cov_//g' > ./FINAL_FILES/new.txt
+								echo -e "sequence_number\tcontig_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-								elif [[ $assembly_results == 'IDBA_UD' ]] ; then
+							elif [[ $assembly_results == 'IDBA_UD' ]] ; then
 
-									sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' | cut -f2-16 > ./FINAL_FILES/new.txt
-									echo -e "sequence_number\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' | cut -f2-16 > ./FINAL_FILES/new.txt
+								echo -e "sequence_number\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-								elif [[ $assembly_results == 'MEGAHIT' ]] ; then
+							elif [[ $assembly_results == 'MEGAHIT' ]] ; then
 
-									sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' | cut -f2-17 > ./FINAL_FILES/new.txt
-									echo -e "sequence_number\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcontig_length\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' | cut -f2-17 > ./FINAL_FILES/new.txt
+								echo -e "sequence_number\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcontig_length\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-								elif [[ $assembly_results == 'RNASPADES' ]] ; then
+							elif [[ $assembly_results == 'RNASPADES' ]] ; then
 
-									sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' | sed 's/length_//g' | sed 's/cov_//g' | sed 's/_/\t/1' | cut -f1,2,3,5-21 > ./FINAL_FILES/new.txt
-									echo -e "sequence_number\tcontig_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' | sed 's/length_//g' | sed 's/cov_//g' | sed 's/_/\t/1' | cut -f1,2,3,5-21 > ./FINAL_FILES/new.txt
+								echo -e "sequence_number\tcontig_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-								elif [[ $assembly_results == 'IDBA_TRAN' ]] ; then
+							elif [[ $assembly_results == 'IDBA_TRAN' ]] ; then
 
-									sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt |	sed 's/_/\t/1' | cut -f2-18 > ./FINAL_FILES/new.txt
-									echo -e "sequence_number\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt |	sed 's/_/\t/1' | cut -f2-18 > ./FINAL_FILES/new.txt
+								echo -e "sequence_number\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-								elif [[ $assembly_results == 'TRINITY' ]] ; then
+							elif [[ $assembly_results == 'TRINITY' ]] ; then
 
-									sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/5' | sed 's/len=//g' | sed 's/TRINITY_//g' > ./FINAL_FILES/new.txt
-									echo -e "sequence_number\tcontig_length\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/5' | sed 's/len=//g' | sed 's/TRINITY_//g' > ./FINAL_FILES/new.txt
+								echo -e "sequence_number\tcontig_length\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-								else #TRANSABYSS
+							else #TRANSABYSS
 
-									sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' | sed 's/_/\t/1' > ./FINAL_FILES/new.txt
-									echo -e "sequence_number\tcontig_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' | sed 's/_/\t/1' > ./FINAL_FILES/new.txt
+								echo -e "sequence_number\tcontig_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-								fi
+							fi
 
-						elif [[ $tool == 'BLAST_FIRST_HIT' ]] ; then
+							echo -e "\n========DONE BLAST_FILTERED=======\n"
 
-							merge_mapped_reads_and_contigs.py ./blast_output_with_taxonomy_and_best_hit.txt ./FINAL_FILES/${assembly_results}_final_${mapper}_merge_ready.txt ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt
+					elif [[ $tool == 'BLAST_FIRST_HIT' ]] ; then
 
-								if [ $assembly_results == 'SPADES' ] || [ $assembly_results == 'METASPADES' ] ; then
+						mkdir BLAST_FIRST_HIT/FINAL_FILES/
+						cd BLAST_FIRST_HIT/
+						merge_mapped_reads_and_contigs.py ./blast_output_with_taxonomy_and_best_hit.txt ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_5_reference_DB/${ref_DB_list}/step_6_classification/${assembly_results}_final_${mapper}_merge_ready.txt ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt
 
-									sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' | sed 's/length_//g' | sed 's/cov_//g' > ./FINAL_FILES/new.txt
-									echo -e "sequence_number\tcontig_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+							if [ $assembly_results == 'SPADES' ] || [ $assembly_results == 'METASPADES' ] ; then
 
-								elif [[ $assembly_results == 'IDBA_UD' ]] ; then
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' | sed 's/length_//g' | sed 's/cov_//g' > ./FINAL_FILES/new.txt
+								echo -e "sequence_number\tcontig_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-										sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' | cut -f2-15 > ./FINAL_FILES/new.txt
-										echo -e "sequence_number\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+							elif [[ $assembly_results == 'IDBA_UD' ]] ; then
 
-								elif [[ $assembly_results == 'MEGAHIT' ]] ; then
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' | cut -f2-15 > ./FINAL_FILES/new.txt
+								echo -e "sequence_number\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-										sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' | cut -f2-16 > ./FINAL_FILES/new.txt
-										echo -e "sequence_number\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+							elif [[ $assembly_results == 'MEGAHIT' ]] ; then
 
-								elif [[ $assembly_results == 'RNASPADES' ]] ; then
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' | cut -f2-16 > ./FINAL_FILES/new.txt
+								echo -e "sequence_number\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-										sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' | sed 's/length_//g' | sed 's/cov_//g' | sed 's/_/\t/1' | cut -f1,2,3,5-20 > ./FINAL_FILES/new.txt
-										echo -e "sequence_number\tcontig_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+							elif [[ $assembly_results == 'RNASPADES' ]] ; then
 
-								elif [[ $assembly_results == 'IDBA_TRAN' ]] ; then
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' | sed 's/length_//g' | sed 's/cov_//g' | sed 's/_/\t/1' | cut -f1,2,3,5-20 > ./FINAL_FILES/new.txt
+								echo -e "sequence_number\tcontig_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-										sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' | cut -f2-17 > ./FINAL_FILES/new.txt
-										echo -e "sequence_number\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+							elif [[ $assembly_results == 'IDBA_TRAN' ]] ; then
 
-								elif [[ $assembly_results == 'TRINITY' ]] ; then
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' | cut -f2-17 > ./FINAL_FILES/new.txt
+								echo -e "sequence_number\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-										sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/5' | sed 's/len=//g' | sed 's/TRINITY_//g' > ./FINAL_FILES/new.txt
-										echo -e "sequence_number\tcontig_length\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+							elif [[ $assembly_results == 'TRINITY' ]] ; then
 
-								else #TRANSABYSS
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/5' | sed 's/len=//g' | sed 's/TRINITY_//g' > ./FINAL_FILES/new.txt
+								echo -e "sequence_number\tcontig_length\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-									sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' | sed 's/_/\t/1' > ./FINAL_FILES/new.txt
-									echo -e "sequence_number\tcontig_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+							else #TRANSABYSS
 
-								fi
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' | sed 's/_/\t/1' > ./FINAL_FILES/new.txt
+								echo -e "sequence_number\tcontig_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-						else
+							fi
 
-							merge_mapped_reads_and_contigs.py ./kraken_final.txt ./FINAL_FILES/${assembly_results}_final_${mapper}_merge_ready.txt ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt
+							echo -e "\n========DONE BLAST_FIRST_HIT========\n"
 
-								if [ $assembly_results == 'SPADES' ] || [ $assembly_results == 'METASPADES' ] ; then
+					else
 
-									sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' | sed 's/length_//g' | sed 's/cov_//g' > ./FINAL_FILES/new.txt
-									echo -e "sequence_number\tcontig_length\tcontig_coverage\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+						mkdir KRAKEN2/FINAL_FILES/
+						cd KRAKEN2/
+						merge_mapped_reads_and_contigs.py ./kraken_final.txt ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_5_reference_DB/${ref_DB_list}/step_6_classification/${assembly_results}_final_${mapper}_merge_ready.txt ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt
 
-								elif [[ $assembly_results == 'IDBA_UD' ]] ; then
+							if [ $assembly_results == 'SPADES' ] || [ $assembly_results == 'METASPADES' ] ; then
 
-									sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' | cut -f2-20 > ./FINAL_FILES/new.txt
-									echo -e "sequence_number\tcontig_length\tcontig_coverage\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' | sed 's/length_//g' | sed 's/cov_//g' > ./FINAL_FILES/new.txt
+								echo -e "sequence_number\tcontig_length\tcontig_coverage\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-								elif [[ $assembly_results == 'MEGAHIT' ]] ; then
+							elif [[ $assembly_results == 'IDBA_UD' ]] ; then
 
-									sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' ./FINAL_FILES/new.txt | cut -f2-19 > ./FINAL_FILES/new.txt
-									echo -e "sequence_number\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' | cut -f2-20 > ./FINAL_FILES/new.txt
+								echo -e "sequence_number\tcontig_length\tcontig_coverage\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-								elif [[ $assembly_results == 'RNASPADES' ]] ; then
+							elif [[ $assembly_results == 'MEGAHIT' ]] ; then
 
-									sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/2' |sed 's/_/\t/3' | sed 's/NODE_//g' | sed 's/length_//g' | sed 's/cov_//g' | sed 's/_/\t/1' | cut -f1,2,3,5-20 > ./FINAL_FILES/new.txt
-									echo -e "sequence_number\tcontig_length\tcontig_coverage\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' ./FINAL_FILES/new.txt | cut -f2-19 > ./FINAL_FILES/new.txt
+								echo -e "sequence_number\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-								elif [[ $assembly_results == 'IDBA_TRAN' ]] ; then
+							elif [[ $assembly_results == 'RNASPADES' ]] ; then
 
-									sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' | cut -f2-20 > ./FINAL_FILES/new.txt
-									echo -e "sequence_number\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/2' |sed 's/_/\t/3' | sed 's/NODE_//g' | sed 's/length_//g' | sed 's/cov_//g' | sed 's/_/\t/1' | cut -f1,2,3,5-20 > ./FINAL_FILES/new.txt
+								echo -e "sequence_number\tcontig_length\tcontig_coverage\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-								elif [[ $assembly_results == 'TRINITY' ]] ; then
+							elif [[ $assembly_results == 'IDBA_TRAN' ]] ; then
 
-									sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/5' | sed 's/len=//g' | sed 's/TRINITY_//g' > ./FINAL_FILES/new.txt
-									echo -e "contig_number\tcontig_length\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' | cut -f2-20 > ./FINAL_FILES/new.txt
+								echo -e "sequence_number\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-								else #TRANSABYSS
+							elif [[ $assembly_results == 'TRINITY' ]] ; then
 
-									sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' | sed 's/_/\t/1' > ./FINAL_FILES/new.txt
-									echo -e "sequence_number\tcontig_length\tcontig_coverage\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/5' | sed 's/len=//g' | sed 's/TRINITY_//g' > ./FINAL_FILES/new.txt
+								echo -e "contig_number\tcontig_length\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-								fi
+							else #TRANSABYSS
 
-						cd ..
-						echo -e "\n========DONE========\n"
+								sed '1d' ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_merged.txt | sed 's/_/\t/1' | sed 's/_/\t/1' > ./FINAL_FILES/new.txt
+								echo -e "sequence_number\tcontig_length\tcontig_coverage\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${assembly_results}"_"${DB}"_"${tool}"_"${mapper}"_final.txt
 
-						fi
+							fi
+
+							echo -e "\n========DONE KRAKEN2========\n"
+
+					fi
 
 					cd $(realpath --relative-to=$(pwd) ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_5_reference_DB/${ref_DB_list}/step_6_classification/)
 				done
