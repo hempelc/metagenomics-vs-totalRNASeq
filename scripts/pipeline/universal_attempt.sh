@@ -113,7 +113,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	--ref /hdd1/databases/sortmerna_silva_databases/silva-euk-18s-id95.fasta \
 	--reads ../*1P_error_corrected.fastq --reads ../*2P_error_corrected.fastq \
 	--paired_in -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA/ \
-	--threads $threads
+	--threads 1:1:$threads
 	deinterleave_fastq_reads.sh < SORTMERNA/out/aligned.fastq \
 	SORTMERNA/out/aligned_R1.fq SORTMERNA/out/aligned_R2.fq
 	echo -e "\n======== SORTMERNA DONE ========\n"
