@@ -20,3 +20,9 @@ for i in lsu ssu; do
 done
 
 rm $(ls | grep -v "kraken")
+
+# cat the two resulting files together and use them to build a kraken2 DB.
+# download the two taxmap files and cat them together to extract accession_number
+# and ID information which is needed to translate the kraken2 results into NCBI
+# taxids. A copy of that is saved on our server in the generated kraken2 DB,
+# /hdd1/databases/kraken2_SILVA_SSU_LSU/taxmap_slv_lsu_ssu_ref_nr_138.1.txt
