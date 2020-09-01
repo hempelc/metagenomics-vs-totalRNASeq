@@ -553,12 +553,12 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
 							elif [[ $assembly_results == 'IDBA_UD' ]] ; then
 
-								sed '1d' ./FINAL_FILES/"${trimming_results}"_"${rrna_filter_results}"_"${assembly_results}"_"${mapper}"_"${DB}"_"${classification_tool}"_merged.txt | sed 's/_/\t/1' | cut -f2-15 > ./FINAL_FILES/new.txt
+								sed '1d' ./FINAL_FILES/"${trimming_results}"_"${rrna_filter_results}"_"${assembly_results}"_"${mapper}"_"${DB}"_"${classification_tool}"_merged.txt | sed 's/_/\t/1' | cut -f2-16 > ./FINAL_FILES/new.txt
 								echo -e "sequence_number\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" > ./FINAL_FILES/"${trimming_results}"_"${rrna_filter_results}"_"${assembly_results}"_"${mapper}"_"${DB}"_"${classification_tool}"_pipeline_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${trimming_results}"_"${rrna_filter_results}"_"${assembly_results}"_"${mapper}"_"${DB}"_"${classification_tool}"_pipeline_final.txt
 
 							elif [[ $assembly_results == 'MEGAHIT' ]] ; then
 
-								sed '1d' ./FINAL_FILES/"${trimming_results}"_"${rrna_filter_results}"_"${assembly_results}"_"${mapper}"_"${DB}"_"${classification_tool}"_merged.txt | sed 's/_/\t/1' | cut -f2-16 > ./FINAL_FILES/new.txt
+								sed '1d' ./FINAL_FILES/"${trimming_results}"_"${rrna_filter_results}"_"${assembly_results}"_"${mapper}"_"${DB}"_"${classification_tool}"_merged.txt | sed 's/_/\t/1' | cut -f2-17 > ./FINAL_FILES/new.txt
 								echo -e "sequence_number\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcounts\tassembly_sequence" > ./FINAL_FILES/"${trimming_results}"_"${rrna_filter_results}"_"${assembly_results}"_"${mapper}"_"${DB}"_"${classification_tool}"_pipeline_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${trimming_results}"_"${rrna_filter_results}"_"${assembly_results}"_"${mapper}"_"${DB}"_"${classification_tool}"_pipeline_final.txt
 
 							elif [[ $assembly_results == 'RNASPADES' ]] ; then
@@ -568,7 +568,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
 							elif [[ $assembly_results == 'IDBA_TRAN' ]] ; then
 
-								sed '1d' ./FINAL_FILES/"${trimming_results}"_"${rrna_filter_results}"_"${assembly_results}"_"${mapper}"_"${DB}"_"${classification_tool}"_merged.txt | sed 's/_/\t/1' | cut -f2-17 > ./FINAL_FILES/new.txt
+								sed '1d' ./FINAL_FILES/"${trimming_results}"_"${rrna_filter_results}"_"${assembly_results}"_"${mapper}"_"${DB}"_"${classification_tool}"_merged.txt | sed 's/_/\t/1' | cut -f2-18 > ./FINAL_FILES/new.txt
 								echo -e "sequence_number\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcontig_read_count\tcounts\tassembly_sequence" > ./FINAL_FILES/"${trimming_results}"_"${rrna_filter_results}"_"${assembly_results}"_"${mapper}"_"${DB}"_"${classification_tool}"_pipeline_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${trimming_results}"_"${rrna_filter_results}"_"${assembly_results}"_"${mapper}"_"${DB}"_"${classification_tool}"_pipeline_final.txt
 
 							elif [[ $assembly_results == 'TRINITY' ]] ; then
@@ -604,7 +604,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
 							elif [[ $assembly_results == 'MEGAHIT' ]] ; then
 
-								sed '1d' ./FINAL_FILES/"${trimming_results}"_"${rrna_filter_results}"_"${assembly_results}"_"${mapper}"_"${DB}"_"${classification_tool}"_merged.txt | sed 's/_/\t/1' ./FINAL_FILES/new.txt | cut -f2-19 > ./FINAL_FILES/new.txt
+								sed '1d' ./FINAL_FILES/"${trimming_results}"_"${rrna_filter_results}"_"${assembly_results}"_"${mapper}"_"${DB}"_"${classification_tool}"_merged.txt | sed 's/_/\t/1' | cut -f2-19 > ./FINAL_FILES/new.txt
 								echo -e "sequence_number\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcontig_length\tcounts\tassembly_sequence" > ./FINAL_FILES/"${trimming_results}"_"${rrna_filter_results}"_"${assembly_results}"_"${mapper}"_"${DB}"_"${classification_tool}"_pipeline_final.txt && cat ./FINAL_FILES/new.txt >> ./FINAL_FILES/"${trimming_results}"_"${rrna_filter_results}"_"${assembly_results}"_"${mapper}"_"${DB}"_"${classification_tool}"_pipeline_final.txt
 
 							elif [[ $assembly_results == 'RNASPADES' ]] ; then
