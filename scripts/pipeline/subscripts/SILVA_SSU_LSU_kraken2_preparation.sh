@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script to set up SILVA SSU and LSU NR99 for kraken
+# Script to set up SILVA SSU and LSU NR99 for kraken2
 
 wget https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/SILVA_138.1_SSURef_NR99_tax_silva.fasta.gz
 wget https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/SILVA_138.1_LSURef_NR99_tax_silva.fasta.gz
