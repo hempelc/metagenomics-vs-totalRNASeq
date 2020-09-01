@@ -1,17 +1,38 @@
 #!/bin/bash
 
-cmd="$0 $@" # Make variable containing full used command to print command in logfile
+# Version 0.1
+# Written by Natalie Wright (nwrigh06@uoguelph.ca) and Chris Hempel (hempelc@uoguelph.ca)
+
+# This is a pipeline for Chris Hempel's first PhD chapter
+
+# It trims raw paired-end input sequences at 4 PHRED scores, filters rRNA
+# with 4 approaches, uses 8 assemblers, maps reads back to scaffolds using
+# 2 mappers, and assigns taxonomy to scaffolds using 2 databases with
+# 3 classification approaches.
+
+# The output is a folder called METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/
+# that contains tab-separated, taxonomically annotated scaffolds and read counts
+# for all combinations of the above described steps.
+
+
+# The script requires the following subscripts
+# The following programs must be installed (used versions indicated in brackets)
+# justblast
+# seqtk
+# XXXXXXXXXXX
+
+cmd="$0 $@" # Make variable containing the entire entered command to print command to logfile
 usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> [-t <n>]
 Usage:
-	-1 Forward reads - must state full path from root to the file
-	-2 Reverse reads - must state full path from root to the file
+	-1 Forward reads
+	-2 Reverse reads
 	-t Number of threads (default:16)
 	-h Display this help and exit"
 
-# Set default options
+# Set default options:
 threads='16'
 
-# Set specified options
+# Set specified options:
 while getopts ':1:2:t:h' opt; do
  	case "${opt}" in
 		1) forward_reads="${OPTARG}" ;;
@@ -29,7 +50,7 @@ while getopts ':1:2:t:h' opt; do
 done
 shift $((OPTIND - 1))
 
-# Check if required options are set
+# Check if required options are set:
 if [[ -z "$forward_reads" || -z "$reverse_reads" ]]
 then
    echo -e "-1 and -2 must be set.\n"
@@ -39,18 +60,18 @@ then
 fi
 
 
-##################### Write time, options etc. to output ######################
+##################### Write start time and options to output ######################
 
-# Make open bracket to later tell script to write everything that follows into a logfile
+# Make open bracket to later tell script to write everything that follows into a logfile:
 (
 
-# Define starting time of script for total runtime calculation
+# Define starting time of script for total runtime calculation:
 start=$(date +%s)
 echo -e "\n\nSTART RUNNING SCRIPT AT $(date)\n"
 echo -e "=================================================================\n\n"
 
 
-# Output specified options
+# Output specified options:
 echo -e "======== OPTIONS ========\n"
 
 echo -e "Forward reads were defined as $forward_reads.\n"
@@ -58,28 +79,36 @@ echo -e "Reverse reads were defined as $reverse_reads.\n"
 echo -e "Number of threads was set to $threads.\n"
 echo -e "Script started with full command: $cmd\n"
 
-echo -e "++++++++ START RUNNING SCRIPT ========\n"
 
-# Save current path in variable to make navigation between directories easier
+
+######################### Start of the actual script ################################
+echo -e "++++++++ START RUNNING SCRIPT ++++++++\n"
+
+# Make output directory:
+mkdir METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
+cd METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
+
+# Save full current path in variable to make navigation between directories easier:
 base_directory=$(pwd)
 
 ######################### Step 1: trimming ################################
-echo -e "++++++++ START STEP 1: TRIMMING AND ERROR CORRECTION ========\n"
+echo -e "++++++++ START STEP 1: TRIMMING AND ERROR CORRECTION ++++++++\n"
 
-# Trimming is done with separate script:
+# Trimming is done with a separate subscript:
 fastqc_on_R1_R2_and_optional_trimming.sh \
 -T /hdd1/programs_for_pilot/Trimmomatic-0.39/trimmomatic-0.39.jar \
 -1 $forward_reads -2 $reverse_reads -t yes -p $threads
 mv trimming_with_phred_scores_and_fastqc_report_output/ step_1_trimming/
 
-# Running error correction module of SPAdes on trimmed reads
+# Running error correction module of SPAdes on all trimmed reads
 for trimming_results in step_1_trimming/trimmomatic/*; do
-	echo -e "\n======== ERROR-CORRECTING READS IN FOLDER $trimming_results ++++++++\n"
+	echo -e "\n======== ERROR-CORRECTING READS IN FOLDER $trimming_results ========\n"
 	spades.py -1 $trimming_results/*1P.fastq -2 $trimming_results/*2P.fastq \
 	--only-error-correction --disable-gzip-output -o $trimming_results/error_correction \
 	-t $threads
 	mv $trimming_results/error_correction/corrected/*1P*.fastq \
 	$trimming_results/error_correction/corrected/*2P*.fastq $trimming_results
+	# Rename weird name of error-corrected reads:
 	R1=$(echo $trimming_results/*1P.00.0_0.cor.fastq) \
   && 	mv $trimming_results/*1P.00.0_0.cor.fastq ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
   sed -r -i 's/ BH:.{2,6}//g' ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
@@ -87,13 +116,19 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
   && mv $trimming_results/*2P.00.0_0.cor.fastq ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
   sed -r -i 's/ BH:.{2,6}//g' ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
 	rm -r $trimming_results/error_correction/
-	echo -e "\n++++++++ FINISHED ERROR-CORRECTING READS IN FOLDER $trimming_results ++++++++\n"
+	echo -e "\n======== FINISHED ERROR-CORRECTING READS IN FOLDER $trimming_results ========\n"
 done
 
-echo -e "++++++++ FINISHED STEP 1: TRIMMING AND ERROR CORRECTION ========\n"
+echo -e "++++++++ FINISHED STEP 1: TRIMMING AND ERROR CORRECTION ++++++++\n"
+
 
 ######################### Step 2: rRNA sorting ################################
 
+# NOTE: To enable each combination of programs in each step, we run nested for
+# loops and close them all at the very end of the script.
+
+# For loop 1: loop over the folders for trimmed data at different PHRED scores
+# for rRNA filtration:
 for trimming_results in step_1_trimming/trimmomatic/*; do
 	mkdir $trimming_results/step_2_rrna_sorting/
 	cd $trimming_results/step_2_rrna_sorting/
@@ -114,6 +149,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	--reads ../*1P_error_corrected.fastq --reads ../*2P_error_corrected.fastq \
 	--paired_in -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA/ \
 	--threads 1:1:$threads
+	# SortMeRNA interleaves reads, which we don't want, so we deinterleave them:
 	deinterleave_fastq_reads.sh < SORTMERNA/out/aligned.fastq \
 	SORTMERNA/out/aligned_R1.fq SORTMERNA/out/aligned_R2.fq
 	echo -e "\n======== SORTMERNA DONE ========\n"
@@ -121,9 +157,13 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	echo -e "\n======== RUNNING rRNAFILTER ========\n"
 	mkdir rRNAFILTER/
 	cd rRNAFILTER/
+	# rRNAFilter only worked for us when we started it within the directory
+	# containing the .jar file. To simplify switching to that directory, we simply
+	# download the small program within the script and delete it after usage:
 	wget http://hulab.ucf.edu/research/projects/rRNAFilter/software/rRNAFilter.zip
 	unzip rRNAFilter.zip
 	cd rRNAFilter/
+	# We use 7GB for the rRNAFilter .jar, as shown in the rRNAFilter manual:
 	java -jar -Xmx7g rRNAFilter_commandline.jar \
 	-i ../../reads_in_fasta_format/R1.fa -r 0
 	java -jar -Xmx7g rRNAFilter_commandline.jar \
@@ -131,6 +171,10 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	mv ../../reads_in_fasta_format/R*.fa_rRNA ..
 	cd ..
 	rm -r rRNAFilter rRNAFilter.zip
+	# We want to keep paired reads, so we extract all rRNA read names that were
+	# found in R1 and R2, save them as one list, and extract all reads from both
+	# R1 and R2 reads. That way, even if only one read from a pair was identified
+	# as rRNA, we keep the pair of reads:
 	fasta_to_tab R1.fa_rRNA | cut -f 1 | cut -f1 -d " " > names.txt
 	fasta_to_tab R2.fa_rRNA | cut -f 1 | cut -f1 -d " " >> names.txt
 	sort -u names.txt > names_sorted.txt
@@ -144,7 +188,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
 	echo -e "\n======== RUNNING BARRNAP ========\n"
 	mkdir BARRNAP/
-	for kingdom in euk bac arc; do
+	for kingdom in euk bac arc; do # barrnap needs to be run on kingdoms separately
 		echo -e "\n======== RUNNING BARRNAP ON KINGDOM $kingdom AND R1 READS ========\n"
 		barrnap --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
 		--threads $threads --outseq BARRNAP/${kingdom}_reads1.fa \
@@ -159,7 +203,12 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 		sed 's/.*::/>/g' BARRNAP/${kingdom}_reads2.fa | sed 's/:.*//g' \
 		> BARRNAP/${kingdom}_reads2_edited.fa
 	done
+	# Concatenating results from the three kingdoms and R1 and R2 files
 	cat BARRNAP/*edited.fa > BARRNAP/all_reads.fa
+	# We want to keep paired reads, so we extract all rRNA read names that were
+	# found in R1 and R2 for the three kingdoms (in all_reads.fa), save them as
+	# one list, and extract all reads from both R1 and R2 reads. That way, even if
+	# only one read from a pair was identified as rRNA, we keep the pair of reads:
 	fasta_to_tab BARRNAP/all_reads.fa | cut -f 1 | cut -f1 -d " " | sort -u \
 	> BARRNAP/names_sorted.txt
 	seqtk subseq reads_in_fasta_format/R1.fa BARRNAP/names_sorted.txt \
@@ -175,10 +224,11 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
 	echo -e "\n++++++++ FINISHED STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER $trimming_results ++++++++\n"
 
+
 	######################### Step 3: Assembly ################################
 
-	rrna_filter_results_list="rRNAFILTER SORTMERNA BARRNAP UNSORTED"
-  for rrna_filter_results in $rrna_filter_results_list; do
+	# For loop 2: loop over the folders for rRNA filtered data for assembly:
+  for rrna_filter_results in rRNAFILTER SORTMERNA BARRNAP UNSORTED; do
 		if [[ $rrna_filter_results == 'rRNAFILTER' ]] ; then
 			R1_sorted='rRNAFILTER/rRNAFilter_paired_R1.fa'
 			R2_sorted='rRNAFILTER/rRNAFilter_paired_R2.fa'
@@ -188,7 +238,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 		elif [[ $rrna_filter_results == 'BARRNAP' ]] ; then
 			R1_sorted='BARRNAP/barrnap_paired_R1.fa'
 			R1_sorted='BARRNAP/barrnap_paired_R2.fa'
-	  else
+	  else # UNSORTED
 			R1_sorted='UNSORTED/*1P_error_corrected.fastq'
 			R2_sorted='UNSORTED/*2P_error_corrected.fastq'
 		fi
@@ -215,6 +265,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 		echo -e "\n======== MEGAHIT DONE ========\n"
 
 		echo -e "\n======== RUNNING IDBA_UD ========\n"
+		# IDBA_UD only takes interleaved fasta files
 		fq2fa --merge --filter ../../$R1_sorted ../../$R2_sorted idba_ud_input.fa
 		idba_ud --num_threads $threads --pre_correction -r idba_ud_input.fa \
     -o IDBA_UD/
@@ -228,34 +279,41 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 		echo -e "\n======== RNASPADES DONE ========\n"
 
 		echo -e "\n======== RUNNING IDBA_TRAN ========\n"
-		fq2fa --merge --filter ../../$R1_sorted ../../$R2_sorted idba_tran_input.fa
+		# IDBA_TRAN only takes interleaved fasta files
+		fq2fa --merge ../../$R1_sorted ../../$R2_sorted idba_tran_input.fa
 		idba_tran --num_threads $threads --pre_correction -r idba_tran_input.fa \
     -o IDBA_TRAN/
 		mv idba_tran_input.fa IDBA_TRAN/
 		echo -e "\n======== IDBA_TRAN DONE ========\n"
 
 		echo -e "\n======== RUNNING TRINITY ========\n"
-    if [[ $rrna_filter_results == "rRNAFILTER" ]]; then
+		# Barrnap and rRNAFilter output fasta files which has to be indicated to Trinity:
+    if [[ $rrna_filter_results == "rRNAFILTER" \
+		|| $rrna_filter_results == "BARRNAP" ]]; then
   		Trinity --seqType fa --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024)-5)))G --left ../../$R1_sorted --right \
-      ../../$R2_sorted --CPU $threads --output TRINITY/
+      ../../$R2_sorted --CPU $threads --output TRINITY/ # The max_memory command simply takes the maximum RAM size in GB and subtracts 5GB
     else
       Trinity --seqType fq --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024)-5)))G --left ../../$R1_sorted --right \
-      ../../$R2_sorted --CPU $threads --output TRINITY/
+      ../../$R2_sorted --CPU $threads --output TRINITY/ # The max_memory command simply takes the maximum RAM size in GB and subtracts 5GB
     fi
-    cat TRINITY/Trinity.fasta \
-    | sed 's/ len/_len/g' > TRINITY/Trinity_with_length.fasta
+    cat TRINITY/Trinity.fasta | sed 's/ len/_len/g' \
+		> TRINITY/Trinity_with_length.fasta  # Edit for universal format
 		echo -e "\n======== TRINITY DONE ========\n"
 
 		echo -e "\n======== RUNNING TRANSABYSS ========\n"
     transabyss --pe ../../$R1_sorted ../../$R2_sorted --threads $threads \
     --outdir TRANSABYSS/
-    sed 's/ /_/g' TRANSABYSS/transabyss-final.fa > TRANSABYSS/transabyss-final_edited.fa
+    sed 's/ /_/g' TRANSABYSS/transabyss-final.fa \
+		> TRANSABYSS/transabyss-final_edited.fa # Edit for universal format
 		echo -e "\n======== TRANSABYSS DONE ========\n"
 
 		echo -e "\n++++++++ FINISHED STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ ++++++++\n"
 
-		assembly_results_list="SPADES METASPADES MEGAHIT IDBA_UD RNASPADES IDBA_TRAN TRINITY TRANSABYSS"
-		for assembly_results in $assembly_results_list; do
+
+		######################### Step 4: Mapping ################################
+
+		# For loop 3: loop over the folders for assembled data for mapping:
+		for assembly_results in SPADES METASPADES MEGAHIT IDBA_UD RNASPADES IDBA_TRAN TRINITY TRANSABYSS; do
 			if [[ $assembly_results == 'SPADES' ]] ; then
 				scaffolds='SPADES/scaffolds.fasta'
 			elif [[ $assembly_results == 'METASPADES' ]] ; then
@@ -270,92 +328,81 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				scaffolds='IDBA_TRAN/contig.fa'
 			elif [[ $assembly_results == 'TRINITY' ]] ; then
 				scaffolds='TRINITY/Trinity_with_length.fasta'
-			else
+			else # TRANSABYSS
 				scaffolds='TRANSABYSS/transabyss-final_edited.fa'
 			fi
-
 
 			echo -e "++++++++ START STEP 4: MAPPING OF TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ ++++++++\n"
 			mkdir $assembly_results/step_4_mapping/
 			cd $assembly_results/step_4_mapping/
 
+			# We insert a loop here for the mappers because their output is edited
+			# with identical commands:
       for mapper in BWA BOWTIE2; do
 
         mkdir $mapper
         cd $mapper
 
         if [[ $mapper == 'BWA' ]] ; then
-          echo -e "\n======== starting bwa index ========\n"
-
+          echo -e "\n======== Starting bwa index ========\n"
           bwa index -p bwa_index ../../../$scaffolds
-
-          echo -e "\n======== bwa index complete. Starting bwa ========\n"
-
+          echo -e "\n======== bwa index complete. Starting bwa mem ========\n"
           bwa mem -t $threads bwa_index ../../../../../../*1P_error_corrected.fastq \
 					../../../../../../*2P_error_corrected.fastq > ${mapper}_output.sam
-
           rm bwa_index*
-
+					echo -e "\n======== bwa mem complete ========\n"
   			else
-
-          echo -e "\n======== bwa complete. Starting bowtie2 index ========\n"
-
+          echo -e "\n======== Starting bowtie2 index ========\n"
     			bowtie2-build -f ../../../$scaffolds bowtie_index
-
     			echo -e "\n======== bowtie2 index complete. Starting bowtie2 ========\n"
-
     			bowtie2 -q -x bowtie_index -1 ../../../../../../*1P_error_corrected.fastq \
 					-2 ../../../../../../*2P_error_corrected.fastq -S ${mapper}_output.sam \
 					-p $threads
-
     			rm bowtie_index*
-
           echo -e "\n======== bowtie2 complete ========\n"
         fi
 
-  			# Output file (.sam) - edit
-  			samtools view -F 4 ${mapper}_output.sam > mapped_reads_${mapper}.sam
-  			samtools view -f 4 ${mapper}_output.sam > unmapped_reads_${mapper}.sam
-  			cat mapped_reads_${mapper}.sam > mapped_reads_${mapper}.txt
-  			cat unmapped_reads_${mapper}.sam > unmapped_reads_${mapper}.txt
-  			cut -f3 mapped_reads_${mapper}.txt > mapped_column3_reads_${mapper}.txt
-  			cut -f3 unmapped_reads_${mapper}.txt > unmapped_column3_reads_${mapper}.txt
-  			sort mapped_column3_reads_${mapper}.txt | uniq -c > sorted_mapped_column3_reads_${mapper}.txt
-  			sort unmapped_column3_reads_${mapper}.txt | uniq -c > sorted_unmapped_column3_reads_${mapper}.txt
-  			column -t sorted_mapped_column3_reads_${mapper}.txt > aligned_mapped_${mapper}.txt
-  			column -t sorted_unmapped_column3_reads_${mapper}.txt > aligned_unmapped_${mapper}.txt
-  			sed 's/  */\t/g' aligned_mapped_${mapper}.txt > out_mapped_${mapper}.txt
-  			sed 's/  */\t/g' aligned_unmapped_${mapper}.txt > out_unmappped_${mapper}.txt
-  			echo -e "counts\tcontig_number" > merge_input_mapped_${mapper}.txt && cat out_mapped_${mapper}.txt >> merge_input_mapped_${mapper}.txt
-  			echo -e "counts\tcontig_number" > merge_input_unmapped_${mapper}.txt && cat out_unmappped_${mapper}.txt >> merge_input_unmapped_${mapper}.txt
+  			# Editing the mapper outputs:
+  			samtools view -F 4 ${mapper}_output.sam | cut -f3	| sort | uniq -c \
+				| column -t | sed 's/ +/\t/g' > out_mapped_${mapper}.txt
+  			samtools view -f 4 ${mapper}_output.sam | cut -f3 |	sort | uniq -c \
+				| column -t | sed 's/ +/\t/g' > out_unmappped_${mapper}.txt
+  			echo -e "counts\tcontig_number" > merge_input_mapped_${mapper}.txt \
+				&& cat out_mapped_${mapper}.txt >> merge_input_mapped_${mapper}.txt
+  			echo -e "counts\tcontig_number" > merge_input_unmapped_${mapper}.txt \
+				&& cat out_unmappped_${mapper}.txt >> merge_input_unmapped_${mapper}.txt
 
-  			rm *_index* mapped_reads_${mapper}.sam unmapped_reads_${mapper}.sam mapped_reads_${mapper}.txt unmapped_reads_${mapper}.txt mapped_column3_reads_${mapper}.txt unmapped_column3_reads_${mapper}.txt sorted_mapped_column3_reads_${mapper}.txt sorted_unmapped_column3_reads_${mapper}.txt aligned_mapped_${mapper}.txt aligned_unmapped_${mapper}.txt out_mapped_${mapper}.txt out_unmappped_${mapper}.txt
+  			rm *_index* out_*mapped_${mapper}.txt
         cd ..
-      done
+			# And we close the mapper loop here because the next step is independent
+			# from the mappers and saved under a separate folder:
+			done
 
+			# We cd back into the step_3 directory using the base_directory variable
+			# we created at the beginning of the script and the nested for loop
+			# variables we generated during the script:
       cd $(realpath --relative-to=$(pwd) ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/)
 
 			echo -e "++++++++ FINISHED STEP 4: MAPPING FOR TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results ========\n"
 
-			echo -e "++++++++ START STEP 5 AND 6: CLASSIFICATION OF ASSEMBLED SCAFFOLDS FROM TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results ========\n"
-			mkdir $assembly_results/step_5_reference_DB/
-			cd $assembly_results/step_5_reference_DB/
 
-			ref_DB_list="SILVA NCBI_NT"
-			for DB in $ref_DB_list; do
+			######################### Steps 5 and 6: Picking a referencd DB and taxonomic classification ################################
+
+			# For loop 4: loop over the reference DBs for taxonomic classification:
+			for DB in SILVA NCBI_NT; do
 				if [[ $DB == "SILVA" ]] ; then
 					krakenDB="/hdd1/databases/kraken2_SILVA_SSU_LSU"
-					#centrifugeDB=XX
 					blastDB="/hdd1/databases/SILVA_database_mar_2020/SILVA_138_SSURef_NR99_tax_silva.fasta"
-				else
+				else # NCBI_NT
 					krakenDB="/hdd1/databases/kraken2_nt_DB"
-					#centrifugeDB=XX
 					blastDB="/hdd1/databases/nt_database_feb_2020_indexed/nt"
 				fi
 
-				mkdir $DB
-				mkdir $DB/step_6_classification
-				cd $DB/step_6_classification
+				echo -e "++++++++ START STEP 5 AND 6: CLASSIFICATION OF ASSEMBLED SCAFFOLDS FROM TRIMMED READS IN FOLDER $trimming_results AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results ========\n"
+				mkdir $assembly_results/step_5_reference_DB/
+				mkdir $assembly_results/step_5_reference_DB/${DB}/
+				mkdir $assembly_results/step_5_reference_DB/${DB}/step_6_classification/
+				cd $assembly_results/step_5_reference_DB/${DB}/step_6_classification/
 
 				echo -e "\n======== RUNNING JUSTBLAST WITH DATABASE $DB ========\n"
 				justblast ../../../../$scaffolds $blastDB --cpus $threads --evalue 1e-05 \
@@ -643,9 +690,12 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	cd $(realpath --relative-to=$(pwd) $base_directory)
 done
 
+mkdir METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/
+find . -type f -name "*_pipeline_final.txt" -print0 | xargs -0 -Ifile cp file METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/
+
 # Display runtime
 echo -e "=================================================================\n"
 echo "SCRIPT DONE AFTER $((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m"
 
 # Create log
-) 2>&1 | tee PIPELINE_ASSEMBLERS_LOG.txt
+) 2>&1 | tee METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_LOG.txt
