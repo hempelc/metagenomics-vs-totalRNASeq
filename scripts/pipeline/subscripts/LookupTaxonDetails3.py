@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 
-# needs ete3 being installed, folder .etetoolkit being present in the home directory, and LookupTaxonDetails2_UoG.py being in path
-# if folder .etetoolkit is not present in home directory, you need to run ONLY the ete3 command once first, delete the output, and then set -e to the .etetoolit/taxa.sqlite folder that has now been generated in your folder
+# Script from David Ryder (CEFAS, Weymouth, England)
+
+# Needs ete3 being installed and folder .etetoolkit being present in the home directory
+# If folder .etetoolkit is not present in home directory, you need to run ONLY
+# the ete3 command once first, delete the output, and then set -e to the
+# .etetoolit/taxa.sqlite folder that has now been generated in your folder.
 
 import getopt,sys,sqlite3,os
 
@@ -101,7 +105,7 @@ for line in blastFile:
   line = line.strip('\n')
   splitLine = line.split('\t');
   taxonID = splitLine[taxonColumn-1].split(';')[0]
-  
+
   outputFile.write(line)
 
   if (taxonID in taxonomicLineage):
@@ -116,4 +120,3 @@ for line in blastFile:
     for i in range(0,len(taxonomicLevels) + 2):
       outputFile.write("\tUnknown")
   outputFile.write("\n")
-

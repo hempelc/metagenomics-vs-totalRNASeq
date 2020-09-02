@@ -1,8 +1,11 @@
 #!/usr/bin/python
 
+# A simple script to merge two files (mapped reads and contigs with taxonomy) on
+# columns that exist in both files, keeps all rows, and adds 0 for read counts
+# if a contig has no mapped reads.
+# Needs to have a column 'counts' with readcounts in readcount_file.
+
 # usage: ./merge_files.py taxonomy_file readcount_file output_file_name
-# merges two files (mapped reads and contigs with taxonomy) on columns that exist in both files, keeps all rows, adds 0 for read counts if a contig has no mapped reads
-# needs to have a column 'counts' with readcounts in readcount_file
 
 import pandas as pd, sys
 

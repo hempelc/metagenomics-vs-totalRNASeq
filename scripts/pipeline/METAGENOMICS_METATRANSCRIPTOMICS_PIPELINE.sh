@@ -24,8 +24,8 @@
 cmd="$0 $@" # Make variable containing the entire entered command to print command to logfile
 usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> [-t <n>]
 Usage:
-	-1 Forward reads
-	-2 Reverse reads
+	-1 Forward reads in .fq format
+	-2 Reverse reads in .fq format
 	-t Number of threads (default:16)
 	-h Display this help and exit"
 
@@ -846,5 +846,5 @@ METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/
 echo -e "=================================================================\n"
 echo "SCRIPT DONE AFTER $((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m"
 
-# Create log
+# Write output to console and log file
 ) 2>&1 | tee METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_LOG.txt

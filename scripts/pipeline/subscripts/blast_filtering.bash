@@ -148,32 +148,29 @@ else
 fi
 
 if [[ $filtering == 'soft' ]] ; then
+  # Keeping only the best hit of each sequence:
   echo -e "\n======== ASSIGNING TAXONOMY ========\n"
+  # Using a subscript:
   assign_taxonomy_to_NCBI_staxids.sh -b $assign_taxonomy_input -c 13 \
   -e ~/.etetoolkit/taxa.sqlite
   mv blast_output_with_taxonomy.txt blast_filtering_results/
   sed -i '1d' blast_filtering_results/blast_output_with_taxonomy.txt
 
   echo -e "\n======== KEEPING ONLY BEST HIT PER SEQUENCE ========\n"
+  # Sort hits by sequence and then bitscore, remove duplicates so that just best
+  # hit per sequence stays, edit file format:
   sort -k1,1n -k12,12nr blast_filtering_results/blast_output_with_taxonomy.txt \
-  | sort -u -k1,1 > blast_filtering_results/blast_output_with_taxonomy_sorted.txt
-
-  # Edit file format
-  cut -f1,16- blast_filtering_results/blast_output_with_taxonomy_sorted.txt \
-  > blast_filtering_results/blast_output_with_taxonomy_sorted_cut.txt
-
-  awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $2}' \
-  blast_filtering_results/blast_output_with_taxonomy_sorted_cut.txt \
+  | sort -u -k1,1 | cut -f1,16- \
+  | awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $2}' \
   > blast_filtering_results/blast_output_with_taxonomy_sorted_cut_reorganized.txt
 
-
+  # Add header:
   echo -e "sequence\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit" \
   > blast_filtering_results/blast_output_with_taxonomy_and_best_hit.txt \
   && cat blast_filtering_results/blast_output_with_taxonomy_sorted_cut_reorganized.txt \
   >> blast_filtering_results/blast_output_with_taxonomy_and_best_hit.txt
 
-
-  # Sort files
+  # Sort files:
   mkdir blast_filtering_results/intermediate_files/
   mv blast_filtering_results/blast_output* blast_filtering_results/intermediate_files/
   mv blast_filtering_results/intermediate_files/blast_output_with_taxonomy_and_best_hit.txt \
@@ -181,7 +178,9 @@ if [[ $filtering == 'soft' ]] ; then
 fi
 
 if [[ $filtering == 'strict' ]] ; then
+  # Filtering reads:
   echo -e "\n======== ASSIGNING TAXONOMY ========\n"
+  # Using a subscript:
   assign_taxonomy_NCBI_staxids.sh -b $assign_taxonomy_input -c 13 \
   -e ~/.etetoolkit/taxa.sqlite
   mv blast_output_with_taxonomy.txt blast_filtering_results/
@@ -192,14 +191,15 @@ if [[ $filtering == 'strict' ]] ; then
 
   echo -e "\n======== PERFORMING BITSCORE FILTER ========\n"
   # Remove all hits that are below alignment length 100 (based on BASTA) and set
-  # bitscore (default 155 based on CREST)
+  # bitscore (default 155 based on CREST):
   awk -v x=$bitscore '($4 >= 100 && $12 >= x)' \
-  blast_filtering_results/blast_output_with_taxonomy.txt > blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold.txt
+  blast_filtering_results/blast_output_with_taxonomy.txt \
+  > blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold.txt
 
-  # Just keep hits within first set % of best bitscore for each contig
+  # Just keep hits within first set % of best bitscore for each sequence
   touch blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter.txt
-  sort -u -k1,1 blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold.txt | cut -f 1 \
-  | while read hit; do
+  sort -u -k1,1 blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold.txt \
+  | cut -f 1 | while read hit; do
     best_bitscore=$(grep "$(printf "^$hit\t")" blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold.txt \
     | sort -k1,1 -k12,12nr | sort -u -k1,1 | cut -f 12)
     echo "Processing sequence $hit with bitscore $best_bitscore"
@@ -211,6 +211,7 @@ if [[ $filtering == 'strict' ]] ; then
 
 
   echo -e "\n======== PERFORMING SIMILARITY CUTOFF ========\n"
+  # Setting certain columns to "NA" if they're below set threshold
   set -- $cutoff
   awk -v c1=$1 '($3 >= c1)' blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter.txt \
   > blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt
@@ -234,6 +235,7 @@ if [[ $filtering == 'strict' ]] ; then
   >> blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt
 
   echo -e "\n======== PERFORMING LCA APPROACH ========\n"
+  # Only keeping the taxonomy to the LCA, other ranks are set to "NA"
   touch blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA_noheader.txt
   sort -u -k1,1 blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt \
   | cut -f 1 | while read hit ; do
@@ -253,7 +255,7 @@ if [[ $filtering == 'strict' ]] ; then
     >> blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA_noheader.txt
   done
 
-  # Adding header and rearranging columns
+  # Adding header and rearranging columns:
   awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $2}' \
   blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA_noheader.txt \
   > tmp
@@ -264,13 +266,18 @@ if [[ $filtering == 'strict' ]] ; then
   rm blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA_noheader.txt \
   tmp
 
-  # Sort files
+  # Sort files:
   mkdir blast_filtering_results/intermediate_files/
   mv blast_filtering_results/blast_output* blast_filtering_results/intermediate_files/
   mv blast_filtering_results/intermediate_files/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt \
   blast_filtering_results/
+fi
+
+# If blast was run, remove indexed files
+if [[ $format == 'fasta' ]] ; then
   rm $input.fai
 fi
+
 
 # Display runtime
 echo -e "=================================================================\n"

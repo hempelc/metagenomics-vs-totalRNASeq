@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Note: doesn;t work yet, there are multiple sequences with the same name in the
+# Note: doesn't work yet, there are multiple sequences with the same name in the
 # concatenated fasta files. Need to wait for response from SILVA help desk
 
-# Script to set up a SILVA SSU and LSU NR99 blast DB
+# Script to set up a SILVA SSU and LSU NR99 BLAST DB
 
 # Usage: ./SILVA_SSU_LSU_makeblastdb_preparation.sh
 
@@ -155,5 +155,5 @@ cat SILVA_138.1_SSURef_NR99_tax_silva.fasta SILVA_138.1_LSURef_NR99_tax_silva.fa
 makeblastdb -dbtype 'nucl' -in SILVA_138.1_SSU_LSURef_NR99_tax_silva.fasta \
 -parse_seqids -taxid_map SILVA_accession_numbers_and_NCBI_taxids.txt
 
-# Note: doesn;t work yet, there are multiple sequences with the same name in the
+# Note: doesn't work yet, there are multiple sequences with the same name in the
 # concatenated fasta files. Need to wait for response from SILVA help desk
