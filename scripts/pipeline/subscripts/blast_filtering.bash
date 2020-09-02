@@ -149,7 +149,7 @@ fi
 
 if [[ $filtering == 'soft' ]] ; then
   echo -e "\n======== ASSIGNING TAXONOMY ========\n"
-  assign_taxonomy_NCBI_staxids.sh -b $assign_taxonomy_input -c 13 \
+  assign_taxonomy_to_NCBI_staxids.sh -b $assign_taxonomy_input -c 13 \
   -e ~/.etetoolkit/taxa.sqlite
   mv blast_output_with_taxonomy.txt blast_filtering_results/
   sed -i '1d' blast_filtering_results/blast_output_with_taxonomy.txt
