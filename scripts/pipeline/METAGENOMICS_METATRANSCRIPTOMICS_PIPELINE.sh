@@ -6,29 +6,35 @@
 # This is a pipeline for Chris Hempel's first PhD chapter
 
 # It trims raw paired-end input sequences at 4 PHRED scores, filters rRNA
-# with 4 approaches, uses 8 assemblers, maps reads back to scaffolds using
-# 2 mappers, and assigns taxonomy to scaffolds using 2 databases with
+# with 4 approaches, uses 8 assemblers, maps trimmed reads back to scaffolds
+# using 2 mappers, and assigns taxonomy to scaffolds using 2 databases with
 # 3 classification approaches.
 
 # The output is a folder called METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/
 # that contains tab-separated, taxonomically annotated scaffolds and read counts
 # for all combinations of the above described steps.
 
+# The pipeline requires the following subscripts, which are all located in the
+# subscripts/ directory:
+	# assign_NCBI_staxids_to_CREST_v4.py, fasta_to_tab, mergeFilesOnColumn.pl,
+	# assign_taxonomy_to_NCBI_staxids.sh  fastqc_on_R1_R2_and_optional_trimming.sh,
+	# merge_mapped_reads_and_contigs.py, blast_filtering.bash, filter-fasta.awk,
+	# SILVA_SSU_LSU_kraken2_preparation.sh, deinterleave_fastq_reads.sh,
+	# LookupTaxonDetails3.py, SILVA_SSU_LSU_makeblastdb_preparation.sh
 
-# The script requires the following subscripts
-# The following programs must be installed (used versions indicated in brackets)
-# FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9), rRNAFILTER (1.0), ##### I'M NOT SURE IF RRNA IS 1.0
-# SPADES (3.14.0), METASPADES (3.14.0), RNASPADES (3.14.0), MEGAHIT (1.2.9), IDBA-UD (1.1.1),
-# IDBA-TRAN (1.1.1), Trinity (2.10.0), bowtie2 (2.3.3.1), bwa (0.7.17), blast (2.10.0+)
-# justblast <-- I'll take that over, Nat
-# seqtk <-- I'll take that over, Nat
-# XXXXXXXXXXX
+# The pipeline requires the following programs/python packages/commands (versions
+# we used when writing this script are indicated in brackets):
+	# FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
+	# rRNAFILTER (1.1), SPADES (3.14.0), METASPADES (3.14.0), RNASPADES (3.14.0),
+	# MEGAHIT (1.2.9), IDBA-UD (1.1.1), IDBA-TRAN (1.1.1), Trinity (2.10.0),
+	# bowtie2 (2.3.3.1), bwa (0.7.17), blast (2.10.0+), justblast (2020.0.3),
+	# seqtk (1.2-r94)
 
 cmd="$0 $@" # Make variable containing the entire entered command to print command to logfile
 usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> [-t <n>]
 Usage:
-	-1 Forward reads in .fq format
-	-2 Reverse reads in .fq format
+	-1 Full path to forward reads in .fastq/.fq format
+	-2 Full path to reverse reads in .fastq/.fq format
 	-t Number of threads (default:16)
 	-h Display this help and exit"
 
