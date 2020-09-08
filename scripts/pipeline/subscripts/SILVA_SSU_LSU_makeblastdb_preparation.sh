@@ -1,16 +1,13 @@
 #!/bin/bash
 
-# Note: doesn't work yet, there are multiple sequences with the same name in the
-# concatenated fasta files. Need to wait for response from SILVA help desk
-
 # Script to set up a SILVA SSU and LSU NR99 BLAST DB
 
 # Usage: ./SILVA_SSU_LSU_makeblastdb_preparation.sh
 
 
 # Get SILVA fasta and taxonomy files
-wget https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/SILVA_138.1_SSURef_NR99_tax_silva.fasta.gz
-wget https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/SILVA_138.1_LSURef_NR99_tax_silva.fasta.gz
+wget https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/SILVA_138.1_SSURef_NR99_tax_silva_trunc.fasta.gz
+wget https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/SILVA_138.1_LSURef_NR99_tax_silva_trunc.fasta.gz
 wget https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/taxonomy/taxmap_slv_lsu_ref_nr_138.1.txt.gz
 wget https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/taxonomy/taxmap_slv_ssu_ref_nr_138.1.txt.gz
 gunzip *.gz
@@ -147,13 +144,30 @@ with open("SILVA_accession_numbers_and_NCBI_taxids.txt", 'w') as f:
 EOF
 # Switched back to bash
 
+
+# As of 04 Sep 2020, the available SILVA LSU and SSU version contain duplicate
+# sequences. I contacted the SILVA support, who said that should not have
+# happened and that we can remove these duplicates. So we're going to remove
+# them from the SSU file with a chunk of code that I got from the support
+# (filter-fasta.awk is a separate subscript):
+RE="^>(KY7649(2[1278]|58)|LNRQ01000003)\\\\."
+cat SILVA_138.1_SSURef_NR99_tax_silva_trunc.fasta \
+| filter-fasta.awk -v expression=$RE -v printMatch=0 \
+> SILVA_138.1_SSURef_NR99_tax_silva_trunc_filtered.fasta
+
 # Prepare SSU and LSU SILVA DB
-cat SILVA_138.1_SSURef_NR99_tax_silva.fasta SILVA_138.1_LSURef_NR99_tax_silva.fasta \
-> SILVA_138.1_SSU_LSURef_NR99_tax_silva.fasta
+cat SILVA_138.1_SSURef_NR99_tax_silva_trunc_filtered.fasta \
+SILVA_138.1_LSURef_NR99_tax_silva_trunc.fasta \
+> SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta
+
 
 # Make the blast DB
-makeblastdb -dbtype 'nucl' -in SILVA_138.1_SSU_LSURef_NR99_tax_silva.fasta \
--parse_seqids -taxid_map SILVA_accession_numbers_and_NCBI_taxids.txt
+#makeblastdb -dbtype 'nucl' -in SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta \
+#-parse_seqids -taxid_map SILVA_accession_numbers_and_NCBI_taxids.txt
 
-# Note: doesn't work yet, there are multiple sequences with the same name in the
-# concatenated fasta files. Need to wait for response from SILVA help desk
+# Remove intermediate files
+rm citations.dmp delnodes.dmp readme.txt SILVA_138.1_SSURef_NR99_tax_silva_trunc* \
+SILVA_138.1_LSURef_NR99_tax_silva_trunc.fasta division.dmp gc.prt gencode.dmp \
+SILVA_accession_numbers_and_NCBI_taxids.txt merged.dmp tax* names.dmp \
+nodes.dmp
+#NCBI_staxids_* nodes.dmp

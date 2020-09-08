@@ -144,7 +144,6 @@ if [[ $format == 'fasta' ]] ; then
   echo -e "\n======== JUSTBLAST DONE ========\n"
 else
   assign_taxonomy_input=$input
-
 fi
 
 if [[ $filtering == 'soft' ]] ; then
