@@ -364,9 +364,9 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
   			# Editing the mapper outputs:
   			samtools view -F 4 ${mapper}_output.sam | cut -f3	| sort | uniq -c \
-				| column -t | sed 's/ +/\t/g' > out_mapped_${mapper}.txt
+				| column -t | sed 's/  */\t/g' > out_mapped_${mapper}.txt
   			samtools view -f 4 ${mapper}_output.sam | cut -f3 |	sort | uniq -c \
-				| column -t | sed 's/ +/\t/g' > out_unmappped_${mapper}.txt
+				| column -t | sed 's/  */\t/g' > out_unmappped_${mapper}.txt
   			echo -e "counts\tcontig_number" > merge_input_mapped_${mapper}.txt \
 				&& cat out_mapped_${mapper}.txt >> merge_input_mapped_${mapper}.txt
   			echo -e "counts\tcontig_number" > merge_input_unmapped_${mapper}.txt \
