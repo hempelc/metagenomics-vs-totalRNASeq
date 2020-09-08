@@ -17,6 +17,9 @@
 
 # The script requires the following subscripts
 # The following programs must be installed (used versions indicated in brackets)
+# FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9), rRNAFILTER (1.0), ##### I'M NOT SURE IF RRNA IS 1.0
+# SPADES (3.14.0), METASPADES (3.14.0), RNASPADES (3.14.0), MEGAHIT (1.2.9), IDBA-UD (1.1.1),
+# IDBA-TRAN (1.1.1), Trinity (2.10.0), bowtie2 (2.3.3.1), bwa (0.7.17), blast (2.10.0+)
 # justblast <-- I'll take that over, Nat
 # seqtk <-- I'll take that over, Nat
 # XXXXXXXXXXX
