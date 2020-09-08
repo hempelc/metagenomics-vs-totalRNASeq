@@ -276,7 +276,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 		echo -e "\n======== RUNNING IDBA_UD ========\n"
 		# IDBA_UD only takes interleaved fasta files
 		fq2fa --merge --filter ../../$R1_sorted ../../$R2_sorted idba_ud_input.fa
-		idba_ud --num_threads $threads --pre_correction -r idba_ud_input.fa \
+		idba_ud --num_threads $threads --pre_correction -l idba_ud_input.fa \
     -o IDBA_UD/
 		mv idba_ud_input.fa IDBA_UD/
 		echo -e "\n======== IDBA_UD DONE ========\n"
@@ -290,7 +290,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 		echo -e "\n======== RUNNING IDBA_TRAN ========\n"
 		# IDBA_TRAN only takes interleaved fasta files
 		fq2fa --merge ../../$R1_sorted ../../$R2_sorted idba_tran_input.fa
-		idba_tran --num_threads $threads --pre_correction -r idba_tran_input.fa \
+		idba_tran --num_threads $threads --pre_correction -l idba_tran_input.fa \
     -o IDBA_TRAN/
 		mv idba_tran_input.fa IDBA_TRAN/
 		echo -e "\n======== IDBA_TRAN DONE ========\n"
