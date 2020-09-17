@@ -1,6 +1,9 @@
 #!/bin/bash
 
-# Version 1.0, made on 13 Jul 2020 by Chris Hempel (hempelc@uoguelph.ca)
+# Version 0.2, made on 13 Jul 2020 by Chris Hempel (hempelc@uoguelph.ca)
+
+# Version change: For option -t soft, if several hits have the same best bitscore
+# for a sequence, they're kept and an LCA approach is applied to them
 
 # Script to BLAST .fasta files using Sergio Hleap's justblast python module,
 # add taxonomy to the hits, and filter the hits so that each sequence gets
@@ -28,7 +31,10 @@ Usage:
               gapopen qstart qend sstart send evalue bitscore staxids'
   -t       Type of filtering:
            soft:
-              Simply keeps the best hit (highest bitscore) for each sequence
+              Keeps the best hit (highest bitscore) for each sequence. If multiple
+              hits have the same highest bitscore, an LCA approach is applied
+              (assigns the taxonomy to each sequence based on all taxonomic ranks
+              that are identical in the remaining hits of each sequence)
            strict:
               Performs 3 steps:
               (1) bitscore filtering - keeps all hits with a bitscore >= (-b) and
@@ -156,18 +162,50 @@ if [[ $filtering == 'soft' ]] ; then
   sed -i '1d' blast_filtering_results/blast_output_with_taxonomy.txt
 
   echo -e "\n======== KEEPING ONLY BEST HIT PER SEQUENCE ========\n"
-  # Sort hits by sequence and then bitscore, remove duplicates so that just best
-  # hit per sequence stays, edit file format:
-  sort -k1,1n -k12,12nr blast_filtering_results/blast_output_with_taxonomy.txt \
-  | sort -u -k1,1 | cut -f1,16- \
-  | awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $2}' \
-  > blast_filtering_results/blast_output_with_taxonomy_sorted_cut_reorganized.txt
+  # Just keep hits with the same bitscore for each sequence, in case multiple
+  # hits have the same bitscore:
+  touch blast_filtering_results/blast_output_with_taxonomy_and_bitscore_filter.txt
+  sort -u -k1,1 blast_filtering_results/blast_output_with_taxonomy.txt \
+  | cut -f 1 | while read hit; do
+    best_bitscore=$(grep "$(printf "^$hit\t")" blast_filtering_results/blast_output_with_taxonomy.txt \
+    | sort -k1,1 -k12,12nr | sort -u -k1,1 | cut -f 12)
+    echo "Processing sequence $hit with bitscore $best_bitscore"
+    grep $hit blast_filtering_results/blast_output_with_taxonomy.txt \
+    | awk -v x=$best_bitscore '($12 >= x)' \
+    >> blast_filtering_results/blast_output_with_taxonomy_and_bitscore_filter.txt
+  done
 
-  # Add header:
+  # Now we run an LCA approach, but it technically only runs if a sequence has
+  # several hits with the same best bit score
+  touch blast_filtering_results/blast_output_with_taxonomy_and_bitscore_filter_and_LCA_noheader.txt
+  sort -u -k1,1 blast_filtering_results/blast_output_with_taxonomy_and_bitscore_filter.txt \
+  | cut -f 1 | while read hit ; do
+    taxonomy_hit=$(echo $hit)
+    taxonomy=''
+    for i in {16..27}
+    do
+      rank_tax=$(grep $hit blast_filtering_results/blast_output_with_taxonomy_and_bitscore_filter.txt \
+      | cut -f $i | uniq)
+      if [[ $(echo "{$rank_tax}" | wc -l) == 1 ]] ; then
+        taxonomy=$(echo "${taxonomy}---${rank_tax}")
+      else
+        taxonomy=$(echo "${taxonomy}---NA")
+      fi
+    done
+    echo "${taxonomy_hit}${taxonomy}" | sed 's/---/\t/g' \
+    >> blast_filtering_results/blast_output_with_taxonomy_and_bitscore_filter_and_LCA_noheader.txt
+  done
+
+  # Adding header and rearranging columns:
+  awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $2}' \
+  blast_filtering_results/blast_output_with_taxonomy_and_bitscore_filter_and_LCA_noheader.txt \
+  > tmp
   echo -e "sequence\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit" \
   > blast_filtering_results/blast_output_with_taxonomy_and_best_hit.txt \
-  && cat blast_filtering_results/blast_output_with_taxonomy_sorted_cut_reorganized.txt \
+  && cat tmp \
   >> blast_filtering_results/blast_output_with_taxonomy_and_best_hit.txt
+  rm blast_filtering_results/blast_output_with_taxonomy_and_bitscore_filter_and_LCA_noheader.txt \
+  tmp
 
   # Sort files:
   mkdir blast_filtering_results/intermediate_files/
