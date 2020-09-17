@@ -100,11 +100,11 @@ echo -e "Script started with full command: $cmd\n"
 echo -e "++++++++ START RUNNING SCRIPT ++++++++\n"
 
 # Make output directory:
-mkdir METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
-cd METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
+mkdir -p METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE && \
+cd METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE || exit
 
 # Save full current path in variable to make navigation between directories easier:
-base_directory=$(pwd)
+base_directory=${PWD}
 
 ######################### Step 1: trimming ################################
 echo -e "++++++++ START STEP 1: TRIMMING AND ERROR CORRECTION ++++++++\n"
