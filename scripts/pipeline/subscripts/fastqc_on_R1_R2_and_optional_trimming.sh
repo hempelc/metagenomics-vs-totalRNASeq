@@ -15,6 +15,15 @@
 
 # For some reason, the limit of the PHRED score can only be set to 38, FastQC is
 # not able to deal with data generated with higher PHRED scores (in my test).
+SECONDS=0 # initialize the especial variable SECONDS so convertsecs will measure
+# Elaspsed time
+convertsecs() {
+  # Simple function for time elapsed
+  h=$(bc <<<"${SECONDS}/3600")
+  m=$(bc <<<"(${SECONDS}%3600)/60")
+  s=$(bc <<<"${SECONDS}%60")
+  printf "%02dH:%02dM:%05.2fS\n" "${h}" "${m}" "${s}"
+}
 
 usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> -t <yes|no> [-T <path/to/trimmomatic.jar> -P <'score score score ...'> -l <length> -p <threads>]
 
@@ -92,78 +101,74 @@ fi
 # Making output directory for this script and open bracket to later tell script to write logfile
 mkdir -p trimming_with_phred_scores_and_fastqc_report_output/
 
-  # Define starting time of script for total runtime calculation:
-  start=$(date +%s)
-  echo -e "\nSTART RUNNING SCRIPT AT $(date)\n"
+# Define starting time of script for total runtime calculation:
+echo -e "\nSTART RUNNING SCRIPT AT $(date)\n"
 
-  # Output specified options:
-  echo -e "~~~~~~~~~~ OPTIONS ~~~~~~~~~~\n"
+# Output specified options:
+echo -e "~~~~~~~~~~ OPTIONS ~~~~~~~~~~\n"
 
-  echo -e "R1 was defined as ${R1}."
-  echo -e "R2 was defined as ${R2}."
-  if [[ ${trimming} == "no" ]]; then
-    echo -e "Trimming was turned off."
-  else
-    echo -e "Trimming was turned on."
-    echo -e "Trimmomatic is located in ${trimmomatic}."
-    echo -e "PHRED scores to trim on are ${PHRED}."
-    echo -e "Minimum length of reads is ${min_length}."
-  fi
-  echo -e "Number of threads was set to ${threads}."
+echo -e "R1 was defined as ${R1}."
+echo -e "R2 was defined as ${R2}."
+if [[ ${trimming} == "no" ]]; then
+  echo -e "Trimming was turned off."
+else
+  echo -e "Trimming was turned on."
+  echo -e "Trimmomatic is located in ${trimmomatic}."
+  echo -e "PHRED scores to trim on are ${PHRED}."
+  echo -e "Minimum length of reads is ${min_length}."
+fi
+echo -e "Number of threads was set to ${threads}."
 
-  ##### Start of script #####
+##### Start of script #####
 
-  baseout="${R1%_*}" # Make basename
+baseout="${R1%_*}" # Make basename
 
-  if [[ ${trimming} == "yes" ]]; then
-    # Running Trimmomatic
-    echo -e "\n\n~~~~~~~~~~ RUNNING TRIMMOMATIC ~~~~~~~~~~\n"
-    trim_dir=trimming_with_phred_scores_and_fastqc_report_output/trimmomatic
-    mkdir -p "${trim_dir}"
-    for score in ${PHRED}; do
-      score_dir=trimmed_at_phred_"${score}"_"${baseout##*}"
-      # Run trimmomatic for every specified PHRED score and save output in separate directory
-      mkdir -p "${trim_dir}"/"${score_dir}"
-      java -jar "${trimmomatic}" PE "${R1}" "${R2}" \
+if [[ ${trimming} == "yes" ]]; then
+  # Running Trimmomatic
+  echo -e "\n\n~~~~~~~~~~ RUNNING TRIMMOMATIC ~~~~~~~~~~\n"
+  trim_dir=trimming_with_phred_scores_and_fastqc_report_output/trimmomatic
+  mkdir -p "${trim_dir}"
+  for score in ${PHRED}; do
+    score_dir=trimmed_at_phred_"${score}"_"${baseout##*}"
+    # Run trimmomatic for every specified PHRED score and save output in separate directory
+    mkdir -p "${trim_dir}"/"${score_dir}"
+    java -jar "${trimmomatic}" PE "${R1}" "${R2}" \
       ILLUMINACLIP:"${trimmomatic%/*}"/adapters/TruSeq3-PE.fa:2:30:10 \
       LEADING:"${score}" TRAILING:"${score}" SLIDINGWINDOW:4:"${score}" \
       MINLEN:"${min_length}" -baseout "${score_dir}".fastq -threads "${threads}"
-      echo -e '\n'
-      # SERGIO: I do not think this is necesary sicne baseout will take the path
-#      mv "${score_dir}".fastq \
-#        trimming_with_phred_scores_and_fastqc_report_output/trimmomatic/trimmed_at_phred_$(echo ${score})_$(echo ${baseout##*/})
-    done
-  fi
+    echo -e '\n'
+    # SERGIO: I do not think this is necesary sicne baseout will take the path
+    #      mv "${score_dir}".fastq \
+    #        trimming_with_phred_scores_and_fastqc_report_output/trimmomatic/trimmed_at_phred_$(echo ${score})_$(echo ${baseout##*/})
+  done
+fi
 
-  # Running FastQC
-  echo -e "\n\n~~~~~~~~~~ RUNNING FASTQC ~~~~~~~~~~\n"
-  report_dir=trimming_with_phred_scores_and_fastqc_report_output/fastqc_reports/untrimmed_"${baseout##*/}"
-  mkdir -p "${report_dir}"
-  fastqc "${R1}" -o "${report_dir}"
-  echo -e "\n"
-  fastqc "${R2}" -o "${report_dir}"
-  echo -e "\n"
+# Running FastQC
+echo -e "\n\n~~~~~~~~~~ RUNNING FASTQC ~~~~~~~~~~\n"
+report_dir=trimming_with_phred_scores_and_fastqc_report_output/fastqc_reports/untrimmed_"${baseout##*/}"
+mkdir -p "${report_dir}"
+fastqc "${R1}" -o "${report_dir}"
+echo -e "\n"
+fastqc "${R2}" -o "${report_dir}"
+echo -e "\n"
 
-  #  Run FastQC on trimmed data if trimming was activated:
-  if [[ ${trimming} == "yes" ]]; then
-    for reads in "${trim_dir}"/trimmed_at_phred_*/*_[12]P.fastq; do
-      # SERGIO: When you provide the path in a for loop, the variable retain the path
-      dir_name=${reads%_*} # making variable so that read names can be used to make directory
-      mkdir "${dir_name##*/}"
-      fastqc "${reads}" -o "${dir_name##*/}" -t "${threads}"
-      echo -e "\n"
-    done
-# SERGIO: not necesary since you were repeating the same command but with 2P, use regex
-#    for reads in trimming_with_phred_scores_and_fastqc_report_output/trimmomatic/trimmed_at_phred_*$(echo ${baseout##*/})/*_2P.fastq; do
-#      dir_name=${reads%_*} # making variable so that read names can be used to sort into directory
-#      fastqc $reads -o trimming_with_phred_scores_and_fastqc_report_output/fastqc_reports/$(echo ${dir_name##*/}) -t ${threads}
-#      echo -e "\n"
-#    done
-  fi
+#  Run FastQC on trimmed data if trimming was activated:
+if [[ ${trimming} == "yes" ]]; then
+  for reads in "${trim_dir}"/trimmed_at_phred_*/*_[12]P.fastq; do
+    # SERGIO: When you provide the path in a for loop, the variable retain the path
+    dir_name=${reads%_*} # making variable so that read names can be used to make directory
+    mkdir "${dir_name##*/}"
+    fastqc "${reads}" -o "${dir_name##*/}" -t "${threads}"
+    echo -e "\n"
+  done
+  # SERGIO: not necesary since you were repeating the same command but with 2P, use regex
+  #    for reads in trimming_with_phred_scores_and_fastqc_report_output/trimmomatic/trimmed_at_phred_*$(echo ${baseout##*/})/*_2P.fastq; do
+  #      dir_name=${reads%_*} # making variable so that read names can be used to sort into directory
+  #      fastqc $reads -o trimming_with_phred_scores_and_fastqc_report_output/fastqc_reports/$(echo ${dir_name##*/}) -t ${threads}
+  #      echo -e "\n"
+  #    done
+fi
 
-  # Display runtime
-  echo -e "=================================================================\n"
-  echo "SCRIPT DONE AFTER $((($(date +%s) - "$start") / 3600))h $(((($(date +%s) - "$start") % 3600) / 60))m"
-
-  # Write output to console and log file
-) 2>&1 | tee trimming_with_phred_scores_and_fastqc_report_output/trimming_with_phred_scores_and_fastqc_report_log.txt
+# Display runtime
+echo -e "=================================================================\n"
+echo "SCRIPT DONE AFTER $(convertsecs)"
