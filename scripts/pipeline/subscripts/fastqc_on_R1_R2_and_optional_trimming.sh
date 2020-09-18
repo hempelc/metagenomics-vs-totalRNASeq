@@ -16,14 +16,10 @@
 # For some reason, the limit of the PHRED score can only be set to 38, FastQC is
 # not able to deal with data generated with higher PHRED scores (in my test).
 SECONDS=0 # initialize the especial variable SECONDS so convertsecs will measure
-# Elaspsed time
-convertsecs() {
-  # Simple function for time elapsed
-  h=$(bc <<<"${SECONDS}/3600")
-  m=$(bc <<<"(${SECONDS}%3600)/60")
-  s=$(bc <<<"${SECONDS}%60")
-  printf "%02dH:%02dM:%05.2fS\n" "${h}" "${m}" "${s}"
-}
+# Import utility functions
+SCRIPT=$(realpath $0)
+SCRIPTPATH=$(dirname $SCRIPT)
+source "${SCRIPTPATH}"/utils.sh
 
 usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> -t <yes|no> [-T <path/to/trimmomatic.jar> -P <'score score score ...'> -l <length> -p <threads>]
 
