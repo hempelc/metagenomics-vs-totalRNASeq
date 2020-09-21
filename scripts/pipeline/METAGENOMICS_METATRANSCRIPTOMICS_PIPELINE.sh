@@ -144,8 +144,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
   mv ${output}/corrected/*[12]P*.fastq
   # Rename weird name of error-corrected reads:
   rename 's/.00.0_0.cor.fastq/_error_corrected.fastq/' "${trimming_results}"/*.00.0_0.cor.fastq
-  for f in "${trimming_results}"/*_error_corrected.fastq;
-  do
+  for f in "${trimming_results}"/*_error_corrected.fastq; do
     sed -r -i 's/ BH:.{2,6}//g' "${f}"
   done
   rm -rf "${trimming_results}"/error_correction/
@@ -162,187 +161,214 @@ echo_section FINISHED STEP 1: TRIMMING AND ERROR CORRECTION
 # For loop 1: loop over the folders for trimmed data at different PHRED scores
 # for rRNA filtration:
 for trimming_results in step_1_trimming/trimmomatic/*; do
-  mkdir "${trimming_results}"/step_2_rrna_sorting/
-  cd "${trimming_results}"/step_2_rrna_sorting/
+  filter_dir="${trimming_results}/step_2_rrna_sorting/"
+  fastas_dir="${filter_dir}/reads_in_fasta_format"
+  mkdir -p "${fastas_dir}"
+  #  cd "${filter_dir}" || exit
 
-  echo -e "++++++++ START STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER "${trimming_results}" ++++++++\n"
+  echo_section START STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER \
+    "${trimming_results}"
 
-  echo -e "\n======== CONVERT READS IN FASTA FORMAT FOR rRNAFILTER AND BARRNAP ========\n"
-  mkdir reads_in_fasta_format/
-  fq2fa ../*1P_error_corrected.fastq reads_in_fasta_format/R1.fa
-  fq2fa ../*2P_error_corrected.fastq reads_in_fasta_format/R2.fa
-  echo -e "\n======== READS TO FASTA CONVERSION DONE ========\n"
+  echo_subsection CONVERT READS IN FASTA FORMAT FOR rRNAFILTER AND BARRNAP
+  #  mkdir reads_in_fasta_format/
+  fq2fa "${trimming_results}"/*1P_error_corrected.fastq "${fastas_dir}"/R1.fa
+  fq2fa "${trimming_results}"/*2P_error_corrected.fastq "${fastas_dir}"/R2.fa
+  echo_subsection READS TO FASTA CONVERSION DONE
 
-  echo -e "\n======== RUNNING SORTMERNA ========\n"
-  mkdir SORTMERNA/
+  echo_subsection RUNNING SORTMERNA
+  sortmerna_dir="${filter_dir}/SORTMERNA"
+  mkdir -p "${sortmerna_dir}"
+  # SERGIO: Hardcoding the paths will make it unusable for others and on the clusters
+  # SERGIO: Are you sure that reads takes a
   sortmerna --ref /hdd1/databases/sortmerna_silva_databases/silva-bac-16s-id90.fasta \
     --ref /hdd1/databases/sortmerna_silva_databases/silva-arc-16s-id95.fasta \
     --ref /hdd1/databases/sortmerna_silva_databases/silva-euk-18s-id95.fasta \
-    --reads ../*1P_error_corrected.fastq --reads ../*2P_error_corrected.fastq \
-    --paired_in -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA/ \
-    --threads 1:1:$threads
+    --reads "${trimming_results}"/*1P_error_corrected.fastq \
+    --reads "${trimming_results}"/*2P_error_corrected.fastq \
+    --paired_in -other -fastx 1 -num_alignments 1 -v \
+    -workdir "${sortmerna_dir}" --threads 1:1:"${threads}"
   # SortMeRNA interleaves reads, which we don't want, so we deinterleave them:
-  deinterleave_fastq_reads.sh <SORTMERNA/out/aligned.fastq \
-    SORTMERNA/out/aligned_R1.fq SORTMERNA/out/aligned_R2.fq
-  echo -e "\n======== SORTMERNA DONE ========\n"
+  deinterleave_fastq_reads.sh <"${sortmerna_dir}"/out/aligned.fastq \
+    "${sortmerna_dir}"/out/aligned_R1.fq \
+    "${sortmerna_dir}"/out/aligned_R2.fq
+  echo_subsection SORTMERNA DONE
 
-  echo -e "\n======== RUNNING rRNAFILTER ========\n"
-  mkdir rRNAFILTER/
-  cd rRNAFILTER/
+  echo_subsection RUNNING rRNAFILTER
+  rrnafilter_dir="${filter_dir}/rRNAFILTER"
+  mkdir -p "${rrnafilter_dir}"
+  #  cd rRNAFILTER/
   # rRNAFilter only worked for us when we started it within the directory
   # containing the .jar file. To simplify switching to that directory, we simply
   # download the small program within the script and delete it after usage:
+  # SERGIO: I WILL AVOID DOING THIS. If is truly necessary to execute in the
+  # same folder, you are better off having the zip file on path (or the folder)
+  # and either link it or copy it.
   wget http://hulab.ucf.edu/research/projects/rRNAFilter/software/rRNAFilter.zip
   unzip rRNAFilter.zip
-  cd rRNAFilter/
+  #  cd rRNAFilter/
   # We use 7GB for the rRNAFilter .jar, as shown in the rRNAFilter manual:
-  java -jar -Xmx7g rRNAFilter_commandline.jar \
-    -i ../../reads_in_fasta_format/R1.fa -r 0
-  java -jar -Xmx7g rRNAFilter_commandline.jar \
-    -i ../../reads_in_fasta_format/R2.fa -r 0
-  mv ../../reads_in_fasta_format/R*.fa_rRNA ..
-  cd ..
+  # SERGIO: The rRNAFilter_commandline does not take regex?
+  java -jar -Xmx7g rRNAFilter_commandline.jar -i "${fastas_dir}/R1.fa" -r 0
+  java -jar -Xmx7g rRNAFilter_commandline.jar -i "${fastas_dir}/R2.fa" -r 0
+  mv "${fastas_dir}"/R*.fa_rRNA "${filter_dir}"
+
   rm -r rRNAFilter rRNAFilter.zip
   # We want to keep paired reads, so we extract all rRNA read names that were
   # found in R1 and R2, save them as one list, and extract all reads from both
   # R1 and R2 reads. That way, even if only one read from a pair was identified
   # as rRNA, we keep the pair of reads:
-  fasta_to_tab R1.fa_rRNA | cut -f 1 | cut -f1 -d " " >names.txt
-  fasta_to_tab R2.fa_rRNA | cut -f 1 | cut -f1 -d " " >>names.txt
+  fasta_to_tab "${filter_dir}"/R1.fa_rRNA | cut -f 1 | cut -f1 -d " " >names.txt
+  fasta_to_tab "${filter_dir}"/R2.fa_rRNA | cut -f 1 | cut -f1 -d " " >>names.txt
   sort -u names.txt >names_sorted.txt
-  seqtk subseq ../reads_in_fasta_format/R1.fa names_sorted.txt \
-    >rRNAFilter_paired_R1.fa
-  seqtk subseq ../reads_in_fasta_format/R2.fa names_sorted.txt \
-    >rRNAFilter_paired_R2.fa
+  seqtk subseq "${fastas_dir}"/R1.fa names_sorted.txt >rRNAFilter_paired_R1.fa
+  seqtk subseq "${fastas_dir}"/R2.fa names_sorted.txt >rRNAFilter_paired_R2.fa
   rm names_sorted.txt names.txt
-  cd ..
-  echo -e "\n======== rRNAFILTER DONE ========\n"
-
-  echo -e "\n======== RUNNING BARRNAP ========\n"
-  mkdir BARRNAP/
+  #  cd ..
+  echo_subsection rRNAFILTER DONE
+  echo_subsection RUNNING BARRNAP
+  barnap_dir="${filter_dir}/BARRNAP"
+  mkdir -p "${barnap_dir}"
   for kingdom in euk bac arc; do # barrnap needs to be run on kingdoms separately
-    echo -e "\n======== RUNNING BARRNAP ON KINGDOM $kingdom AND R1 READS ========\n"
-    barrnap --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
-      --threads $threads --outseq BARRNAP/${kingdom}_reads1.fa \
-      reads_in_fasta_format/R1.fa
-    echo -e "\n======== RUNNING BARRNAP ON KINGDOM $kingdom AND R2 READS ========\n"
-    barrnap --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
-      --threads $threads --outseq BARRNAP/${kingdom}_reads2.fa \
+    echo_subsection RUNNING BARRNAP ON KINGDOM "${kingdom}" AND R1 READS
+    barrnap --lencutoff 0.000001 --reject 0.000001 --kingdom "${kingdom}" \
+      --threads "${threads}" --outseq "${barnap_dir}/${kingdom}_reads1.fa" \
+      "${fastas_dir}/R1.fa"
+    echo_subsection RUNNING BARRNAP ON KINGDOM ${kingdom} AND R2 READS
+    barrnap --lencutoff 0.000001 --reject 0.000001 --kingdom "${kingdom}" \
+      --threads "${threads}" --outseq "${barnap_dir}"/${kingdom}_reads2.fa \
       reads_in_fasta_format/R2.fa
     rm reads_in_fasta_format/*.fai
-    sed 's/.*::/>/g' BARRNAP/${kingdom}_reads1.fa | sed 's/:[^:]*$//g' \
-      >BARRNAP/${kingdom}_reads1_edited.fa
-    sed 's/.*::/>/g' BARRNAP/${kingdom}_reads2.fa | sed 's/:[^:]*$//g' \
-      >BARRNAP/${kingdom}_reads2_edited.fa
+    sed 's/.*::/>/g' "${barnap_dir}"/${kingdom}_reads1.fa | sed 's/:[^:]*$//g' \
+      >"${barnap_dir}"/${kingdom}_reads1_edited.fa
+    sed 's/.*::/>/g' "${barnap_dir}"/${kingdom}_reads2.fa | sed 's/:[^:]*$//g' \
+      >"${barnap_dir}"/${kingdom}_reads2_edited.fa
   done
   # Concatenating results from the three kingdoms and R1 and R2 files
-  cat BARRNAP/*edited.fa >BARRNAP/all_reads.fa
+  cat "${barnap_dir}"/*edited.fa >"${barnap_dir}"/all_reads.fa
   # We want to keep paired reads, so we extract all rRNA read names that were
   # found in R1 and R2 for the three kingdoms (in all_reads.fa), save them as
   # one list, and extract all reads from both R1 and R2 reads. That way, even if
   # only one read from a pair was identified as rRNA, we keep the pair of reads:
-  fasta_to_tab BARRNAP/all_reads.fa | cut -f 1 | cut -f1 -d " " | sort -u \
-    >BARRNAP/names_sorted.txt
-  seqtk subseq reads_in_fasta_format/R1.fa BARRNAP/names_sorted.txt \
-    >BARRNAP/barrnap_paired_R1.fa
-  seqtk subseq reads_in_fasta_format/R2.fa BARRNAP/names_sorted.txt \
-    >BARRNAP/barrnap_paired_R2.fa
-  rm BARRNAP/names_sorted.txt
-  echo -e "\n======== BARRNAP DONE ========\n"
+  fasta_to_tab "${barnap_dir}"/all_reads.fa | cut -f 1 | cut -f1 -d " " | sort -u \
+    >"${barnap_dir}"/names_sorted.txt
+  seqtk subseq reads_in_fasta_format/R1.fa "${barnap_dir}"/names_sorted.txt \
+    >"${barnap_dir}"/barrnap_paired_R1.fa
+  seqtk subseq reads_in_fasta_format/R2.fa "${barnap_dir}"/names_sorted.txt \
+    >"${barnap_dir}"/barrnap_paired_R2.fa
+  rm "${barnap_dir}"/names_sorted.txt
 
-  echo -e "\n======== MAKING FOLDER UNSORTED/ AND COPYING UNSORTED READS IN THERE TO KEEP THE FOLDER STRUCTURE CONSTANT ========\n"
-  mkdir UNSORTED/
-  cp ../*1P_error_corrected.fastq ../*2P_error_corrected.fastq UNSORTED/
+  echo_subsection BARRNAP DONE
+  echo_subsection MAKING FOLDER UNSORTED/ AND COPYING UNSORTED READS IN THERE TO KEEP THE FOLDER STRUCTURE CONSTANT
+  unsorted_dir="${barnap_dir}"/UNSORTED
+  mkdir -p "${unsorted_dir}"
+  # SERGIO: again better absolute path... check if I did not mess that up
+  cp "${filter_dir}"/*[12]P_error_corrected.fastq "${unsorted_dir}"
 
-  echo -e "\n++++++++ FINISHED STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER "${trimming_results}" ++++++++\n"
+  echo_section FINISHED STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER "${trimming_results}"
 
   ######################### Step 3: Assembly ################################
 
   # For loop 2: loop over the folders for rRNA filtered data for assembly:
   for rrna_filter_results in rRNAFILTER SORTMERNA BARRNAP UNSORTED; do
     if [[ $rrna_filter_results == 'rRNAFILTER' ]]; then
-      R1_sorted='rRNAFILTER/rRNAFilter_paired_R1.fa'
-      R2_sorted='rRNAFILTER/rRNAFilter_paired_R2.fa'
+      R1_sorted="${rrnafilter_dir}/rRNAFilter_paired_R1.fa"
+      R2_sorted="${rrnafilter_dir}/rRNAFilter_paired_R2.fa"
     elif [[ $rrna_filter_results == 'SORTMERNA' ]]; then
-      R1_sorted='SORTMERNA/out/aligned_R1.fq'
-      R2_sorted='SORTMERNA/out/aligned_R2.fq'
+      R1_sorted="${sortmerna_dir}/out/aligned_R1.fq"
+      R2_sorted="${sortmerna_dir}/out/aligned_R2.fq"
     elif [[ $rrna_filter_results == 'BARRNAP' ]]; then
-      R1_sorted='BARRNAP/barrnap_paired_R1.fa'
-      R1_sorted='BARRNAP/barrnap_paired_R2.fa'
+      R1_sorted="${barnap_dir}/barrnap_paired_R1.fa"
+      R1_sorted="${barnap_dir}//barrnap_paired_R2.fa"
     else # UNSORTED
-      R1_sorted='UNSORTED/*1P_error_corrected.fastq'
-      R2_sorted='UNSORTED/*2P_error_corrected.fastq'
+      R1_sorted="${unsorted_dir}/*1P_error_corrected.fastq"
+      R2_sorted="${unsorted_dir}/*2P_error_corrected.fastq"
     fi
 
-    echo -e "++++++++ START STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER "${trimming_results}"/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ ++++++++\n"
-    mkdir $rrna_filter_results/step_3_assembly/
-    cd $rrna_filter_results/step_3_assembly/
+    echo_section START STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER "${trimming_results}" \
+      AND rRNA FILTERED READS IN FOLDER "${rrna_filter_results}"
 
-    echo -e "\n======== RUNNING SPADES ========\n"
-    mkdir SPADES/
-    spades.py -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler \
-      -o SPADES/ -t $threads
-    echo -e "\n======== SPADES DONE ========\n"
+    assembly_folder=${rrna_filter_results}/step_3_assembly/
+    mkdir -p "${assembly_folder}"
+    #    cd ${assembly_folder} || exit
 
-    echo -e "\n======== RUNNING METASPADES ========\n"
-    mkdir METASPADES/
-    metaspades.py -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler \
-      -o METASPADES/ -t $threads
-    echo -e "\n======== METASPADES DONE ========\n"
+    echo_subsection RUNNING SPADES
+    spades_dir="${assembly_folder}/SPADES"
+    mkdir -p "${spades_dir}"
+    spades.py -1 "${R1_sorted}" -2 "${R2_sorted}" --only-assembler \
+      -o "${spades_dir}" -t "${threads}"
+    echo_subsection SPADES DONE
 
-    echo -e "\n======== RUNNING MEGAHIT ========\n"
-    megahit --presets meta-large -t $threads -1 ../../$R1_sorted \
-      -2 ../../$R2_sorted -o MEGAHIT/
-    echo -e "\n======== MEGAHIT DONE ========\n"
+    echo_subsection RUNNING METASPADES
+    metaspades_dir="${assembly_folder}/METASPADES"
+    mkdir -p "${metaspades_dir}"
+    metaspades.py -1 "${R1_sorted}" -2 "${R2_sorted}" --only-assembler \
+      -o "${metaspades_dir}" -t "${threads}"
+    echo_subsection METASPADES DONE
 
-    echo -e "\n======== RUNNING IDBA_UD ========\n"
+    echo_subsection RUNNING MEGAHIT
+    # SERGIO: Does not need to be created?
+    megahit_dir="${assembly_folder}/MEGAHIT"
+    megahit --presets meta-large -t "${threads}" -1 "${R1_sorted}" \
+      -2 "${R2_sorted}" -o "${megahit_dir}"
+    echo_subsectionMEGAHIT DONE
+
+    echo_subsection RUNNING IDBA_UD
     # Note: we had to edit IDBA prior to compiling it because it didn't work
     # using long reads and the -l option. This seems to be a common problem and
     # can be circumvented following for example the instructions in
     # http://seqanswers.com/forums/showthread.php?t=29109, and see also
     # https://github.com/loneknightpy/idba/issues/26
     # IDBA_UD only takes interleaved fasta files
-    fq2fa --merge --filter ../../$R1_sorted ../../$R2_sorted idba_ud_input.fa
-    idba_ud --num_threads $threads --pre_correction -r idba_ud_input.fa \
-      -o IDBA_UD/
-    mv idba_ud_input.fa IDBA_UD/
-    echo -e "\n======== IDBA_UD DONE ========\n"
 
-    echo -e "\n======== RUNNING RNASPADES ========\n"
-    mkdir RNASPADES/
-    rnaspades.py -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler \
-      -o RNASPADES/ -t $threads
-    echo -e "\n======== RNASPADES DONE ========\n"
+    #SERGIO: does not need to be created?
+    idba_dir="${assembly_folder}/IDBA_UD"
+    idba_input="${idba_dir}/idba_ud_input.fa"
+    fq2fa --merge --filter "${R1_sorted}" "${R2_sorted}" "${idba_input}"
+    idba_ud --num_threads "${threads}" --pre_correction -r "${idba_input}" \
+      -o "${idba_dir}"
+    echo_subsection IDBA_UD DONE
 
-    echo -e "\n======== RUNNING IDBA_TRAN ========\n"
+    echo_subsection RUNNING RNASPADES
+    rnaspades_dir="${assembly_folder}/RNASPADES"
+    mkdir -p "${rnaspades_dir}"
+    rnaspades.py -1 "${R1_sorted}" -2 "${R2_sorted}" --only-assembler \
+      -o "${rnaspades_dir}" -t "${threads}"
+    echo_subsection RNASPADES DONE
+
+    echo_subsection RUNNING IDBA_TRAN
+    idbatran_dir="${assembly_folder}/IDBA_TRAN"
+    idbat_input="${idbatran_dir}/idba_tran_input.fa"
     # IDBA_TRAN only takes interleaved fasta files
-    fq2fa --merge ../../$R1_sorted ../../$R2_sorted idba_tran_input.fa
-    idba_tran --num_threads $threads --pre_correction -l idba_tran_input.fa \
+    fq2fa --merge "${R1_sorted}" "${R2_sorted}" "${idbat_input}"
+    idba_tran --num_threads $threads --pre_correction -l "${idbat_input}" \
       -o IDBA_TRAN/
-    mv idba_tran_input.fa IDBA_TRAN/
-    echo -e "\n======== IDBA_TRAN DONE ========\n"
+    echo_subsection IDBA_TRAN DONE
 
-    echo -e "\n======== RUNNING TRINITY ========\n"
+    echo_subsection RUNNING TRINITY
+    trinity_dir="${assembly_folder}/TRINITY"
+    # SERGIO: to run in shared systems this cannot be set this way. Have to be
+    # user provided
+    max_mem=$(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024) - 5))
     # Barrnap and rRNAFilter output fasta files which has to be indicated to Trinity:
-    if [[ $rrna_filter_results == "rRNAFILTER" || $rrna_filter_results == "BARRNAP" ]]; then
-      Trinity --seqType fa --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024) - 5)))G --left ../../$R1_sorted --right \
-        ../../$R2_sorted --CPU $threads --output TRINITY/ # The max_memory command simply takes the maximum RAM size in GB and subtracts 5GB
+    if [[ "${rrna_filter_results}" == "rRNAFILTER" || "${rrna_filter_results}" == "BARRNAP" ]]; then
+      t=fa
     else
-      Trinity --seqType fq --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024) - 5)))G --left ../../$R1_sorted --right \
-        ../../$R2_sorted --CPU $threads --output TRINITY/ # The max_memory command simply takes the maximum RAM size in GB and subtracts 5GB
+      t=fq
     fi
-    cat TRINITY/Trinity.fasta | sed 's/ len/_len/g' \
-      >TRINITY/Trinity_with_length.fasta # Edit for universal format
-    echo -e "\n======== TRINITY DONE ========\n"
+    Trinity --seqType ${t} --max_memory "${max_mem}"G --left "${R1_sorted}" \
+      --right "${R2_sorted}" --CPU "${threads}" --output "${trinity_dir}" # The max_memory command simply takes the maximum RAM size in GB and subtracts 5GB
+    sed 's/ len/_len/g' "${trinity_dir}/Trinity.fasta" >"${trinity_dir}/Trinity_with_length.fasta" # Edit for universal format
+    echo_subsection TRINITY DONE
 
-    echo -e "\n======== RUNNING TRANSABYSS ========\n"
-    transabyss --pe ../../$R1_sorted ../../$R2_sorted --threads $threads \
-      --outdir TRANSABYSS/
-    sed 's/ /_/g' TRANSABYSS/transabyss-final.fa \
-      >TRANSABYSS/transabyss-final_edited.fa # Edit for universal format
-    echo -e "\n======== TRANSABYSS DONE ========\n"
+    echo_subsection RUNNING TRANSABYSS
+    tabyss_dir="${assembly_folder}/TRANSABYSS"
+    transabyss --pe "${R1_sorted}" "${R2_sorted}" --threads "${threads}" \
+      --outdir "${tabyss_dir}"
+    sed 's/ /_/g' "${tabyss_dir}/transabyss-final.fa" >"${tabyss_dir}/transabyss-final_edited.fa" # Edit for universal format
+    echo_subsection TRANSABYSS DONE
 
-    echo -e "\n++++++++ FINISHED STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER "${trimming_results}"/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ ++++++++\n"
+    echo_section FINISHED STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER "${trimming_results}" \
+    AND rRNA FILTERED READS IN FOLDER "${rrna_filter_results}"
 
     ######################### Step 4: Mapping ################################
 
