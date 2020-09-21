@@ -287,7 +287,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
     echo_section START STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER "${trimming_results}" \
       AND rRNA FILTERED READS IN FOLDER "${rrna_filter_results}"
 
-    assembly_folder=${rrna_filter_results}/step_3_assembly/
+    assembly_folder="${rrna_filter_results}/step_3_assembly"
     mkdir -p "${assembly_folder}"
     #    cd ${assembly_folder} || exit
 
@@ -368,72 +368,81 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
     echo_subsection TRANSABYSS DONE
 
     echo_section FINISHED STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER "${trimming_results}" \
-    AND rRNA FILTERED READS IN FOLDER "${rrna_filter_results}"
+      AND rRNA FILTERED READS IN FOLDER "${rrna_filter_results}"
 
     ######################### Step 4: Mapping ################################
 
     # For loop 3: loop over the folders for assembled data for mapping:
     for assembly_results in SPADES METASPADES MEGAHIT IDBA_UD RNASPADES IDBA_TRAN TRINITY TRANSABYSS; do
-      if [[ $assembly_results == 'SPADES' ]]; then
-        scaffolds='SPADES/scaffolds.fasta'
-      elif [[ $assembly_results == 'METASPADES' ]]; then
-        scaffolds='METASPADES/scaffolds.fasta'
-      elif [[ $assembly_results == 'MEGAHIT' ]]; then
-        scaffolds='MEGAHIT/final.contigs.fa'
-      elif [[ $assembly_results == 'IDBA_UD' ]]; then
-        scaffolds='IDBA_UD/scaffold.fa'
-      elif [[ $assembly_results == 'RNASPADES' ]]; then
-        scaffolds='RNASPADES/transcripts.fasta'
-      elif [[ $assembly_results == 'IDBA_TRAN' ]]; then
-        scaffolds='IDBA_TRAN/contig.fa'
-      elif [[ $assembly_results == 'TRINITY' ]]; then
-        scaffolds='TRINITY/Trinity_with_length.fasta'
+      if [[ "${assembly_results}" == 'SPADES' ]]; then
+        scaffolds="${spades_dir}/scaffolds.fasta"
+      elif [[ "${assembly_results}" == 'METASPADES' ]]; then
+        scaffolds="${metaspades_dir}/scaffolds.fasta"
+      elif [[ "${assembly_results}" == 'MEGAHIT' ]]; then
+        scaffolds="${megahit_dir}/final.contigs.fa"
+      elif [[ "${assembly_results}" == 'IDBA_UD' ]]; then
+        scaffolds="${idba_dir}/scaffold.fa"
+      elif [[ "${assembly_results}" == 'RNASPADES' ]]; then
+        scaffolds="${rnaspades_dir}/transcripts.fasta"
+      elif [[ "${assembly_results}" == 'IDBA_TRAN' ]]; then
+        scaffolds="${idbatran_dir}/contig.fa"
+      elif [[ "${assembly_results}" == 'TRINITY' ]]; then
+        scaffolds="${trinity_dir}/Trinity_with_length.fasta"
       else # TRANSABYSS
-        scaffolds='TRANSABYSS/transabyss-final_edited.fa'
+        scaffolds="${tabyss_dir}/transabyss-final_edited.fa"
       fi
 
-      echo -e "++++++++ START STEP 4: MAPPING OF TRIMMED READS IN FOLDER "${trimming_results}"/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ ++++++++\n"
-      mkdir $assembly_results/step_4_mapping/
-      cd $assembly_results/step_4_mapping/
+      echo_section START STEP 4: MAPPING OF TRIMMED READS IN FOLDER \
+        "${trimming_results}" AND rRNA FILTERED READS IN FOLDER \
+        "${rrna_filter_results}" AND ASSEMBLY IN FOLDER "${assembly_results}"
+
+      mapping_dir="${assembly_results}/step_4_mapping"
+      mkdir -p "${mapping_dir}"
+      #      cd "${mapping_dir}" || exit
 
       # We insert a loop here for the mappers because their output is edited
       # with identical commands:
       for mapper in BWA BOWTIE2; do
+        mapper="${mapping_dir}/${mapper}"
+        mkdir -p "${mapper}"
+        #        cd "${mapper}" || exit
 
-        mkdir $mapper
-        cd $mapper
-
-        if [[ $mapper == 'BWA' ]]; then
-          echo -e "\n======== Starting bwa index ========\n"
-          bwa index -p bwa_index ../../../$scaffolds
-          echo -e "\n======== bwa index complete. Starting bwa mem ========\n"
-          bwa mem -t $threads bwa_index ../../../../../../*1P_error_corrected.fastq \
-            ../../../../../../*2P_error_corrected.fastq >${mapper}_output.sam
-          rm bwa_index*
-          echo -e "\n======== bwa mem complete ========\n"
+        if [[ "${mapper}" == 'BWA' ]]; then
+          echo_subsection Starting bwa index
+          index_pref="${mapper}/bwa_index"
+          bwa index -p "${index_pref}" ${scaffolds}
+          echo_subsection bwa index complete. Starting bwa mem
+          bwa mem -t "${threads}" ${index_pref} "${trimming_results}"/*1P_error_corrected.fastq \
+            "${trimming_results}"/*2P_error_corrected.fastq >${mapper}_output.sam
+          rm "${index_pref}*"
+          echo_subsection bwa mem complete
         else
-          echo -e "\n======== Starting bowtie2 index ========\n"
-          bowtie2-build -f ../../../$scaffolds bowtie_index
-          echo -e "\n======== bowtie2 index complete. Starting bowtie2 ========\n"
-          bowtie2 -q -x bowtie_index -1 ../../../../../../*1P_error_corrected.fastq \
-            -2 ../../../../../../*2P_error_corrected.fastq -S ${mapper}_output.sam \
-            -p $threads
-          rm bowtie_index*
-          echo -e "\n======== bowtie2 complete ========\n"
+          echo_subsection Starting bowtie2 index
+          index_pref="${mapper}/bowtie_index"
+          bowtie2-build -f "${scaffolds}" "${index_pref}"
+          echo_subsection bowtie2 index complete. Starting bowtie2
+          bowtie2 -q -x "${index_pref}" -1 "${trimming_results}"/*1P_error_corrected.fastq \
+            -2 "${trimming_results}"/*2P_error_corrected.fastq -S ${mapper}_output.sam \
+            -p "${threads}"
+          rm "${index_pref}"*
+          echo_subsection bowtie2 complete
         fi
 
         # Editing the mapper outputs:
+        name=$(basename ${mapper})
+        otm="${mapper}/out_mapped_${name}.txt"
+        otu="${mapper}/out_unmapped_${name}.txt"
+        mim="${mapper}/merge_input_mapped_${name}.txt"
+        miu="${mapper}/merge_input_unmapped_${name}.txt"
         samtools view -F 4 ${mapper}_output.sam | cut -f3 | sort | uniq -c |
-          column -t | sed 's/  */\t/g' >out_mapped_${mapper}.txt
+          column -t | sed 's/  */\t/g' >"${otm}"
         samtools view -f 4 ${mapper}_output.sam | cut -f3 | sort | uniq -c |
-          column -t | sed 's/  */\t/g' >out_unmapped_${mapper}.txt
-        echo -e "counts\tcontig_number" >merge_input_mapped_${mapper}.txt &&
-          cat out_mapped_${mapper}.txt >>merge_input_mapped_${mapper}.txt
-        echo -e "counts\tcontig_number" >merge_input_unmapped_${mapper}.txt &&
-          cat out_unmapped_${mapper}.txt >>merge_input_unmapped_${mapper}.txt
+          column -t | sed 's/  */\t/g' >"${otu}"
+        echo -e "counts\tcontig_number" >"${mim}" && cat ${otm} >>"${mim}"
+        echo -e "counts\tcontig_number" >"${miu}" && cat "${otu}" >>"${miu}"
 
-        rm *_index* out_*mapped_${mapper}.txt
-        cd ..
+        rm "${mapper}"/*_index* "${mapper}"/out_*mapped_${name}.txt
+        #        cd ..
         # And we close the mapper loop here because the next step is independent
         # from the mappers and saved under a separate folder:
       done
@@ -441,9 +450,12 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
       # We cd back into the step_3 directory using the base_directory variable
       # we created at the beginning of the script and the nested for loop
       # variables we generated during the script:
-      cd $(realpath --relative-to=$(pwd) ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/)
+      #      cd $(realpath --relative-to=$(pwd) ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/)
+      cd "${assembly_folder}" || exit
 
-      echo -e "++++++++ FINISHED STEP 4: MAPPING FOR TRIMMED READS IN FOLDER "${trimming_results}"/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ ++++++++\n"
+      echo_section FINISHED STEP 4: MAPPING FOR TRIMMED READS IN FOLDER \
+      "${trimming_results}"/ AND rRNA FILTERED READS IN FOLDER \
+      "${rrna_filter_results}" AND ASSEMBLY IN FOLDER "${assembly_results}"
 
       ######################### Steps 5 and 6.1: Picking a referencd DB and taxonomic classification ################################
 
