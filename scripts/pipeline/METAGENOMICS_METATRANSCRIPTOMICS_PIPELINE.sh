@@ -454,16 +454,17 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
       cd "${assembly_folder}" || exit
 
       echo_section FINISHED STEP 4: MAPPING FOR TRIMMED READS IN FOLDER \
-      "${trimming_results}"/ AND rRNA FILTERED READS IN FOLDER \
-      "${rrna_filter_results}" AND ASSEMBLY IN FOLDER "${assembly_results}"
+        "${trimming_results}"/ AND rRNA FILTERED READS IN FOLDER \
+        "${rrna_filter_results}" AND ASSEMBLY IN FOLDER "${assembly_results}"
 
-      ######################### Steps 5 and 6.1: Picking a referencd DB and taxonomic classification ################################
-
-      mkdir $assembly_results/step_5_reference_DB/
+      ######################### Steps 5 and 6.1: Picking a reference DB and taxonomic classification ################################
+      refdb_dir="${assembly_results}/step_5_reference_DB/"
+      mkdir - p "${refdb_dir}"
 
       # For loop 4: loop over the reference DBs for taxonomic classification:
+      # SERGIO: Hardcoded paths are not transferable
       for DB in SILVA NCBI_NT; do
-        if [[ $DB == "SILVA" ]]; then
+        if [[ "${DB}" == "SILVA" ]]; then
           krakenDB="/hdd1/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Sep_2020/"
           blastDB="/hdd1/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta"
         else # NCBI_NT
@@ -471,17 +472,20 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
           blastDB="/hdd1/databases/nt_database_feb_2020_indexed/nt"
         fi
 
-        echo -e "++++++++ START STEP 5 AND 6.1: CLASSIFICATION OF ASSEMBLED SCAFFOLDS FROM TRIMMED READS IN FOLDER "${trimming_results}"/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ ++++++++\n"
-        mkdir $assembly_results/step_5_reference_DB/${DB}/
-        mkdir $assembly_results/step_5_reference_DB/${DB}/step_6_classification/
-        cd $assembly_results/step_5_reference_DB/${DB}/step_6_classification/
+        echo_section START STEP 5 AND 6.1: CLASSIFICATION OF ASSEMBLED SCAFFOLDS \
+          FROM TRIMMED READS IN FOLDER "${trimming_results}" AND rRNA FILTERED READS \
+          IN FOLDER "${rrna_filter_results}" AND ASSEMBLY IN FOLDER "${assembly_results}"
+        class_dir="${refdb_dir}/${DB}/step_6_classification"
+        mkdir -p ${class_dir}
+        #        cd $assembly_results/step_5_reference_DB/${DB}/step_6_classification/
 
-        echo -e "\n======== RUNNING JUSTBLAST WITH DATABASE $DB ========\n"
+        echo_subsection RUNNING JUSTBLAST WITH DATABASE "${DB}"
         # Run BLAST via justblast
-        justblast ../../../../$scaffolds $blastDB --cpus $threads --evalue 1e-05 \
+        # SERGIO: Do you really need all those headers?
+        justblast "${scaffolds}" "${blastDB}" --cpus ${threads} --evalue 1e-05 \
           --outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
-          --out_filename blast_output.txt
-        echo -e "\n======== JUSTBLAST WITH DATABASE $DB DONE ========\n"
+          --out_filename "${class_dir}/blast_output.txt"
+        echo_subsection JUSTBLAST WITH DATABASE "${DB}" DONE
 
         echo -e "\n======== RUNNING BLAST FIRST HIT ========\n"
         # We run a separate script to filter the BLAST results:
