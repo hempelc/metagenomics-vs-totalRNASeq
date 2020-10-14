@@ -92,6 +92,7 @@ SECONDS=0
 # Import utility functions
 SCRIPT=$(realpath "${0}")
 SCRIPTPATH=$(dirname "${SCRIPT}")
+# shellcheck source=/dev/null
 source "${SCRIPTPATH}"/utils.sh
 
 # Define starting time of script for total runtime calculation:
@@ -258,13 +259,15 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
   rm "${barnap_dir}"/names_sorted.txt
 
   echo_subsection BARRNAP DONE
-  echo_subsection MAKING FOLDER UNSORTED/ AND COPYING UNSORTED READS IN THERE TO KEEP THE FOLDER STRUCTURE CONSTANT
+  echo_subsection MAKING FOLDER UNSORTED/ AND COPYING UNSORTED READS IN THERE \
+    TO KEEP THE FOLDER STRUCTURE CONSTANT
   unsorted_dir="${barnap_dir}"/UNSORTED
   mkdir -p "${unsorted_dir}"
   # SERGIO: again better absolute path... check if I did not mess that up
   cp "${filter_dir}"/*[12]P_error_corrected.fastq "${unsorted_dir}"
 
-  echo_section FINISHED STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER "${trimming_results}"
+  echo_section FINISHED STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER \
+    "${trimming_results}"
 
   ######################### Step 3: Assembly ################################
 
@@ -487,9 +490,9 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
           --out_filename "${class_dir}/blast_output.txt"
         echo_subsection JUSTBLAST WITH DATABASE "${DB}" DONE
 
-        echo -e "\n======== RUNNING BLAST FIRST HIT ========\n"
+        echo_subsection RUNNING BLAST FIRST HIT
         # We run a separate script to filter the BLAST results:
-        blast_filtering.bash -i blast_output.txt -f blast -t soft -T $threads
+        blast_filtering.bash -i blast_output.txt -f blast -t soft -T "${threads}"
         cp blast_output.txt blast_filtering_results/
         mv blast_filtering_results/ BLAST_FIRST_HIT/
         echo -e "\n======== BLAST FIRST HIT DONE ========\n"
