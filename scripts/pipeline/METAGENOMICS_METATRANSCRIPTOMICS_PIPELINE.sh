@@ -120,10 +120,11 @@ base_directory=${PWD}
 ######################### Step 1: trimming ################################
 echo_section "START STEP 1: TRIMMING AND ERROR CORRECTION"
 
+#SERGIO: REMOVE HARCODED PATHS!!!
 # Trimming is done with a separate subscript:
 fastqc_on_R1_R2_and_optional_trimming.sh \
   -T /hdd1/programs_for_pilot/Trimmomatic-0.39/trimmomatic-0.39.jar \
-  -1 ${forward_reads} -2 ${reverse_reads} -t yes -p $threads
+  -1 "${forward_reads}" -2 "${reverse_reads}" -t yes -p "$threads"
 
 # SERGIO: WHY? just pass the name of the folder to the fastqc script (first
 # make it an option)
