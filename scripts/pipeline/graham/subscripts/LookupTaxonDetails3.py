@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 
 # Script from David Ryder (CEFAS, Weymouth, England)
 

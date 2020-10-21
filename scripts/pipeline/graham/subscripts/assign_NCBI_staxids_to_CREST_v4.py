@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 # A script to assign NCBI staxids to CREST SILVA output
 

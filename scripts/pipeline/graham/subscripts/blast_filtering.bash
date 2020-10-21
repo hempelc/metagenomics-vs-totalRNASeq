@@ -10,7 +10,7 @@
 # assigned to one taxonomy
 
 # Need to have scripts assign_taxonomy_NCBI_staxids.sh and LookupTaxonDetails3.py
-# in your PATH, and justblast installed (https://pypi.org/project/justblast/)
+# in your PATH, and ete3 and justblast installed (https://pypi.org/project/justblast/)
 # In order for "assign_taxonomy_NCBI_staxids.sh" to work - you MUST have
 # .etetoolkit/taxa.sqlite in your HOME directory - check the ete3 toolkit
 # to see how that's set up (http://etetoolkit.org/)
@@ -22,7 +22,7 @@ Usage:
   -i       Input file.
   -f       Format of input file:
            fasta:
-              If input is a blast file, justblast is performed first, then
+              If input is a fasta file, justblast is performed first, then
               results are filtered based on option -t. Requires option -d.
            blast:
               Input is already blast output, then justblast is skipped and input
@@ -200,7 +200,7 @@ if [[ $filtering == 'soft' ]] ; then
   awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $2}' \
   blast_filtering_results/blast_output_with_taxonomy_and_bitscore_filter_and_LCA_noheader.txt \
   > tmp
-  echo -e "sequence\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit" \
+  echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit" \
   > blast_filtering_results/blast_output_with_taxonomy_and_best_hit.txt \
   && cat tmp \
   >> blast_filtering_results/blast_output_with_taxonomy_and_best_hit.txt
@@ -296,7 +296,7 @@ if [[ $filtering == 'strict' ]] ; then
   awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $2}' \
   blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA_noheader.txt \
   > tmp
-  echo -e "sequence\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit" \
+  echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit" \
   > blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt \
   && cat tmp \
   >> blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt
