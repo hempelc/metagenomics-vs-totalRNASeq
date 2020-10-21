@@ -4,13 +4,16 @@
 # ete3 and a script from David Ryder (CEFAS, Weymouth, England)
 # (originally LookupTaxonoDetails.py)
 
-# Needs ete3 being installed, folder .etetoolkit/taxa.sqlite being present in \
+# Needs ete3 being installed, folder .etetoolkit/taxa.sqlite being present in
 # the home directory, and script LookupTaxonDetails3.py being in path
 
 # If folder .etetoolkit/taxa.sqlite is not present in home directory, you need
 # to run ONLY the ete3 command once first, delete the output, and then set the
 # third parameter to the .etetoolit/taxa.sqlite folder that has now been
 # generated in your folder
+
+# Note that if ete3 is installed with conda, you have to activate the environment
+# when running ete3
 
 
 usage="$(basename "$0") -b <blast_file> -c <n> -e <path/to/.etetoolkit/taxa.sqlite>
