@@ -28,8 +28,8 @@
 	# rRNAFILTER (1.1), SPADES (3.14.0), METASPADES (3.14.0), RNASPADES (3.14.0),
 	# MEGAHIT (1.2.9), IDBA-UD (1.1.1), IDBA-TRAN (1.1.1), Trinity (2.10.0),
 	# bowtie2 (2.3.3.1), bwa (0.7.17), blast (2.10.0+), seqtk (1.2-r94),
-	# python module justblast (2020.0.3), python module ete3
-
+	# samtools (1.10), python module justblast (2020.0.3), python module ete3 (3.1.2)
+	
 	# Note 1: we had to edit IDBA prior to compiling it because it didn't work
 	# using long reads and the -l option. This seems to be a common problem and
 	# can be circumvented following for example the instructions in
