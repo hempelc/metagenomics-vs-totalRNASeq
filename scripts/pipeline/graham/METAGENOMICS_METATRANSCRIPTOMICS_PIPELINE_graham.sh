@@ -134,7 +134,7 @@ mv trimming_with_phred_scores_and_fastqc_report_output/ step_1_trimming/
 
 # Running error correction module of SPAdes on all trimmed reads
 for trimming_results in step_1_trimming/trimmomatic/*; do
-	echo -e "\n======== ERROR-CORRECTING READS IN FOLDER $trimming_results ========\n"
+	echo -e "\n======== ERROR-CORRECTING READS ========\n"
 	spades.py -1 $trimming_results/*1P.fastq -2 $trimming_results/*2P.fastq \
 	--only-error-correction --disable-gzip-output -o $trimming_results/error_correction \
 	-t $threads
@@ -148,7 +148,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
   && mv $trimming_results/*2P.00.0_0.cor.fastq ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
   sed -r -i 's/ BH:.{2,6}//g' ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
 	rm -r $trimming_results/error_correction/
-	echo -e "\n======== FINISHED ERROR-CORRECTING READS IN FOLDER $trimming_results ========\n"
+	echo -e "\n======== FINISHED ERROR-CORRECTING READS ========\n"
 done
 
 echo -e "++++++++ FINISHED STEP 1: TRIMMING AND ERROR CORRECTION ++++++++\n"
@@ -161,11 +161,14 @@ echo -e "++++++++ FINISHED STEP 1: TRIMMING AND ERROR CORRECTION ++++++++\n"
 
 # For loop 1: loop over the folders for trimmed data at different PHRED scores
 # for rRNA filtration:
+
 for trimming_results in step_1_trimming/trimmomatic/*; do
 	mkdir $trimming_results/step_2_rrna_sorting/
 	cd $trimming_results/step_2_rrna_sorting/
 
-	echo -e "++++++++ START STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER $trimming_results ++++++++\n"
+	echo -e "++++++++ START STEP 2: rRNA SORTING OF TRIMMED READS ++++++++\n"
+
+	if [[ $sorting == 'rRNAFILTER' ]]; then
 
 	echo -e "\n======== CONVERT READS IN FASTA FORMAT FOR rRNAFILTER AND BARRNAP ========\n"
 	mkdir reads_in_fasta_format/
