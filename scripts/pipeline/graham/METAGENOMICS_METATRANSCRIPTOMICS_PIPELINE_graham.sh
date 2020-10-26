@@ -147,6 +147,7 @@ baseout=${forward_reads%_*} # Make basename
 cd step_1_trimming/trimming_with_phred_scores_and_fastqc_report_output/trimmomatic/trimmed_at_phred_${trimming}_${baseout##*/}
 
 # Running error correction module of SPAdes on all trimmed reads
+<<<<<<< HEAD
 echo -e "\n======== ERROR-CORRECTING READS ========\n"
 spades.py -1 *1P.fastq -2 *2P.fastq \
 --only-error-correction --disable-gzip-output -o error_correction \
@@ -162,19 +163,33 @@ R2=$(echo *2P.00.0_0.cor.fastq) \
 sed -r -i 's/ BH:.{2,6}//g' ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
 rm -r error_correction/
 echo -e "\n======== FINISHED ERROR-CORRECTING READS ========\n"
+=======
+for trimming_results in step_1_trimming/trimmomatic/*; do
+	echo -e "\n======== ERROR-CORRECTING READS ========\n"
+	spades.py -1 $trimming_results/*1P.fastq -2 $trimming_results/*2P.fastq \
+	--only-error-correction --disable-gzip-output -o $trimming_results/error_correction \
+	-t $threads
+	mv $trimming_results/error_correction/corrected/*1P*.fastq \
+	$trimming_results/error_correction/corrected/*2P*.fastq $trimming_results
+	# Rename weird name of error-corrected reads:
+	R1=$(echo $trimming_results/*1P.00.0_0.cor.fastq) \
+  && 	mv $trimming_results/*1P.00.0_0.cor.fastq ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
+  sed -r -i 's/ BH:.{2,6}//g' ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
+	R2=$(echo $trimming_results/*2P.00.0_0.cor.fastq) \
+  && mv $trimming_results/*2P.00.0_0.cor.fastq ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
+  sed -r -i 's/ BH:.{2,6}//g' ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
+	rm -r $trimming_results/error_correction/
+	echo -e "\n======== FINISHED ERROR-CORRECTING READS ========\n"
+done
 
 echo -e "++++++++ FINISHED STEP 1: TRIMMING AND ERROR CORRECTION ++++++++\n"
 
-
 ######################### Step 2: rRNA sorting ################################
 
-# NOTE: To enable each combination of programs in each step, we run nested for
-# loops and close them all at the very end of the script.
+echo -e "++++++++ START STEP 2: rRNA SORTING OF TRIMMED READS ++++++++\n"
 
 mkdir step_2_rrna_sorting/
 cd step_2_rrna_sorting/
-
-echo -e "++++++++ START STEP 2: rRNA SORTING OF TRIMMED READS ++++++++\n"
 
 if [[ ${sorting} == "barrnap" || ${sorting} == "rrnafilter" ]]; then
 	echo -e "\n======== CONVERT READS IN FASTA FORMAT ========\n"
@@ -967,3 +982,4 @@ echo "SCRIPT DONE AFTER $((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)
 
 # Write output to console and log file
 ) 2>&1 | tee METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_LOG.txt
+
