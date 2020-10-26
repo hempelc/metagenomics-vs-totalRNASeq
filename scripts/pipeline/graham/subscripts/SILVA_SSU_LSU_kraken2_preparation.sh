@@ -15,7 +15,7 @@ wget https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/taxonomy
 wget https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/taxonomy/tax_slv_ssu_138.1.txt.gz
 
 # Unzip them:
-gunzip *
+gunzip SILVA_138.1_*.gz taxmap_slv_*.gz tax_slv_ssu_138.1.txt.gz
 
 # As of 04 Sep 2020, the available SILVA LSU and SSU version contain duplicate
 # sequences. I contacted the SILVA support, who said that should not have
@@ -27,7 +27,7 @@ cat SILVA_138.1_SSURef_NR99_tax_silva_trunc.fasta \
 | filter-fasta.awk -v expression=$RE -v printMatch=0 \
 > SILVA_138.1_SSURef_NR99_tax_silva_trunc_filtered.fasta
 
-#Concatenate the SSU und LSU fasta files:
+#Concatenate the SSU and LSU fasta files:
 cat SILVA_138.1_SSURef_NR99_tax_silva_trunc_filtered.fasta \
 > SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta
 cat SILVA_138.1_LSURef_NR99_tax_silva_trunc.fasta \

@@ -29,7 +29,7 @@
 	# MEGAHIT (1.2.9), IDBA-UD (1.1.1), IDBA-TRAN (1.1.1), Trinity (2.10.0),
 	# bowtie2 (2.3.3.1), bwa (0.7.17), blast (2.10.0+), seqtk (1.2-r94),
 	# samtools (1.10), python module justblast (2020.0.3), python module ete3 (3.1.2)
-	
+
 	# Note 1: we had to edit IDBA prior to compiling it because it didn't work
 	# using long reads and the -l option. This seems to be a common problem and
 	# can be circumvented following for example the instructions in
@@ -598,7 +598,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 							merge_on_outer.py ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${assembly_results}/step_4_mapping/${mapper}/merge_input_mapped_${mapper}.txt \
 							${classification_tool}/FINAL_FILES/intermediate_files/${assembly_results}_tab_to_merge.txt ${classification_tool}/FINAL_FILES/intermediate_files/${assembly_results}_final_${mapper}_merge_ready.txt
 
-						else # TRANSABYSS
+						else # TRINITY
 							# Change the sequences' fasta format to tab delimited:
 							fasta_to_tab ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/${scaffolds} \
 							| sed 's/ /\t/1' | cut -f1,3 > tmp

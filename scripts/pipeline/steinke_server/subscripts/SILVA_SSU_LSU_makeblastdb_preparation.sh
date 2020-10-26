@@ -162,8 +162,8 @@ SILVA_138.1_LSURef_NR99_tax_silva_trunc.fasta \
 
 
 # Make the blast DB
-#makeblastdb -dbtype 'nucl' -in SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta \
-#-parse_seqids -taxid_map SILVA_accession_numbers_and_NCBI_taxids.txt
+makeblastdb -dbtype 'nucl' -in SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta \
+-parse_seqids -taxid_map SILVA_accession_numbers_and_NCBI_taxids.txt
 
 # Remove intermediate files
 rm citations.dmp delnodes.dmp readme.txt SILVA_138.1_SSURef_NR99_tax_silva_trunc* \

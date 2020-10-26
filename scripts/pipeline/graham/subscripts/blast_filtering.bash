@@ -16,7 +16,7 @@
 # to see how that's set up (http://etetoolkit.org/)
 
 cmd="$0 $@" # Make variable containing full used command to print command in logfile
-usage="$(basename "$0") -i <input.fa> -f <fasta|blast> -t <soft|strict> [-d <DB> -b <bitscore> -p <percentage> -c <n n n n n n> -T <threads>]
+usage="$(basename "$0") -i <input.fa> -f <fasta|blast> -t <soft|strict> -e <PATH/TO/.etetoolkit/taxa.sqlite> [-d <DB> -b <bitscore> -p <percentage> -c <n n n n n n> -T <threads>]
 
 Usage:
   -i       Input file.
@@ -45,6 +45,7 @@ Usage:
               (3) LCA approach - assigns the taxonomy to each sequence based on
               all taxonomic ranks that are identical in the remaining hits of
               each sequence.
+  -e       Path to .etetoolkit/taxa.sqlite
   -d       Database to use for blast.
   -b       Bitscore threshold to perform bitscore filtering on (-t) strict
            (default=155).
@@ -74,6 +75,7 @@ while getopts ':i:f:d:t:b:p:c:T:h' opt; do
     f) format="${OPTARG}" ;;
 		d) db="${OPTARG}" ;;
 		t) filtering="${OPTARG}" ;;
+    e) etetoolkit="${OPTARG}" ;;
 		b) bitscore="${OPTARG}" ;;
 		p) percentage="${OPTARG}" ;;
     c) cutoff="${OPTARG}" ;;
@@ -91,10 +93,10 @@ done
 shift $((OPTIND - 1))
 
 # Check if required options are set
-if [[ -z "$input" || -z "$format" || -z "$filtering" ]]
+if [[ -z $input || -z $format || -z $filtering || -z $etetoolkit ]]
 then
-   echo -e "-i, -f, and -t must be set\n"
-   echo -e "$usage\n\n"
+   echo -e "-i, -f, -t, and -e must be set\n"
+   echo -e "${usage}\n\n"
    echo -e "Exiting script\n"
    exit
 fi
@@ -219,7 +221,7 @@ if [[ $filtering == 'strict' ]] ; then
   echo -e "\n======== ASSIGNING TAXONOMY ========\n"
   # Using a subscript:
   assign_taxonomy_NCBI_staxids.sh -b $assign_taxonomy_input -c 13 \
-  -e ~/.etetoolkit/taxa.sqlite
+  -e $etetoolkit
   mv blast_output_with_taxonomy.txt blast_filtering_results/
   sed '1d' blast_filtering_results/blast_output_with_taxonomy.txt \
   > blast_filtering_results/blast_output_bitscore_filtered_with_taxonomy_noheader.txt \

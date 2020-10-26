@@ -112,7 +112,7 @@ echo -e "Number of threads was set to $threads."
 
 ##### Start of script #####
 
-baseout=$(echo ${R1%_*}) # Make basename
+baseout=${R1%_*} # Make basename
 
 if [[ $trimming == "yes" ]] ; then
 	# Running Trimmomatic
@@ -120,13 +120,13 @@ if [[ $trimming == "yes" ]] ; then
 	mkdir trimming_with_phred_scores_and_fastqc_report_output/trimmomatic/
 	for score in $PHRED; do
 		# Run trimmomatic for every specified PHRED score and save output in separate directory
-		mkdir trimming_with_phred_scores_and_fastqc_report_output/trimmomatic/trimmed_at_phred_$(echo $score)_$(echo ${baseout##*/})
-		java -jar $trimmomatic PE $R1 $R2 ILLUMINACLIP:$(echo ${trimmomatic%/*})/adapters/TruSeq3-PE.fa:2:30:10 LEADING:$score TRAILING:$score SLIDINGWINDOW:4:$score MINLEN:$min_length \
-		-baseout trimmed_at_phred_$(echo $score)_$(echo ${baseout##*/}).fastq \
+		mkdir trimming_with_phred_scores_and_fastqc_report_output/trimmomatic/trimmed_at_phred_${score}_${baseout##*/}
+		java -jar $trimmomatic PE $R1 $R2 ILLUMINACLIP:${trimmomatic%/*}/adapters/TruSeq3-PE.fa:2:30:10 LEADING:${score} TRAILING:${score} SLIDINGWINDOW:4:${score} MINLEN:${min_length} \
+		-baseout trimmed_at_phred_${score}_${baseout##*/}.fastq \
 		-threads $threads
 		echo -e '\n'
-		mv trimmed_at_phred_$(echo $score)_$(echo ${baseout##*/})*.fastq \
-		trimming_with_phred_scores_and_fastqc_report_output/trimmomatic/trimmed_at_phred_$(echo $score)_$(echo ${baseout##*/})
+		mv trimmed_at_phred_${score}_${baseout##*/}*.fastq \
+		trimming_with_phred_scores_and_fastqc_report_output/trimmomatic/trimmed_at_phred_${score}_${baseout##*/}
 	done
 fi
 
@@ -141,16 +141,16 @@ echo -e "\n"
 
 #  Run FastQC on trimmed data if trimming was activated:
 if [[ $trimming == "yes" ]] ; then
-	for reads in trimming_with_phred_scores_and_fastqc_report_output/trimmomatic/trimmed_at_phred_*$(echo ${baseout##*/})/*_1P.fastq; do
+	for reads in trimming_with_phred_scores_and_fastqc_report_output/trimmomatic/trimmed_at_phred_*${baseout##*/}/*_1P.fastq; do
 		dir_name=${reads%_*} # making variable so that read names can be used to make directory
-		mkdir trimming_with_phred_scores_and_fastqc_report_output/fastqc_reports/$(echo ${dir_name##*/})
-		fastqc $reads -o trimming_with_phred_scores_and_fastqc_report_output/fastqc_reports/$(echo ${dir_name##*/}) -t $threads
+		mkdir trimming_with_phred_scores_and_fastqc_report_output/fastqc_reports/${dir_name##*/}
+		fastqc $reads -o trimming_with_phred_scores_and_fastqc_report_output/fastqc_reports/${dir_name##*/} -t $threads
 		echo -e "\n"
 	done
 
-	for reads in trimming_with_phred_scores_and_fastqc_report_output/trimmomatic/trimmed_at_phred_*$(echo ${baseout##*/})/*_2P.fastq; do
+	for reads in trimming_with_phred_scores_and_fastqc_report_output/trimmomatic/trimmed_at_phred_*${baseout##*/}/*_2P.fastq; do
 		dir_name=${reads%_*} # making variable so that read names can be used to sort into directory
-		fastqc $reads -o trimming_with_phred_scores_and_fastqc_report_output/fastqc_reports/$(echo ${dir_name##*/}) -t $threads
+		fastqc $reads -o trimming_with_phred_scores_and_fastqc_report_output/fastqc_reports/${dir_name##*/} -t $threads
 		echo -e "\n"
 	done
 fi
