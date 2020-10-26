@@ -1,7 +1,7 @@
 import itertools
 
 # Manually enter tools for each step:
-trimming=["phred<=5", "phred<=10","phred<=15","phred<=20",]
+trimming=["5", "10", "15", "20"]
 sorting=["sortmerna", "barrnap", "rrnafilter", "unsorted"]
 assembly=["spades", "metaspades", "idba-ud", "megahit", "rnaspades", "idba-trans", "trinitiy", "transabyss"]
 mapping=["bwa", "bowtie2"]

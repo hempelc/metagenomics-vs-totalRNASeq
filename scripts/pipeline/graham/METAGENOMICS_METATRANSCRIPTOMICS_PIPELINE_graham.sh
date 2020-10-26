@@ -28,7 +28,7 @@
 	# rRNAFILTER (1.1), SPADES (3.14.0), METASPADES (3.14.0), RNASPADES (3.14.0),
 	# MEGAHIT (1.2.9), IDBA-UD (1.1.1), IDBA-TRAN (1.1.1), Trinity (2.10.0),
 	# bowtie2 (2.3.3.1), bwa (0.7.17), blast (2.10.0+), seqtk (1.2-r94),
-	# python module justblast (2020.0.3), python module ete3
+	# samtools (1.10), python module justblast (2020.0.3), python module ete3 (3.1.2)
 
 	# Note 1: we had to edit IDBA prior to compiling it because it didn't work
 	# using long reads and the -l option. This seems to be a common problem and
@@ -40,10 +40,11 @@
 	# to activate that environment when running this script
 
 cmd="$0 $@" # Make variable containing the entire entered command to print command to logfile
-usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> [-t <n>]
+usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> -p <line from external file with pipeline tools to use> [-t <n>]
 Usage:
 	-1 Full path to forward reads in .fastq/.fq format
 	-2 Full path to reverse reads in .fastq/.fq format
+	-p Pipeline tools
 	-t Number of threads (default:16)
 	-h Display this help and exit"
 
@@ -51,10 +52,11 @@ Usage:
 threads='16'
 
 # Set specified options:
-while getopts ':1:2:t:h' opt; do
+while getopts ':1:2:p:t:h' opt; do
  	case "${opt}" in
 		1) forward_reads="${OPTARG}" ;;
 		2) reverse_reads="${OPTARG}" ;;
+		p) pipeline="${OPTARG}" ;;
 		t) threads="${OPTARG}" ;;
 		h) echo "$usage"
 			 exit ;;
@@ -69,13 +71,23 @@ done
 shift $((OPTIND - 1))
 
 # Check if required options are set:
-if [[ -z "$forward_reads" || -z "$reverse_reads" ]]
+if [[ -z "$forward_reads" || -z "$reverse_reads" || -z "$pipeline"]]
 then
-   echo -e "-1 and -2 must be set.\n"
+   echo -e "-1, -2, and -p must be set.\n"
    echo -e "$usage\n\n"
    echo -e "Exiting script.\n"
    exit
 fi
+
+
+# Set pipeline tools to use
+trimming=$(echo $pipeline | cut -f1 -d,)
+sorting=$(echo $pipeline | cut -f2 -d,)
+assembly=$(echo $pipeline | cut -f3 -d,)
+mapping=$(echo $pipeline | cut -f4 -d,)
+db=$(echo $pipeline | cut -f5 -d,)
+classification=$(echo $pipeline | cut -f6 -d,)
+
 
 
 ##################### Write start time and options to output ######################
@@ -94,6 +106,7 @@ echo -e "======== OPTIONS ========\n"
 
 echo -e "Forward reads were defined as $forward_reads.\n"
 echo -e "Reverse reads were defined as $reverse_reads.\n"
+echo -e "Tools for the pipeline were set to $pipeline.\n"
 echo -e "Number of threads was set to $threads.\n"
 echo -e "Script started with full command: $cmd\n"
 
@@ -101,13 +114,6 @@ echo -e "Script started with full command: $cmd\n"
 
 ######################### Start of the actual script ################################
 echo -e "++++++++ START RUNNING SCRIPT ++++++++\n"
-
-# Activate the conda ete3 environment within this script to be able to run ete3.
-# I found this solution # to activate conda environments in scripts here:
-# https://github.com/conda/conda/issues/7980.
-eval "$(conda shell.bash hook)" # Without this, the conda environment cannot be
-# activated within the script
-conda activate ete3 # ete3 is our conda environemnt in which we installed ete3
 
 # Make output directory and directory for final files:
 mkdir METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
@@ -123,7 +129,7 @@ echo -e "++++++++ START STEP 1: TRIMMING AND ERROR CORRECTION ++++++++\n"
 # Trimming is done with a separate subscript:
 fastqc_on_R1_R2_and_optional_trimming.sh \
 -T /hdd1/programs_for_pilot/Trimmomatic-0.39/trimmomatic-0.39.jar \
--1 $forward_reads -2 $reverse_reads -t yes -p $threads
+-1 $forward_reads -2 $reverse_reads -t yes -p $threads -P $trimming
 mv trimming_with_phred_scores_and_fastqc_report_output/ step_1_trimming/
 
 # Running error correction module of SPAdes on all trimmed reads
