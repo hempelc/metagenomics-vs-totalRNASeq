@@ -11,6 +11,7 @@
 
 # Need to have scripts assign_taxonomy_NCBI_staxids.sh and LookupTaxonDetails3.py
 # in your PATH, and ete3 and justblast installed (https://pypi.org/project/justblast/)
+
 # In order for "assign_taxonomy_NCBI_staxids.sh" to work - you MUST have
 # .etetoolkit/taxa.sqlite in your HOME directory - check the ete3 toolkit
 # to see how that's set up (http://etetoolkit.org/)
@@ -45,7 +46,7 @@ Usage:
               (3) LCA approach - assigns the taxonomy to each sequence based on
               all taxonomic ranks that are identical in the remaining hits of
               each sequence.
-  -e       Path to .etetoolkit/taxa.sqlite
+  -e       Path to .etetoolkit/taxa.sqlite (usually in home directory)
   -d       Database to use for blast.
   -b       Bitscore threshold to perform bitscore filtering on (-t) strict
            (default=155).
@@ -69,13 +70,13 @@ cutoff='99 97 95 90 85 80'
 threads='16'
 
 # Set specified options
-while getopts ':i:f:d:t:b:p:c:T:h' opt; do
+while getopts ':i:f:e:d:t:b:p:c:T:h' opt; do
  	case "${opt}" in
 		i) input="${OPTARG}" ;;
     f) format="${OPTARG}" ;;
-		d) db="${OPTARG}" ;;
-		t) filtering="${OPTARG}" ;;
     e) etetoolkit="${OPTARG}" ;;
+    d) db="${OPTARG}" ;;
+		t) filtering="${OPTARG}" ;;
 		b) bitscore="${OPTARG}" ;;
 		p) percentage="${OPTARG}" ;;
     c) cutoff="${OPTARG}" ;;
@@ -93,10 +94,10 @@ done
 shift $((OPTIND - 1))
 
 # Check if required options are set
-if [[ -z $input || -z $format || -z $filtering || -z $etetoolkit ]]
+if [[ -z "$input" || -z "$format" || -z "$filtering" || -z "$etetoolkit" ]]
 then
-   echo -e "-i, -f, -t, and -e must be set\n"
-   echo -e "${usage}\n\n"
+   echo -e "-i, -f, -e, and -t must be set\n"
+   echo -e "$usage\n\n"
    echo -e "Exiting script\n"
    exit
 fi
@@ -104,6 +105,14 @@ fi
 if [[ $filtering != 'soft' && $filtering != 'strict' ]]
 then
   echo -e "Invalid option for -t, must be set to either 'soft' or 'strict'\n"
+  echo -e "$usage\n\n"
+  echo -e "Exiting script\n"
+  exit
+fi
+
+if [[ $format != 'fasta' && $filtering != 'blast' ]]
+then
+  echo -e "Invalid option for -f, must be set to either 'fasta' or 'blast'\n"
   echo -e "$usage\n\n"
   echo -e "Exiting script\n"
   exit
@@ -148,6 +157,7 @@ if [[ $format == 'fasta' ]] ; then
   justblast $input $db --cpus $threads --evalue 1e-05 --outfmt "6 qseqid \
   sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore \
   staxids" --out_filename blast_filtering_results/blast_output.txt
+  rm -r dask-worker-space/
   assign_taxonomy_input="blast_filtering_results/blast_output.txt"
   echo -e "\n======== JUSTBLAST DONE ========\n"
 else
@@ -158,8 +168,8 @@ if [[ $filtering == 'soft' ]] ; then
   # Keeping only the best hit of each sequence:
   echo -e "\n======== ASSIGNING TAXONOMY ========\n"
   # Using a subscript:
-  assign_taxonomy_to_NCBI_staxids.sh -b $assign_taxonomy_input -c 13 \
-  -e ~/.etetoolkit/taxa.sqlite
+  assign_taxonomy_NCBI_staxids.sh -b $assign_taxonomy_input -c 13 \
+  -e $etetoolkit
   mv blast_output_with_taxonomy.txt blast_filtering_results/
   sed -i '1d' blast_filtering_results/blast_output_with_taxonomy.txt
 
@@ -178,7 +188,7 @@ if [[ $filtering == 'soft' ]] ; then
   done
 
   # Now we run an LCA approach, but it technically only runs if a sequence has
-  # several hits with the same best bit score
+  # several hits with the same best bit score:
   touch blast_filtering_results/blast_output_with_taxonomy_and_bitscore_filter_and_LCA_noheader.txt
   sort -u -k1,1 blast_filtering_results/blast_output_with_taxonomy_and_bitscore_filter.txt \
   | cut -f 1 | while read hit ; do
@@ -316,7 +326,6 @@ fi
 if [[ $format == 'fasta' ]] ; then
   rm $input.fai
 fi
-
 
 # Display runtime
 echo -e "=================================================================\n"
