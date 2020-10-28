@@ -403,7 +403,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
   			echo -e "counts\tsequence_name" > merge_input_unmapped_${mapper}.txt \
 				&& cat out_unmapped_${mapper}.txt >> merge_input_unmapped_${mapper}.txt
 
-  			rm *_index* out_*mapped_${mapper}.txt
+  			rm out_*mapped_${mapper}.txt
         cd ..
 			# And we close the mapper loop here because the next step is independent
 			# from the mappers and saved under a separate folder:
@@ -441,6 +441,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				justblast ../../../../$scaffolds $blastDB --cpus $threads --evalue 1e-05 \
 				--outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
 				--out_filename blast_output.txt
+				rm -r dask-worker-space/
 				echo -e "\n======== JUSTBLAST WITH DATABASE $DB DONE ========\n"
 
 				echo -e "\n======== RUNNING BLAST FIRST HIT ========\n"

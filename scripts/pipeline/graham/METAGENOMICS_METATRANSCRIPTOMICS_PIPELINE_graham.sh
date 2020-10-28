@@ -39,6 +39,9 @@
 	# Note 2: we had to install ete3 via conda in a conda environment, so we have
 	# to activate that environment when running this script
 
+# NOTE FOR SERGIO: Trinity uses the option --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024)-5)))G
+# I assume that doesn't work so needs to be replaced by global variable for job's max memory
+
 cmd="$0 $@" # Make variable containing the entire entered command to print command to logfile
 usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> -p <line from external file with pipeline tools to use> -N <NCBI_NT BLAST database> -S <SILVA BLAST databse> -n <NCBI_NT kraken2 database> -s <SILVA kraken2 database> -e <PATH/TO/.etetoolkit/taxa.sqlite> [-t <n>]
 Usage:
@@ -134,7 +137,7 @@ base_directory=$(pwd)
 
 ######################### Step 1: trimming ################################
 echo -e "++++++++ START STEP 1: TRIMMING AND ERROR CORRECTION ++++++++\n"
-
+pwd
 # Trimming is done with a separate subscript:
 fastqc_on_R1_R2_and_optional_trimming.sh \
 -T /hdd1/programs_for_pilot/Trimmomatic-0.39/trimmomatic-0.39.jar \
@@ -144,10 +147,10 @@ mv trimming_with_phred_scores_and_fastqc_report_output/ step_1_trimming/
 # Use lines from the script "fastqc_on_R1_R2_and_optional_trimming.sh" to be\
 # able to change into the generated directory:
 baseout=${forward_reads%_*} # Make basename
-cd step_1_trimming/trimming_with_phred_scores_and_fastqc_report_output/trimmomatic/trimmed_at_phred_${trimming}_${baseout##*/}
+pwd
+cd step_1_trimming/trimmomatic/trimmed_at_phred_${trimming}_${baseout##*/}
 
 # Running error correction module of SPAdes on all trimmed reads
-<<<<<<< HEAD
 echo -e "\n======== ERROR-CORRECTING READS ========\n"
 spades.py -1 *1P.fastq -2 *2P.fastq \
 --only-error-correction --disable-gzip-output -o error_correction \
@@ -163,27 +166,9 @@ R2=$(echo *2P.00.0_0.cor.fastq) \
 sed -r -i 's/ BH:.{2,6}//g' ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
 rm -r error_correction/
 echo -e "\n======== FINISHED ERROR-CORRECTING READS ========\n"
-=======
-for trimming_results in step_1_trimming/trimmomatic/*; do
-	echo -e "\n======== ERROR-CORRECTING READS ========\n"
-	spades.py -1 $trimming_results/*1P.fastq -2 $trimming_results/*2P.fastq \
-	--only-error-correction --disable-gzip-output -o $trimming_results/error_correction \
-	-t $threads
-	mv $trimming_results/error_correction/corrected/*1P*.fastq \
-	$trimming_results/error_correction/corrected/*2P*.fastq $trimming_results
-	# Rename weird name of error-corrected reads:
-	R1=$(echo $trimming_results/*1P.00.0_0.cor.fastq) \
-  && 	mv $trimming_results/*1P.00.0_0.cor.fastq ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
-  sed -r -i 's/ BH:.{2,6}//g' ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
-	R2=$(echo $trimming_results/*2P.00.0_0.cor.fastq) \
-  && mv $trimming_results/*2P.00.0_0.cor.fastq ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
-  sed -r -i 's/ BH:.{2,6}//g' ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
-	rm -r $trimming_results/error_correction/
-	echo -e "\n======== FINISHED ERROR-CORRECTING READS ========\n"
-done
 
 echo -e "++++++++ FINISHED STEP 1: TRIMMING AND ERROR CORRECTION ++++++++\n"
-
+pwd
 ######################### Step 2: rRNA sorting ################################
 
 echo -e "++++++++ START STEP 2: rRNA SORTING OF TRIMMED READS ++++++++\n"
@@ -291,8 +276,7 @@ if [[ ${sorting} == "unsorted" ]]; then
 fi
 
 echo -e "\n++++++++ FINISHED STEP 2: rRNA SORTING ++++++++\n"
-
-
+pwd
 ######################### Step 3: Assembly ################################
 
 echo -e "++++++++ START STEP 3: ASSEMBLY ++++++++\n"
@@ -403,8 +387,7 @@ if [[ $assembly == "transabyss" ]]; then
 fi
 
 echo -e "\n++++++++ FINISHED STEP 3: ASSEMBLY ++++++++\n"
-
-
+pwd
 ######################### Step 4: Mapping ################################
 
 echo -e "++++++++ START STEP 4: MAPPING ++++++++\n"
@@ -434,16 +417,16 @@ if [[ ${mapping} == 'bwa' ]]; then
   echo -e "\n======== Starting bwa index ========\n"
   bwa index -p bwa_index ../$scaffolds
   echo -e "\n======== bwa index complete. Starting bwa mem ========\n"
-  bwa mem -t $threads bwa_index ../../../../*1P_error_corrected.fastq \
-	../../../../*2P_error_corrected.fastq > ${mapping}_output.sam
+  bwa mem -t $threads bwa_index ../../../../../*1P_error_corrected.fastq \
+	../../../../../*2P_error_corrected.fastq > ${mapping}_output.sam
   rm bwa_index*
 	echo -e "\n======== bwa mem complete ========\n"
-else
+else # bowtie2
   echo -e "\n======== Starting bowtie2 index ========\n"
 	bowtie2-build -f ../$scaffolds bowtie_index
 	echo -e "\n======== bowtie2 index complete. Starting bowtie2 ========\n"
-	bowtie2 -q -x bowtie_index -1 ../../../../*1P_error_corrected.fastq \
-	-2 ../../../../*2P_error_corrected.fastq -S ${mapping}_output.sam \
+	bowtie2 -q -x bowtie_index -1 ../../../../../*1P_error_corrected.fastq \
+	-2 ../../../../../*2P_error_corrected.fastq -S ${mapping}_output.sam \
 	-p $threads
 	rm bowtie_index*
   echo -e "\n======== bowtie2 complete ========\n"
@@ -459,18 +442,16 @@ echo -e "counts\tsequence_name" > merge_input_mapped_${mapping}.txt \
 echo -e "counts\tsequence_name" > merge_input_unmapped_${mapping}.txt \
 && cat out_unmapped_${mapping}.txt >> merge_input_unmapped_${mapping}.txt
 
-rm *_index* out_*mapped_${mapping}.txt
+rm out_*mapped_${mapping}.txt
 
 cd ../
-pwd
 # We cd back into the step_3 directory using the base_directory variable
 # we created at the beginning of the script and the nested for loop
 # variables we generated during the script:
 #cd $(realpath --relative-to=$(pwd) ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/)
 
 echo -e "++++++++ FINISHED STEP 4: MAPPING ++++++++\n"
-
-
+pwd
 ######################### Steps 5 and 6.1: Picking a referencd DB and taxonomic classification ################################
 
 echo -e "++++++++ START STEP 5 AND 6.1: CLASSIFICATION OF ASSEMBLED SCAFFOLDS WITH $(echo $db | tr '[:lower:]' '[:upper:]') DATABASE +++++++\n"
@@ -496,6 +477,7 @@ if [[ $classification == "blast_first_hit" || $classification == "blast_filtered
 	justblast ../../../../$scaffolds $blastDB --cpus $threads --evalue 1e-05 \
 	--outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
 	--out_filename blast_output.txt
+	rm -r dask-worker-space/
 	echo -e "\n======== JUSTBLAST WITH DATABASE $blastDB DONE ========\n"
 fi
 
@@ -660,7 +642,7 @@ echo -e "\n======== KRAKEN2 WITH DATABASE $krakenDB DONE ========\n"
 fi
 
 ######################### Step 6.2: Generating final putput files ################################
-
+pwd
 echo -e "++++++++ START STEP 6.2: GENERATING FINAL OUTPUT FILES ++++++++\n"
 
 # Each assembler/classification tool output has a different format. We
@@ -982,4 +964,3 @@ echo "SCRIPT DONE AFTER $((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)
 
 # Write output to console and log file
 ) 2>&1 | tee METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_LOG.txt
-
