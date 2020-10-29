@@ -3,18 +3,15 @@
 # Version 0.1
 # Written by Natalie Wright (nwrigh06@uoguelph.ca) and Chris Hempel (hempelc@uoguelph.ca)
 
-# This is a pipeline for Chris Hempel's first PhD chapter
+# This is a pipeline for Chris Hempel's first PhD chapter to be run on the Compute Canada graham cluster
 
-# It trims raw paired-end input sequences at 4 PHRED scores, filters rRNA
-# with 4 approaches, uses 8 assemblers, maps trimmed reads back to scaffolds
-# using 2 mappers, and assigns taxonomy to scaffolds using 2 databases with
-# 3 classification approaches.
+# It takes in lines of a separate file containing combiantions of the pipeline steps that are to be run
 
 # The output is a folder called METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/
 # that contains tab-separated, taxonomically annotated scaffolds and read counts
-# for all combinations of the above described steps.
+# for the specified pipeline.
 
-# The pipeline requires the following subscripts, which are all located in the
+# To run every possible combination of tools, the pipeline requires the following subscripts, which are all located in the
 # subscripts/ directory:
 	# assign_NCBI_staxids_to_CREST_v4.py, fasta_to_tab, mergeFilesOnColumn.pl,
 	# assign_taxonomy_to_NCBI_staxids.sh  fastqc_on_R1_R2_and_optional_trimming.sh,
@@ -22,7 +19,7 @@
 	# SILVA_SSU_LSU_kraken2_preparation.sh, deinterleave_fastq_reads.sh,
 	# LookupTaxonDetails3.py, SILVA_SSU_LSU_makeblastdb_preparation.sh
 
-# The pipeline requires the following programs/python packages (versions we used
+# To run every possible combination of tools, the pipeline requires the following programs/python packages (versions we used
 # when writing this script are indicated in brackets):
 	# FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
 	# rRNAFILTER (1.1), SPADES (3.14.0), METASPADES (3.14.0), RNASPADES (3.14.0),
@@ -45,7 +42,13 @@
 # NOTE 2 FOR SERGIO: to test this on our server I activated a conda environment, this code needs to be deactivated/deleted
 
 cmd="$0 $@" # Make variable containing the entire entered command to print command to logfile
-usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> -p <line from external file with pipeline tools to use> -N <NCBI_NT BLAST database> -S <SILVA BLAST databse> -n <NCBI_NT kraken2 database> -s <SILVA kraken2 database> -B <SILVA SortMeRNA bacteria database> -A <SILVA SortMeRNA archaea database> -E <SILVA SortMeRNA eukaryota database> -e <PATH/TO/.etetoolkit/taxa.sqlite> [-t <n>]
+usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> \
+-p <line from external file with pipeline tools to use> -N <NCBI_NT BLAST database> \
+-S <SILVA BLAST databse> -n <NCBI_NT kraken2 database> -s <SILVA kraken2 database> \
+-B <SILVA SortMeRNA bacteria database> -A <SILVA SortMeRNA archaea database> \
+-E <SILVA SortMeRNA eukaryota database> -T <PATH/TO/trimmomatic-<version>.jar)> \
+-e <PATH/TO/.etetoolkit/taxa.sqlite> [-t <n>]
+
 Usage:
 	-1 Full path to forward reads in .fastq/.fq format
 	-2 Full path to reverse reads in .fastq/.fq format
@@ -57,6 +60,7 @@ Usage:
 	-B Path to bacteria SILVA database for SortMeRNA (comes with SortMeRNA, silva-bac-16s-id90.fasta)
 	-A Path to archaea SILVA database for SortMeRNA (comes with SortMeRNA, silva-arc-16s-id95.fasta)
   -E Path to eukaryota SILVA database for SortMeRNA (comes with SortMeRNA, silva-euk-18s-id95.fasta)
+	-T Path to trimmomatic application (trimmomatic-<version>.jar)
 	-e Path to .etetoolkit/taxa.sqlite
 	-t Number of threads (default:16)
 	-h Display this help and exit"
@@ -65,7 +69,7 @@ Usage:
 threads='16'
 
 # Set specified options:
-while getopts ':1:2:p:N:S:n:s:B:A:E:e:t:h' opt; do
+while getopts ':1:2:p:N:S:n:s:B:A:E:T:e:t:h' opt; do
  	case "${opt}" in
 		1) forward_reads="${OPTARG}" ;;
 		2) reverse_reads="${OPTARG}" ;;
@@ -77,6 +81,7 @@ while getopts ':1:2:p:N:S:n:s:B:A:E:e:t:h' opt; do
 		B) silva_sortmerna_bac="${OPTARG}" ;;
 		A) silva_sortmerna_arc="${OPTARG}" ;;
 		E) silva_sortmerna_euk="${OPTARG}" ;;
+		T) trimmomatic="${OPTARG}" ;;
 		e) etetoolkit="${OPTARG}" ;;
 		t) threads="${OPTARG}" ;;
 		h) echo "$usage"
@@ -95,8 +100,8 @@ shift $((OPTIND - 1))
 if [[ -z $forward_reads || -z $reverse_reads || -z $pipeline \
 || -z $ncbi_nt_blast_db || -z $silva_blast_db || -z $ncbi_nt_kraken2_db \
 || -z $silva_kraken2_db || -z $etetoolkit || -z $silva_sortmerna_bac \
-|| -z $silva_sortmerna_arc || -z $silva_sortmerna_euk ]]; then
-   echo -e "-1, -2, -p, -N, -S, -n, -s, -B, -A, -E, and -e must be set.\n"
+|| -z $silva_sortmerna_arc || -z $silva_sortmerna_euk || -z $trimmomatic ]]; then
+   echo -e "-1, -2, -p, -N, -S, -n, -s, -B, -A, -E, -T, and -e must be set.\n"
    echo -e "$usage\n\n"
    echo -e "Exiting script.\n"
    exit
@@ -138,10 +143,10 @@ echo -e "++++++++ START RUNNING SCRIPT ++++++++\n"
 # Activate the conda ete3 environment within this script to be able to run ete3.
 # I found this solution # to activate conda environments in scripts here:
 # https://github.com/conda/conda/issues/7980.
-eval "$(conda shell.bash hook)" # Without this, the conda environment cannot be
+#eval "$(conda shell.bash hook)" # Without this, the conda environment cannot be
 # activated within the script
-conda activate ete3 # ete3 is our conda environemnt in which we installed ete3
-# NOTE: can be deleted when actually run on graham!
+#conda activate ete3 # ete3 is our conda environemnt in which we installed ete3
+# NOTE: outcommented to be run on graham, not needed
 
 # Make output directory and directory for final files:
 mkdir METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
@@ -152,18 +157,16 @@ cd METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
 base_directory=$(pwd)
 
 ######################### Step 1: trimming ################################
+
 echo -e "++++++++ START STEP 1: TRIMMING AND ERROR CORRECTION ++++++++\n"
-pwd
 # Trimming is done with a separate subscript:
 fastqc_on_R1_R2_and_optional_trimming.sh \
--T /hdd1/programs_for_pilot/Trimmomatic-0.39/trimmomatic-0.39.jar \
--1 $forward_reads -2 $reverse_reads -t yes -p $threads -P $trimming
-mv trimming_with_phred_scores_and_fastqc_report_output/ step_1_trimming/
+-T $trimmomatic -1 $forward_reads -2 $reverse_reads -t yes -p $threads -P $trimming
+mv fastqc_on_R1_R2_and_optional_trimming_output/ step_1_trimming/
 
-# Use lines from the script "fastqc_on_R1_R2_and_optional_trimming.sh" to be\
-# able to change into the generated directory:
+# Use a line from the script "fastqc_on_R1_R2_and_optional_trimming.sh" to
+# generate the variable baseout and change into the generated directory:
 baseout=${forward_reads%_*} # Make basename
-pwd
 cd step_1_trimming/trimmomatic/trimmed_at_phred_${trimming}_${baseout##*/}
 
 # Running error correction module of SPAdes on all trimmed reads
@@ -173,7 +176,7 @@ spades.py -1 *1P.fastq -2 *2P.fastq \
 -t $threads
 mv error_correction/corrected/*1P*.fastq \
 error_correction/corrected/*2P*.fastq .
-# Rename weird name of error-corrected reads:
+# Rename cryptic name of error-corrected reads:
 R1=$(echo *1P.00.0_0.cor.fastq) \
 && 	mv *1P.00.0_0.cor.fastq ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
 sed -r -i 's/ BH:.{2,6}//g' ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
@@ -184,7 +187,7 @@ rm -r error_correction/
 echo -e "\n======== FINISHED ERROR-CORRECTING READS ========\n"
 
 echo -e "++++++++ FINISHED STEP 1: TRIMMING AND ERROR CORRECTION ++++++++\n"
-pwd
+
 ######################### Step 2: rRNA sorting ################################
 
 echo -e "++++++++ START STEP 2: rRNA SORTING OF TRIMMED READS ++++++++\n"
@@ -214,9 +217,8 @@ if [[ ${sorting} == "sortmerna" ]]; then
 	SORTMERNA/out/aligned_R1.fq SORTMERNA/out/aligned_R2.fq
 	cd SORTMERNA/
 	echo -e "\n======== SORTMERNA DONE ========\n"
-fi
 
-if [[ ${sorting} == "rrnafilter" ]]; then
+elif [[ ${sorting} == "rrnafilter" ]]; then
 	echo -e "\n======== RUNNING rRNAFILTER ========\n"
 	mkdir rRNAFILTER/
 	cd rRNAFILTER/
@@ -247,9 +249,8 @@ if [[ ${sorting} == "rrnafilter" ]]; then
 	> rRNAFilter_paired_R2.fa
 	rm names_sorted.txt names.txt
 	echo -e "\n======== rRNAFILTER DONE ========\n"
-fi
 
-if [[ ${sorting} == "barrnap" ]]; then
+elif [[ ${sorting} == "barrnap" ]]; then
 	echo -e "\n======== RUNNING BARRNAP ========\n"
 	mkdir BARRNAP/
 	for kingdom in euk bac arc; do # barrnap needs to be run on kingdoms separately
@@ -282,9 +283,8 @@ if [[ ${sorting} == "barrnap" ]]; then
 	rm BARRNAP/names_sorted.txt
 	cd BARRNAP/
 	echo -e "\n======== BARRNAP DONE ========\n"
-fi
 
-if [[ ${sorting} == "unsorted" ]]; then
+elif [[ ${sorting} == "unsorted" ]]; then
 	echo -e "\n======== MAKING FOLDER UNSORTED/ AND COPYING UNSORTED READS IN THERE TO KEEP THE FOLDER STRUCTURE CONSTANT ========\n"
 	mkdir UNSORTED/
 	cp ../*1P_error_corrected.fastq ../*2P_error_corrected.fastq UNSORTED/
@@ -292,7 +292,7 @@ if [[ ${sorting} == "unsorted" ]]; then
 fi
 
 echo -e "\n++++++++ FINISHED STEP 2: rRNA SORTING ++++++++\n"
-pwd
+
 ######################### Step 3: Assembly ################################
 
 echo -e "++++++++ START STEP 3: ASSEMBLY ++++++++\n"
@@ -300,16 +300,16 @@ echo -e "++++++++ START STEP 3: ASSEMBLY ++++++++\n"
 mkdir step_3_assembly/
 cd step_3_assembly/
 
-if [[ ${sorting} == 'rrnafilter' ]]; then
+if [[ $sorting == 'rrnafilter' ]]; then
 	R1_sorted='rRNAFilter_paired_R1.fa'
 	R2_sorted='rRNAFilter_paired_R2.fa'
-elif [[ ${sorting} == 'sortmerna' ]]; then
+elif [[ $sorting == 'sortmerna' ]]; then
 	R1_sorted='out/aligned_R1.fq'
 	R2_sorted='out/aligned_R2.fq'
-elif [[ ${sorting} == 'barrnap' ]]; then
+elif [[ $sorting == 'barrnap' ]]; then
 	R1_sorted='barrnap_paired_R1.fa'
 	R2_sorted='barrnap_paired_R2.fa'
-else # UNSORTED
+elif [[ $sorting == 'unsorted' ]]; then
 	R1_sorted='*1P_error_corrected.fastq'
 	R2_sorted='*2P_error_corrected.fastq'
 fi
@@ -321,26 +321,23 @@ if [[ $assembly == "spades" ]]; then
 	-o SPADES/ -t $threads
 	cd SPADES/
 	echo -e "\n======== SPADES DONE ========\n"
-fi
 
-if [[ $assembly == "metaspades" ]]; then
+elif [[ $assembly == "metaspades" ]]; then
 	echo -e "\n======== RUNNING METASPADES ========\n"
 	mkdir METASPADES/
-	metaspades.py -1 ../$R1_sorted -2 ../$R2_sorted --only-assembler \
+	spades.py --meta -1 ../$R1_sorted -2 ../$R2_sorted --only-assembler \
 	-o METASPADES/ -t $threads
 	cd METASPADES/
 	echo -e "\n======== METASPADES DONE ========\n"
-fi
 
-if [[ $assembly == "megahit" ]]; then
+elif [[ $assembly == "megahit" ]]; then
 	echo -e "\n======== RUNNING MEGAHIT ========\n"
 	megahit --presets meta-large -t $threads -1 ../$R1_sorted \
 	-2 ../$R2_sorted -o MEGAHIT/
 	cd MEGAHIT/
 	echo -e "\n======== MEGAHIT DONE ========\n"
-fi
 
-if [[ $assembly == "idba-ud" ]]; then
+elif [[ $assembly == "idba-ud" ]]; then
 	echo -e "\n======== RUNNING IDBA_UD ========\n"
 	# Note: we had to edit IDBA prior to compiling it because it didn't work
 	# using long reads and the -l option. This seems to be a common problem and
@@ -354,18 +351,16 @@ if [[ $assembly == "idba-ud" ]]; then
 	mv idba_ud_input.fa IDBA_UD/
 	cd IDBA_UD/
 	echo -e "\n======== IDBA_UD DONE ========\n"
-fi
 
-if [[ $assembly == "rnaspades" ]]; then
+elif [[ $assembly == "rnaspades" ]]; then
 	echo -e "\n======== RUNNING RNASPADES ========\n"
 	mkdir RNASPADES/
-	rnaspades.py -1 ../$R1_sorted -2 ../$R2_sorted --only-assembler \
+	spades.py --rna -1 ../$R1_sorted -2 ../$R2_sorted --only-assembler \
 	-o RNASPADES/ -t $threads
 	cd RNASPADES/
 	echo -e "\n======== RNASPADES DONE ========\n"
-fi
 
-if [[ $assembly == "idba-tran" ]]; then
+elif [[ $assembly == "idba-tran" ]]; then
 	echo -e "\n======== RUNNING IDBA_TRAN ========\n"
 	# IDBA_TRAN only takes interleaved fasta files
 	fq2fa --merge ../$R1_sorted ../$R2_sorted idba_tran_input.fa
@@ -374,9 +369,8 @@ if [[ $assembly == "idba-tran" ]]; then
 	mv idba_tran_input.fa IDBA_TRAN/
 	cd IDBA_TRAN
 	echo -e "\n======== IDBA_TRAN DONE ========\n"
-fi
 
-if [[ $assembly == "trinity" ]]; then
+elif [[ $assembly == "trinity" ]]; then
 	echo -e "\n======== RUNNING TRINITY ========\n"
 	# Barrnap and rRNAFilter output fasta files which has to be indicated to Trinity:
   if [[ ${sorting} == "rrnafilter" || ${sorting} == "barrnap" ]]; then
@@ -390,9 +384,8 @@ if [[ $assembly == "trinity" ]]; then
 	> TRINITY/Trinity_with_length.fasta  # Edit for universal format
 	cd TRINITY/
 	echo -e "\n======== TRINITY DONE ========\n"
-fi
 
-if [[ $assembly == "transabyss" ]]; then
+elif [[ $assembly == "transabyss" ]]; then
 	echo -e "\n======== RUNNING TRANSABYSS ========\n"
   transabyss --pe ../$R1_sorted ../$R2_sorted --threads $threads \
   --outdir TRANSABYSS/
@@ -403,8 +396,8 @@ if [[ $assembly == "transabyss" ]]; then
 fi
 
 echo -e "\n++++++++ FINISHED STEP 3: ASSEMBLY ++++++++\n"
-pwd
-######################### Step 4: Mapping ################################
+
+######################## Step 4: Mapping ################################
 
 echo -e "++++++++ START STEP 4: MAPPING ++++++++\n"
 
@@ -426,11 +419,11 @@ elif [[ $assembly == 'idba-tran' ]]; then
 	scaffolds='contig.fa'
 elif [[ $assembly == 'trinity' ]]; then
 	scaffolds='Trinity_with_length.fasta'
-else # TRANSABYSS
+elif [[ $assembly == 'transabyss' ]]; then
 	scaffolds='transabyss-final_edited.fa'
 fi
 
-if [[ ${mapping} == 'bwa' ]]; then
+if [[ $mapping == 'bwa' ]]; then
   echo -e "\n======== Starting bwa index ========\n"
   bwa index -p bwa_index ../../$scaffolds
   echo -e "\n======== bwa index complete. Starting bwa mem ========\n"
@@ -438,7 +431,7 @@ if [[ ${mapping} == 'bwa' ]]; then
 	../../../../../../*2P_error_corrected.fastq > ${mapping}_output.sam
   rm bwa_index*
 	echo -e "\n======== bwa mem complete ========\n"
-else # bowtie2
+elif [[ $mapping == 'bowtie2' ]]; then
   echo -e "\n======== Starting bowtie2 index ========\n"
 	bowtie2-build -f ../../$scaffolds bowtie_index
 	echo -e "\n======== bowtie2 index complete. Starting bowtie2 ========\n"
@@ -461,14 +454,11 @@ echo -e "counts\tsequence_name" > merge_input_unmapped_${mapping}.txt \
 
 rm out_*mapped_${mapping}.txt
 
+# Moving back to assembler directory:
 cd ../../
-# We cd back into the step_3 directory using the base_directory variable
-# we created at the beginning of the script and the nested for loop
-# variables we generated during the script:
-#cd $(realpath --relative-to=$(pwd) ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/)
 
 echo -e "++++++++ FINISHED STEP 4: MAPPING ++++++++\n"
-pwd
+
 ######################### Steps 5 and 6.1: Picking a referencd DB and taxonomic classification ################################
 
 echo -e "++++++++ START STEP 5 AND 6.1: CLASSIFICATION OF ASSEMBLED SCAFFOLDS WITH $(echo $db | tr '[:lower:]' '[:upper:]') DATABASE +++++++\n"
@@ -483,7 +473,7 @@ cd step_5_reference_DB/$(echo $db | tr '[:lower:]' '[:upper:]')/step_6_classific
 if [[ $db == "silva" ]]; then
 	krakenDB=$silva_kraken2_db
 	blastDB=$silva_blast_db
-else # ncbi_nt
+elif [[ $db == 'ncbi_nt' ]]; then
 	krakenDB=$ncbi_nt_kraken2_db
 	blastDB=$ncbi_nt_blast_db
 fi
@@ -504,24 +494,22 @@ if [[ $classification == "blast_first_hit" ]]; then
 	blast_filtering.bash -i blast_output.txt -f blast -t soft -T $threads -e $etetoolkit
 	mv blast_output.txt blast_filtering_results/
 	echo -e "\n======== BLAST FIRST HIT DONE ========\n"
-fi
 
-if [[ $classification == "blast_filtered" ]]; then
+elif [[ $classification == "blast_filtered" ]]; then
 	echo -e "\n======== RUNNING BLAST FILTERED ========\n"
 	# We run a separate script to filter the BLAST results:
 	blast_filtering.bash -i blast_output.txt -f blast -t strict -T $threads -e $etetoolkit
 	mv blast_output.txt blast_filtering_results/
 	echo -e "\n======== BLAST FILTERED DONE========\n"
-fi
 
-if [[ $classification == "kraken2" ]]; then
+elif [[ $classification == "kraken2" ]]; then
 	echo -e "\n======== RUNNING KRAKEN2 WITH DATABASE $krakenDB ========\n"
 	# Run kraken2
 	echo $krakenDB
 	kraken2 --db $krakenDB --threads $threads ../../../../$scaffolds \
 	> kraken2_output.txt
 	if [[ $db == 'silva' ]]; then
-    # Now we're gonna edit the output so that is has the same format as
+    # Now we're gonna edit the output so that it has the same format as
 		# CREST output, since we already have a script to deal with
 		# SILVA CREST output/taxonomy
     # Extract the taxids column of the standard kraken output:
@@ -531,7 +519,9 @@ if [[ $classification == "kraken2" ]]; then
 		# subscript SILVA_SSU_LSU_kraken2_preparation.sh and concatenated them)
 		# and generate a file containing one column for each SILVA taxid and
 		# one column for the respective SILVA taxonomy path:
-			# Note: since we work on the graham cluster, rather than accessing the files generated from the subscript SILVA_SSU_LSU_kraken2_preparation.sh, we perform the respecitve code here:
+			# Note: since we work on the graham cluster, rather than accessing the files
+			# generated from the subscript SILVA_SSU_LSU_kraken2_preparation.sh, we
+			# perform the respecitve code here (lines taken from the subscript):
 				# As of 04 Sep 2020, the available SILVA LSU and SSU taxmap files contain
 				# duplicate accession IDs with different taxids in the SSU and LSU files. We're
 				# going to use all accession IDs from the SSU file, check which additional ones
@@ -543,7 +533,8 @@ if [[ $classification == "kraken2" ]]; then
 				gunzip taxmap_slv_*su_ref_nr_138.1.txt.gz
 				cat taxmap_slv_ssu_ref_nr_138.1.txt > taxmap_slv_ssu_lsu_ref_nr_138.1.txt
 				tail -n +2 taxmap_slv_ssu_ref_nr_138.1.txt | cut -f1 > grep_list.txt
-				tail -n +2 taxmap_slv_lsu_ref_nr_138.1.txt | grep -v -f grep_list.txt >> taxmap_slv_ssu_lsu_ref_nr_138.1.txt
+				tail -n +2 taxmap_slv_lsu_ref_nr_138.1.txt | grep -v -f grep_list.txt \
+				>> taxmap_slv_ssu_lsu_ref_nr_138.1.txt
 		tail -n +2 taxmap_slv_ssu_lsu_ref_nr_138.1.txt | cut -f 4,6 | sort -u \
 		> SILVA_paths_and_taxids.txt
 		rm taxmap_slv_*_ref_nr_138.1.txt grep_list.txt
@@ -572,7 +563,9 @@ if [[ $classification == "kraken2" ]]; then
 		# into NCBI taxids, and use that script on the formatted kraken2 output.
 		# The files NCBI_staxids_(non_)scientific were generated by the script
 		# SILVA_SSU_LSU_makeblastdb_preparation.sh:
-			# Note: since we work on the graham cluster, rather than accessing the files generated from the subscript SILVA_SSU_LSU_makeblastdb_preparation.sh, we perform the respecitve code here:
+			# Note: since we work on the graham cluster, rather than accessing the
+			# files generated from the subscript SILVA_SSU_LSU_makeblastdb_preparation.sh,
+			# we perform the respecitve code here (lines taken form the subscript):
 				# Get NCBI taxonomy files
 				echo -e "\nDownloading taxdmp.zip to generate NCBI_staxids_scientific.txt and NCBI_staxids_scientific.txt:\n"
 				wget ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdmp.zip
@@ -629,8 +622,7 @@ if [[ $classification == "kraken2" ]]; then
     mergeFilesOnColumn.pl kraken2_SILVA_formatted_with_NCBI_taxids.txt \
     kraken2_SILVA_formatted.txt 1 1 | cut -f3 > NCBItaxids.txt # Merge SILVA output with taxids and extract taxids
 		# We use a separate script to assign taxonomy to NCBI taxids:
-    assign_taxonomy_to_NCBI_staxids.sh -b NCBItaxids.txt -c 1 \
-		-e $etetoolkit
+    assign_taxonomy_to_NCBI_staxids.sh -b NCBItaxids.txt -c 1	-e $etetoolkit
     sed -i '1d' NCBItaxids_with_taxonomy.txt # Remove header
     cut -f2 kraken2_output.txt > contig_names.txt # Get contig names from original kraken2 output
    	paste contig_names.txt NCBItaxids_with_taxonomy.txt \
@@ -644,15 +636,15 @@ if [[ $classification == "kraken2" ]]; then
     mv kraken2_output.txt kraken2_taxids.txt SILVA_paths_and_taxids.txt merged* \
     names.txt kraken2_SILVA_formatted* NCBItaxids* contig* intermediate_files/
 
-  else # ncbi_nt
+  elif [[ $db == 'ncbi_nt' ]]; then
   	cut -f 2-3 kraken2_output.txt > kraken2_output_contig_taxid.txt # Isolate contig names and taxids
 		# We use a separate script to assign taxonomy to NCBI taxids:
     assign_taxonomy_to_NCBI_staxids.sh -b kraken2_output_contig_taxid.txt \
 		-c 2 -e $etetoolkit
     sed -i '1d' kraken2_output_contig_taxid_with_taxonomy.txt # Remove header
     echo -e "sequence_name\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
-    > kraken2_final.txt && cat kraken2_output_contig_taxid_with_taxonomy.txt | sed 's/Unknown/NA/g' \
-    >> kraken2_final.txt # Add header
+    > kraken2_final.txt && cat kraken2_output_contig_taxid_with_taxonomy.txt \
+		| sed 's/Unknown/NA/g' >> kraken2_final.txt # Add header
 
    	# Sort files
     mkdir intermediate_files
@@ -662,7 +654,7 @@ echo -e "\n======== KRAKEN2 WITH DATABASE $krakenDB DONE ========\n"
 fi
 
 ######################### Step 6.2: Generating final putput files ################################
-pwd
+
 echo -e "++++++++ START STEP 6.2: GENERATING FINAL OUTPUT FILES ++++++++\n"
 
 # Each assembler/classification tool output has a different format. We
@@ -671,7 +663,7 @@ echo -e "++++++++ START STEP 6.2: GENERATING FINAL OUTPUT FILES ++++++++\n"
 mkdir FINAL_FILES/
 mkdir FINAL_FILES/intermediate_files/
 cd FINAL_FILES/intermediate_files/
-pwd
+
 if [[ $assembly == 'spades' || $assembly == 'metaspades' \
 || $assembly == 'idba-ud' || $assembly == 'rnaspades' \
 || $assembly == 'transabyss' ]]; then
@@ -714,7 +706,7 @@ elif [[ $assembly == 'idba-tran' ]]; then
 	merge_on_outer.py ../../../../../../step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/merge_input_mapped_${mapping}.txt \
 	${assembly}_tab_to_merge.txt ${assembly}_final_${mapping}_merge_ready.txt
 
-else # trinity
+elif [[ $assembly == 'trinity' ]]; then
 	# Change the sequences' fasta format to tab delimited:
 	fasta_to_tab ../../../../../../${scaffolds} \
 	| sed 's/ /\t/1' | cut -f1,3 > tmp
@@ -726,7 +718,6 @@ else # trinity
 	# Now the scaffold names can be merged with the mapper output:
 	merge_on_outer.py ../../../../../../step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/merge_input_mapped_${mapping}.txt \
 	${assembly}_tab_to_merge.txt ${assembly}_final_${mapping}_merge_ready.txt
-
 fi
 
 # Add classification data to the mapper output and do
@@ -798,7 +789,7 @@ if [[ $classification == 'blast_filtered' ]]; then
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
 
-	else #transabyss
+	elif [[ $assembly == 'transabyss' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/1' | sed 's/_/\t/1' | sed -r 's/_[0-9,.+-]*\t/\t/g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
@@ -878,7 +869,7 @@ elif [[ $classification == 'blast_first_hit' ]]; then
 		cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& rm tmp
 
-	else #transabyss
+	elif [[ $assembly == 'transabyss' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/1' | sed 's/_/\t/1' | sed -r 's/_[0-9,.+-]*\t/\t/g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
@@ -891,7 +882,7 @@ elif [[ $classification == 'blast_first_hit' ]]; then
 
 	echo -e "\n======== DONE FINALIZING BLAST_FIRST_HIT FILES ========\n"
 
-else # kraken2
+elif [[ $classification == 'kraken2' ]]; then
 
 	# We run a simple python script because we need to merge on "outer":
 	merge_on_outer.py ../../kraken2_final.txt \
@@ -967,7 +958,7 @@ else # kraken2
 		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& rm tmp
 
-	else #transabyss
+	elif [[ $assembly == 'transabyss' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/1' | sed 's/_/\t/1' | sed -r 's/_[0-9,.+-]*\t/\t/g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tcontig_length\tcontig_coverage\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \								> tmp \
@@ -985,5 +976,5 @@ fi
 echo -e "=================================================================\n"
 echo "SCRIPT DONE AFTER $((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m"
 
-# Write output to console and log file
+# Write output to both console and log file
 ) 2>&1 | tee METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_LOG.txt
