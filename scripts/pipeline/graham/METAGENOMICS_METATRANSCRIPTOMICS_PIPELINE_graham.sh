@@ -39,11 +39,13 @@
 	# Note 2: we had to install ete3 via conda in a conda environment, so we have
 	# to activate that environment when running this script
 
-# NOTE FOR SERGIO: Trinity uses the option --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024)-5)))G
+# NOTE 1 FOR SERGIO: Trinity uses the option --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024)-5)))G
 # I assume that doesn't work so needs to be replaced by global variable for job's max memory
 
+# NOTE 2 FOR SERGIO: to test this on our server I activated a conda environment, this code needs to be deactivated/deleted
+
 cmd="$0 $@" # Make variable containing the entire entered command to print command to logfile
-usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> -p <line from external file with pipeline tools to use> -N <NCBI_NT BLAST database> -S <SILVA BLAST databse> -n <NCBI_NT kraken2 database> -s <SILVA kraken2 database> -e <PATH/TO/.etetoolkit/taxa.sqlite> [-t <n>]
+usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> -p <line from external file with pipeline tools to use> -N <NCBI_NT BLAST database> -S <SILVA BLAST databse> -n <NCBI_NT kraken2 database> -s <SILVA kraken2 database> -B <SILVA SortMeRNA bacteria database> -A <SILVA SortMeRNA archaea database> -E <SILVA SortMeRNA eukaryota database> -e <PATH/TO/.etetoolkit/taxa.sqlite> [-t <n>]
 Usage:
 	-1 Full path to forward reads in .fastq/.fq format
 	-2 Full path to reverse reads in .fastq/.fq format
@@ -51,7 +53,10 @@ Usage:
 	-N Path to NCBI_NT database for BLAST
 	-S Path to SILVA database for BLAST
 	-n Path to NCBI_NT database for kraken2
-	-s Path to SILVA database for kraken23.
+	-s Path to SILVA database for kraken2
+	-B Path to bacteria SILVA database for SortMeRNA (comes with SortMeRNA, silva-bac-16s-id90.fasta)
+	-A Path to archaea SILVA database for SortMeRNA (comes with SortMeRNA, silva-arc-16s-id95.fasta)
+  -E Path to eukaryota SILVA database for SortMeRNA (comes with SortMeRNA, silva-euk-18s-id95.fasta)
 	-e Path to .etetoolkit/taxa.sqlite
 	-t Number of threads (default:16)
 	-h Display this help and exit"
@@ -60,7 +65,7 @@ Usage:
 threads='16'
 
 # Set specified options:
-while getopts ':1:2:p:N:S:n:s:e:t:h' opt; do
+while getopts ':1:2:p:N:S:n:s:B:A:E:e:t:h' opt; do
  	case "${opt}" in
 		1) forward_reads="${OPTARG}" ;;
 		2) reverse_reads="${OPTARG}" ;;
@@ -69,6 +74,9 @@ while getopts ':1:2:p:N:S:n:s:e:t:h' opt; do
 		S) silva_blast_db="${OPTARG}" ;;
 		n) ncbi_nt_kraken2_db="${OPTARG}" ;;
 		s) silva_kraken2_db="${OPTARG}" ;;
+		B) silva_sortmerna_bac="${OPTARG}" ;;
+		A) silva_sortmerna_arc="${OPTARG}" ;;
+		E) silva_sortmerna_euk="${OPTARG}" ;;
 		e) etetoolkit="${OPTARG}" ;;
 		t) threads="${OPTARG}" ;;
 		h) echo "$usage"
@@ -84,9 +92,11 @@ done
 shift $((OPTIND - 1))
 
 # Check if required options are set:
-if [[ -z $forward_reads || -z $reverse_reads || -z $pipeline || -z $ncbi_nt_blast_db || -z $silva_blast_db || -z $ncbi_nt_kraken2_db || -z $silva_kraken2_db || -z $etetoolkit ]]
-then
-   echo -e "-1, -2, -p, -N, -S, -n, -s, and -e must be set.\n"
+if [[ -z $forward_reads || -z $reverse_reads || -z $pipeline \
+|| -z $ncbi_nt_blast_db || -z $silva_blast_db || -z $ncbi_nt_kraken2_db \
+|| -z $silva_kraken2_db || -z $etetoolkit || -z $silva_sortmerna_bac \
+|| -z $silva_sortmerna_arc || -z $silva_sortmerna_euk ]]; then
+   echo -e "-1, -2, -p, -N, -S, -n, -s, -B, -A, -E, and -e must be set.\n"
    echo -e "$usage\n\n"
    echo -e "Exiting script.\n"
    exit
@@ -99,8 +109,6 @@ assembly=$(echo $pipeline | cut -f3 -d,)
 mapping=$(echo $pipeline | cut -f4 -d,)
 db=$(echo $pipeline | cut -f5 -d,)
 classification=$(echo $pipeline | cut -f6 -d,)
-
-
 
 ##################### Write start time and options to output ######################
 
@@ -126,6 +134,14 @@ echo -e "Script started with full command: $cmd\n"
 
 ######################### Start of the actual script ################################
 echo -e "++++++++ START RUNNING SCRIPT ++++++++\n"
+
+# Activate the conda ete3 environment within this script to be able to run ete3.
+# I found this solution # to activate conda environments in scripts here:
+# https://github.com/conda/conda/issues/7980.
+eval "$(conda shell.bash hook)" # Without this, the conda environment cannot be
+# activated within the script
+conda activate ete3 # ete3 is our conda environemnt in which we installed ete3
+# NOTE: can be deleted when actually run on graham!
 
 # Make output directory and directory for final files:
 mkdir METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
@@ -187,9 +203,9 @@ fi
 if [[ ${sorting} == "sortmerna" ]]; then
 	echo -e "\n======== RUNNING SORTMERNA ========\n"
 	mkdir SORTMERNA/
-	sortmerna --ref /hdd1/databases/sortmerna_silva_databases/silva-bac-16s-id90.fasta \
-	--ref /hdd1/databases/sortmerna_silva_databases/silva-arc-16s-id95.fasta \
-	--ref /hdd1/databases/sortmerna_silva_databases/silva-euk-18s-id95.fasta \
+	sortmerna --ref $silva_sortmerna_bac \
+	--ref $silva_sortmerna_arc \
+	--ref $silva_sortmerna_euk \
 	--reads ../*1P_error_corrected.fastq --reads ../*2P_error_corrected.fastq \
 	--paired_in -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA/ \
 	--threads 1:1:$threads
@@ -393,7 +409,8 @@ pwd
 echo -e "++++++++ START STEP 4: MAPPING ++++++++\n"
 
 mkdir step_4_mapping/
-cd step_4_mapping/
+mkdir step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/
+cd step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/
 
 if [[ $assembly == 'spades' ]]; then
 	scaffolds='scaffolds.fasta'
@@ -401,11 +418,11 @@ elif [[ $assembly == 'metaspades' ]]; then
 	scaffolds='scaffolds.fasta'
 elif [[ $assembly == 'megahit' ]]; then
 	scaffolds='final.contigs.fa'
-elif [[ $assembly == 'idba_ud' ]]; then
+elif [[ $assembly == 'idba-ud' ]]; then
 	scaffolds='scaffold.fa'
 elif [[ $assembly == 'rnaspades' ]]; then
 	scaffolds='transcripts.fasta'
-elif [[ $assembly == 'idba_tran' ]]; then
+elif [[ $assembly == 'idba-tran' ]]; then
 	scaffolds='contig.fa'
 elif [[ $assembly == 'trinity' ]]; then
 	scaffolds='Trinity_with_length.fasta'
@@ -415,18 +432,18 @@ fi
 
 if [[ ${mapping} == 'bwa' ]]; then
   echo -e "\n======== Starting bwa index ========\n"
-  bwa index -p bwa_index ../$scaffolds
+  bwa index -p bwa_index ../../$scaffolds
   echo -e "\n======== bwa index complete. Starting bwa mem ========\n"
-  bwa mem -t $threads bwa_index ../../../../../*1P_error_corrected.fastq \
-	../../../../../*2P_error_corrected.fastq > ${mapping}_output.sam
+  bwa mem -t $threads bwa_index ../../../../../../*1P_error_corrected.fastq \
+	../../../../../../*2P_error_corrected.fastq > ${mapping}_output.sam
   rm bwa_index*
 	echo -e "\n======== bwa mem complete ========\n"
 else # bowtie2
   echo -e "\n======== Starting bowtie2 index ========\n"
-	bowtie2-build -f ../$scaffolds bowtie_index
+	bowtie2-build -f ../../$scaffolds bowtie_index
 	echo -e "\n======== bowtie2 index complete. Starting bowtie2 ========\n"
-	bowtie2 -q -x bowtie_index -1 ../../../../../*1P_error_corrected.fastq \
-	-2 ../../../../../*2P_error_corrected.fastq -S ${mapping}_output.sam \
+	bowtie2 -q -x bowtie_index -1 ../../../../../../*1P_error_corrected.fastq \
+	-2 ../../../../../../*2P_error_corrected.fastq -S ${mapping}_output.sam \
 	-p $threads
 	rm bowtie_index*
   echo -e "\n======== bowtie2 complete ========\n"
@@ -444,7 +461,7 @@ echo -e "counts\tsequence_name" > merge_input_unmapped_${mapping}.txt \
 
 rm out_*mapped_${mapping}.txt
 
-cd ../
+cd ../../
 # We cd back into the step_3 directory using the base_directory variable
 # we created at the beginning of the script and the nested for loop
 # variables we generated during the script:
@@ -484,7 +501,7 @@ fi
 if [[ $classification == "blast_first_hit" ]]; then
 	echo -e "\n======== RUNNING BLAST FIRST HIT ========\n"
 	# We run a separate script to filter the BLAST results:
-	blast_filtering.bash -i blast_output.txt -f blast -t soft -T $threads
+	blast_filtering.bash -i blast_output.txt -f blast -t soft -T $threads -e $etetoolkit
 	mv blast_output.txt blast_filtering_results/
 	echo -e "\n======== BLAST FIRST HIT DONE ========\n"
 fi
@@ -492,7 +509,7 @@ fi
 if [[ $classification == "blast_filtered" ]]; then
 	echo -e "\n======== RUNNING BLAST FILTERED ========\n"
 	# We run a separate script to filter the BLAST results:
-	blast_filtering.bash -i blast_output.txt -f blast -t strict -T $threads
+	blast_filtering.bash -i blast_output.txt -f blast -t strict -T $threads -e $etetoolkit
 	mv blast_output.txt blast_filtering_results/
 	echo -e "\n======== BLAST FILTERED DONE========\n"
 fi
@@ -500,6 +517,7 @@ fi
 if [[ $classification == "kraken2" ]]; then
 	echo -e "\n======== RUNNING KRAKEN2 WITH DATABASE $krakenDB ========\n"
 	# Run kraken2
+	echo $krakenDB
 	kraken2 --db $krakenDB --threads $threads ../../../../$scaffolds \
 	> kraken2_output.txt
 	if [[ $db == 'silva' ]]; then
@@ -519,6 +537,7 @@ if [[ $classification == "kraken2" ]]; then
 				# going to use all accession IDs from the SSU file, check which additional ones
 				# are in the LSU file (about 23,000 are not in the SSU file) and just take these
 				# extra ones from the LSU taxmap file to not overwrite SSU taxids with LSU taxids:
+				echo -e "\nDownloading SILVA taxmap files to generate SILVA_paths_and_taxids.txt:\n"
 				wget https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/taxonomy/taxmap_slv_lsu_ref_nr_138.1.txt.gz
 				wget https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/taxonomy/taxmap_slv_ssu_ref_nr_138.1.txt.gz
 				gunzip taxmap_slv_*su_ref_nr_138.1.txt.gz
@@ -555,6 +574,7 @@ if [[ $classification == "kraken2" ]]; then
 		# SILVA_SSU_LSU_makeblastdb_preparation.sh:
 			# Note: since we work on the graham cluster, rather than accessing the files generated from the subscript SILVA_SSU_LSU_makeblastdb_preparation.sh, we perform the respecitve code here:
 				# Get NCBI taxonomy files
+				echo -e "\nDownloading taxdmp.zip to generate NCBI_staxids_scientific.txt and NCBI_staxids_scientific.txt:\n"
 				wget ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdmp.zip
 				unzip taxdmp.zip
 				# Edit names.dmp file into a file only containing scientific names
@@ -653,7 +673,7 @@ mkdir FINAL_FILES/intermediate_files/
 cd FINAL_FILES/intermediate_files/
 pwd
 if [[ $assembly == 'spades' || $assembly == 'metaspades' \
-|| $assembly == 'idba_ud' || $assembly == 'rnaspades' \
+|| $assembly == 'idba-ud' || $assembly == 'rnaspades' \
 || $assembly == 'transabyss' ]]; then
 	# Change the sequences' fasta format to tab delimited:
 	fasta_to_tab ../../../../../../${scaffolds} > tmp
@@ -663,7 +683,7 @@ if [[ $assembly == 'spades' || $assembly == 'metaspades' \
 	# And remove intermediate file:
 	rm tmp
 	# Now the scaffold names can be merged with the mapper output:
-	merge_on_outer.py ../../../../../../step_4_mapping/${mapping}/merge_input_mapped_${mapping}.txt \
+	merge_on_outer.py ../../../../../../step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/merge_input_mapped_${mapping}.txt \
 	${assembly}_tab_to_merge.txt ${assembly}_final_${mapping}_merge_ready.txt
 
 elif [[ $assembly == 'megahit' ]]; then
@@ -677,10 +697,10 @@ elif [[ $assembly == 'megahit' ]]; then
 	# And remove intermediate file:
 	rm tmp
 	# Now the scaffold names can be merged with the mapper output:
-	merge_on_outer.py ../../../../../../step_4_mapping/${mapping}/merge_input_mapped_${mapping}.txt \
+	merge_on_outer.py ../../../../../../step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/merge_input_mapped_${mapping}.txt \
 	${assembly}_tab_to_merge.txt ${assembly}_final_${mapping}_merge_ready.txt
 
-elif [[ $assembly == 'idba_tran' ]]; then
+elif [[ $assembly == 'idba-tran' ]]; then
 	# Change the sequences' fasta format to tab delimited:
 	fasta_to_tab ../../../../../../${scaffolds} \
 	| sed 's/_/\t/2'  | sed 's/_/\t/3' | sed 's/ /\t/g' | cut -f1,3,5,6 \
@@ -691,7 +711,7 @@ elif [[ $assembly == 'idba_tran' ]]; then
 	# And remove intermediate file:
 	rm tmp
 	# Now the scaffold names can be merged with the mapper output:
-	merge_on_outer.py ../../../../../../step_4_mapping/${mapping}/merge_input_mapped_${mapping}.txt \
+	merge_on_outer.py ../../../../../../step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/merge_input_mapped_${mapping}.txt \
 	${assembly}_tab_to_merge.txt ${assembly}_final_${mapping}_merge_ready.txt
 
 else # trinity
@@ -704,7 +724,7 @@ else # trinity
 	# And remove intermediate file:
 	rm tmp
 	# Now the scaffold names can be merged with the mapper output:
-	merge_on_outer.py ../../../../../../step_4_mapping/${mapping}/merge_input_mapped_${mapping}.txt \
+	merge_on_outer.py ../../../../../../step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/merge_input_mapped_${mapping}.txt \
 	${assembly}_tab_to_merge.txt ${assembly}_final_${mapping}_merge_ready.txt
 
 fi
@@ -716,7 +736,7 @@ if [[ $classification == 'blast_filtered' ]]; then
 
 	# We run a simple python script because we need to merge on "outer":
 	merge_on_outer.py \
-	../../blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt \
+	../../blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt \
 	${assembly}_final_${mapping}_merge_ready.txt \
 	trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt
 
@@ -725,17 +745,17 @@ if [[ $classification == 'blast_filtered' ]]; then
 		| sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' \
 		| sed 's/length_//g' | sed 's/cov_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
-		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
-		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt
+		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
 
-	elif [[ $assembly == 'idba_ud' ]]; then
+	elif [[ $assembly == 'idba-ud' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/scaffold_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
-		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
-		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt
+		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
 
 	elif [[ $assembly == 'megahit' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
@@ -745,7 +765,7 @@ if [[ $classification == 'blast_filtered' ]]; then
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $15, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $16}' tmp \
-		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& rm tmp
 
 	elif [[ $assembly == 'rnaspades' ]]; then
@@ -754,11 +774,11 @@ if [[ $classification == 'blast_filtered' ]]; then
 		| sed 's/length_//g' | sed 's/cov_//g' | sed 's/_/\t/1' \
 		| cut -f1,2,3,5-21 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
-		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
-		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt
+		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
 
-	elif [[ $assembly == 'idba_tran' ]]; then
+	elif [[ $assembly == 'idba-tran' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		|	sed 's/contig-[0-9]*_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
@@ -766,7 +786,7 @@ if [[ $classification == 'blast_filtered' ]]; then
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $15, $16, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $17}' tmp \
-		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& rm tmp
 
 	elif [[ $assembly == 'trinity' ]]; then
@@ -774,25 +794,25 @@ if [[ $classification == 'blast_filtered' ]]; then
 		| sed 's/_/\t/5' | sed 's/len=//g' | sed 's/TRINITY_//g' \
 		> trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tsequence_length\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
-		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
-		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt
+		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
 
 	else #transabyss
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/1' | sed 's/_/\t/1' | sed -r 's/_[0-9,.+-]*\t/\t/g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
-		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
-		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt
+		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
 	fi
 
 	echo -e "\n======== DONE FINALIZING BLAST_FILTERED FILES =======\n"
 
-elif [[ $classification_tool == 'blast_first_hit' ]]; then
+elif [[ $classification == 'blast_first_hit' ]]; then
 
 	# We run a simple python script because we need to merge on "outer":
-	merge_on_outer.py ../../blast_output_with_taxonomy_and_best_hit.txt \
+	merge_on_outer.py ../../blast_filtering_results/blast_output_with_taxonomy_and_best_hit.txt \
 	${assembly}_final_${mapping}_merge_ready.txt \
 	trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt
 
@@ -804,15 +824,15 @@ elif [[ $classification_tool == 'blast_first_hit' ]]; then
 		> tmp \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
-		cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt
+		cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 
-	elif [[ $assembly == 'idba_ud' ]]; then
+	elif [[ $assembly == 'idba-ud' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/scaffold_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
-		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
-		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt
+		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
 
 	elif [[ $assembly == 'megahit' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
@@ -822,7 +842,7 @@ elif [[ $classification_tool == 'blast_first_hit' ]]; then
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $15, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $16}' tmp \
-		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& rm tmp
 
 	elif [[ $assembly == 'rnaspades' ]]; then
@@ -834,9 +854,10 @@ elif [[ $classification_tool == 'blast_first_hit' ]]; then
 		> tmp \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
-		cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt
+		cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
+		&& rm tmp
 
-	elif [[ $assembly == 'idba_tran' ]]; then
+	elif [[ $assembly == 'idba-tran' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		|	sed 's/contig-[0-9]*_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
@@ -844,7 +865,7 @@ elif [[ $classification_tool == 'blast_first_hit' ]]; then
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $15, $16, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $17}' tmp \
-		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& rm tmp
 
 	elif [[ $assembly == 'trinity' ]]; then
@@ -854,7 +875,8 @@ elif [[ $classification_tool == 'blast_first_hit' ]]; then
 		> tmp \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
-		cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt
+		cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
+		&& rm tmp
 
 	else #transabyss
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
@@ -863,7 +885,8 @@ elif [[ $classification_tool == 'blast_first_hit' ]]; then
 		> tmp \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
-		cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt
+		cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
+		&& rm tmp
 	fi
 
 	echo -e "\n======== DONE FINALIZING BLAST_FIRST_HIT FILES ========\n"
@@ -884,10 +907,10 @@ else # kraken2
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $2, $3, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $6, $4, $18, $19}' tmp \
-		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& rm tmp
 
-	elif [[ $assembly == 'idba_ud' ]]; then
+	elif [[ $assembly == 'idba-ud' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/1' | cut -f2-20 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
@@ -895,7 +918,7 @@ else # kraken2
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $4, $2, $16, $17}' tmp \
-		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& rm tmp
 
 	elif [[ $assembly == 'megahit' ]]; then
@@ -905,8 +928,8 @@ else # kraken2
 		> tmp \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
-		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $16, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $4, $2, $17, $18}' tmp \
-		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $17, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $4, $2, $16, $18}' tmp \
+		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& rm tmp
 
 	elif [[ $assembly == 'rnaspades' ]]; then
@@ -919,10 +942,10 @@ else # kraken2
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $2, $3, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $6, $4, $18, $19}' tmp \
-		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& rm tmp
 
-	elif [[ $assembly == 'idba_tran' ]]; then
+	elif [[ $assembly == 'idba-tran' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/1' | cut -f2-20 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
@@ -930,7 +953,7 @@ else # kraken2
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $17, $18, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $4, $2, $16, $19}' tmp \
-		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& rm tmp
 
 	elif [[ $assembly == 'trinity' ]]; then
@@ -941,7 +964,7 @@ else # kraken2
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $2, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $5, $4, $17, $18}' tmp \
-		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& rm tmp
 
 	else #transabyss
@@ -951,7 +974,7 @@ else # kraken2
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $2, $3, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $6, $4, $18, $19}' tmp \
-		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& rm tmp
 	fi
 

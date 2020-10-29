@@ -94,32 +94,28 @@ done
 shift $((OPTIND - 1))
 
 # Check if required options are set
-if [[ -z "$input" || -z "$format" || -z "$filtering" || -z "$etetoolkit" ]]
-then
+if [[ -z "$input" || -z "$format" || -z "$filtering" || -z "$etetoolkit" ]]; then
    echo -e "-i, -f, -e, and -t must be set\n"
    echo -e "$usage\n\n"
    echo -e "Exiting script\n"
    exit
 fi
 
-if [[ $filtering != 'soft' && $filtering != 'strict' ]]
-then
+if [[ $filtering != 'soft' && $filtering != 'strict' ]]; then
   echo -e "Invalid option for -t, must be set to either 'soft' or 'strict'\n"
   echo -e "$usage\n\n"
   echo -e "Exiting script\n"
   exit
 fi
 
-if [[ $format != 'fasta' && $filtering != 'blast' ]]
-then
+if [[ $format != 'fasta' && $format != 'blast' ]]; then
   echo -e "Invalid option for -f, must be set to either 'fasta' or 'blast'\n"
   echo -e "$usage\n\n"
   echo -e "Exiting script\n"
   exit
 fi
 
-if [[ $format == 'fasta' && $db == '' ]]
-then
+if [[ $format == 'fasta' && $db == '' ]]; then
   echo -e "Option -d must be set when using -f fasta.'\n"
   echo -e "$usage\n\n"
   echo -e "Exiting script\n"

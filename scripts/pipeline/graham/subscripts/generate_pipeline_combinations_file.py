@@ -3,7 +3,7 @@ import itertools
 # Manually enter tools for each step:
 trimming=["5", "10", "15", "20"]
 sorting=["sortmerna", "barrnap", "rrnafilter", "unsorted"]
-assembly=["spades", "metaspades", "idba-ud", "megahit", "rnaspades", "idba-trans", "trinitiy", "transabyss"]
+assembly=["spades", "metaspades", "idba-ud", "megahit", "rnaspades", "idba-trans", "trinity", "transabyss"]
 mapping=["bwa", "bowtie2"]
 db=["ncbi_nt", "silva"]
 classification=["blast_first_hit", "blast_filtered", "kraken2"]
