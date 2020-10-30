@@ -1,0 +1,86 @@
+The pipeline creates a folder METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/ and a
+subfolder METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/.
+The pipeline output is then saved to the subfolder when the pipeline is done.
+One way to save the output of all pipeline combinations could be to generate a
+directory with the pipeline combination for every line that is read from the combination
+file and changing into this directory when running the respective pipeline combination.
+Then, after all pipeline combinations are run, we can make one directory FINAL_FILES/
+and copy/move all files from */METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/*
+into the FINAL_FILES/ directory.
+
+The subscript generate_pipeline_combinations_file.py does what the name says,
+generates a file with all combinations of the pipeline tools (1560 or so). This
+file can be found in the same directory as the pipeline script, named
+combinations_metagenomics_metatranscriptomics_pipeline.txt
+
+The pipeline now contains several options to replace databases that were hardcoded in the code before.
+These are:
+  -e  For the directory .etetoolkit/taxa.sqlite. This directory is created in the
+      home directory when ete3 is run for the first time. If it's not present in
+      home directory, one needs to run ONLY the ete3 command once first, delete
+      the output, and then set the -e option to the ~/.etetoolit/taxa.sqlite folder
+      that has then been created
+  -N  NCBI NT BLAST database
+  -S  SILVA BLAST database. To create this database, run the subscript
+      SILVA_SSU_LSU_makeblast_preparation.sh. It will generate it automatically.
+  -n  NCBI_NT kraken2 database. To make this database, follow the instructions
+      here: https://github.com/DerrickWood/kraken2/blob/master/docs/MANUAL.markdown
+      under "Custom databases" and use nt in step 2. One has to run 3 kraken2
+      commands. Takes a while.
+  -s  SILVA kraken2 database. To create this database, run the subscript SILVA_SSU_LSU_kraken2_preparation.sh.
+      It will generate it automatically.
+  -B  Bacteria SILVA LSU database for SortMeRNA. Comes with SortMeRNA when the program is installed (silva-bac-23s-id98.fasta)
+  -b  Bacteria SILVA SSU database for SortMeRNA. Comes with SortMeRNA when the program is installed (silva-bac-16s-id90.fasta)
+  -A  Archaea SILVA LSU database for SortMeRNA. Comes with SortMeRNA when the program is installed (silva-arc-23s-id98.fasta)
+  -a  Archaea SILVA SSU database for SortMeRNA. Comes with SortMeRNA when the program is installed (silva-arc-16s-id90.fasta)
+  -E  Eukaryota SILVA LSU database for SortMeRNA. Comes with SortMeRNA when the program is installed (silva-euk-28s-id98.fasta)
+  -e  Eukaryota SILVA SSU database for SortMeRNA. Comes with SortMeRNA when the program is installed (silva-euk-18s-id95.fasta)
+  -R  Rfam 5.8S database for SortMeRNA. Comes with SortMeRNA when the program is installed (rfam-5.8s-database-id98.fasta)
+  -r  Rfam 5S database for SortMeRNA. Comes with SortMeRNA when the program is installed (rfam-5s-database-id98.fasta)
+
+Also, the option -T has to be used to refer to the location of the
+trimmomatic-<version>.jar program. On top of that, a folder with adapters to
+trim must be located in the same folder as the trimmomatic-<version>.jar
+application and called "adapters" (that's usually the case when one installs
+trimmomatic).
+
+To run every possible combination of tools, the pipeline requires the following
+programs/python packages (versions we used when writing this script are
+indicated in brackets):
+	FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
+	rRNAFILTER (1.1)[note: is downloaded within the script, doesn't need to be
+  installed manually], SPADES (3.14.0)[note: runs with the --meta and --rna
+  options for METASPADES and RNASPADES], MEGAHIT (1.2.9), IDBA-UD (1.1.1),
+  IDBA-TRAN (1.1.1), Trinity (2.10.0),	bowtie2 (2.3.3.1), bwa (0.7.17),
+  blast (2.10.0+), seqtk (1.2-r94),  samtools (1.10),
+  python module justblast (2020.0.3), python module ete3 (3.1.2)
+
+Note 1: we had to edit IDBA prior to compiling it because it didn't work
+using long reads and the -l option. This seems to be a common problem and
+can be circumvented following for example the instructions in
+http://seqanswers.com/forums/showthread.php?t=29109, and see also
+https://github.com/loneknightpy/idba/issues/26.
+We might have to do that manually for IDBA on graham, too.
+
+Note 2: Trinity uses the option --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024)-5)))G
+to get the machine's max RAM, substract 5 from it, and use that for the max_memory
+option. I assume that doesn't work on graham so needs to be replaced by
+global variable for SBATCH job's max memory
+
+EXAMPLE COMMAND ON OUR SERVER:
+~/chrisnatjulia/scripts/pipeline/graham/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_graham.sh \
+-1 ~/pilot_project/reads/M4_DNA/M4_DNA_R2.fastq -2 ~/pilot_project/reads/M4_DNA/M4_DNA_R2.fastq \
+-P "5,sortmerna,megahit,bowtie2,silva,kraken2" \
+-N /hdd1/databases/nt_database_feb_2020_indexed/nt \
+-S /hdd1/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta \
+-s /hdd1/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Sep_2020 \
+-n /hdd1/databases/kraken2_nt_DB -t ~/.etetoolkit/taxa.sqlite \
+-a /hdd1/databases/sortmerna_silva_databases/silva-arc-16s-id95.fasta \
+-b /hdd1/databases/sortmerna_silva_databases/silva-bac-16s-id90.fasta \
+-e /hdd1/databases/sortmerna_silva_databases/silva-euk-18s-id95.fasta \
+-E /hdd1/databases/sortmerna_silva_databases/silva-euk-28s-id98.fasta \
+-A /hdd1/databases/sortmerna_silva_databases/silva-arc-23s-id98.fasta \
+-B /hdd1/databases/sortmerna_silva_databases/silva-bac-23s-id98.fasta \
+-R /hdd1/databases/sortmerna_silva_databases/rfam-5.8s-database-id98.fasta \
+-r /hdd1/databases/sortmerna_silva_databases/rfam-5s-database-id98.fasta \
+-T ~/programs/Trimmomatic-0.39/trimmomatic-0.39.jar -p 32
