@@ -21,11 +21,13 @@
 
 # To run every possible combination of tools, the pipeline requires the following programs/python packages (versions we used
 # when writing this script are indicated in brackets):
-	# FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
-	# rRNAFILTER (1.1), SPADES (3.14.0), METASPADES (3.14.0), RNASPADES (3.14.0),
-	# MEGAHIT (1.2.9), IDBA-UD (1.1.1), IDBA-TRAN (1.1.1), Trinity (2.10.0),
-	# bowtie2 (2.3.3.1), bwa (0.7.17), blast (2.10.0+), seqtk (1.2-r94),
-	# samtools (1.10), python module justblast (2020.0.3), python module ete3 (3.1.2)
+	#FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
+	#rRNAFILTER (1.1)[note: is downloaded within the script, doesn't need to be
+	#installed manually], SPADES (3.14.0)[note: runs with the --meta and --rna
+	#options for METASPADES and RNASPADES], MEGAHIT (1.2.9), IDBA-UD (1.1.1),
+	#IDBA-TRAN (1.1.1), Trinity (2.10.0),	bowtie2 (2.3.3.1), bwa (0.7.17),
+	#blast (2.10.0+), seqtk (1.2-r94),  samtools (1.10),
+	#python module justblast (2020.0.3), python module ete3 (3.1.2)
 
 	# Note 1: we had to edit IDBA prior to compiling it because it didn't work
 	# using long reads and the -l option. This seems to be a common problem and
@@ -52,38 +54,48 @@ usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> \
 Usage:
 	-1 Full path to forward reads in .fastq/.fq format
 	-2 Full path to reverse reads in .fastq/.fq format
-	-p Pipeline tools
+	-P Pipeline tools
 	-N Path to NCBI_NT database for BLAST
 	-S Path to SILVA database for BLAST
 	-n Path to NCBI_NT database for kraken2
 	-s Path to SILVA database for kraken2
-	-B Path to bacteria SILVA database for SortMeRNA (comes with SortMeRNA, silva-bac-16s-id90.fasta)
-	-A Path to archaea SILVA database for SortMeRNA (comes with SortMeRNA, silva-arc-16s-id95.fasta)
-  -E Path to eukaryota SILVA database for SortMeRNA (comes with SortMeRNA, silva-euk-18s-id95.fasta)
+	-B Path to bacteria LSU SILVA database for SortMeRNA (comes with SortMeRNA, silva-bac-23s-id98.fasta)
+	-b Path to bacteria SSU SILVA database for SortMeRNA (comes with SortMeRNA, silva-bac-16s-id90.fasta)
+	-A Path to archaea LSU SILVA database for SortMeRNA (comes with SortMeRNA, silva-arc-23s-id98.fasta)
+	-a Path to archaea SSU SILVA database for SortMeRNA (comes with SortMeRNA, silva-arc-16s-id95.fasta)
+  -E Path to eukaryota LSU SILVA database for SortMeRNA (comes with SortMeRNA, silva-euk-28s-id98.fasta)
+	-e Path to eukaryota SSU SILVA database for SortMeRNA (comes with SortMeRNA, silva-euk-18s-id95.fasta)
+	-R Path to rfam 5.8S database for SortMeRNA (comes with SortMeRNA, rfam-5.8s-database-id98.fasta)
+	-r Path to rfam 5S database for SortMeRNA (comes with SortMeRNA, rfam-5s-database-id98.fasta)
 	-T Path to trimmomatic application (trimmomatic-<version>.jar)
-	-e Path to .etetoolkit/taxa.sqlite
-	-t Number of threads (default:16)
+	-t Path to .etetoolkit/taxa.sqlite
+	-p Number of threads (default:16)
 	-h Display this help and exit"
 
 # Set default options:
 threads='16'
 
 # Set specified options:
-while getopts ':1:2:p:N:S:n:s:B:A:E:T:e:t:h' opt; do
+while getopts ':1:2:P:N:S:n:s:B:b:A:a:E:e:R:r:T:t:p:h' opt; do
  	case "${opt}" in
 		1) forward_reads="${OPTARG}" ;;
 		2) reverse_reads="${OPTARG}" ;;
-		p) pipeline="${OPTARG}" ;;
+		P) pipeline="${OPTARG}" ;;
 		N) ncbi_nt_blast_db="${OPTARG}" ;;
 		S) silva_blast_db="${OPTARG}" ;;
 		n) ncbi_nt_kraken2_db="${OPTARG}" ;;
 		s) silva_kraken2_db="${OPTARG}" ;;
-		B) silva_sortmerna_bac="${OPTARG}" ;;
-		A) silva_sortmerna_arc="${OPTARG}" ;;
-		E) silva_sortmerna_euk="${OPTARG}" ;;
+		B) silva_sortmerna_bac_lsu="${OPTARG}" ;;
+		b) silva_sortmerna_bac_ssu="${OPTARG}" ;;
+		A) silva_sortmerna_arc_lsu="${OPTARG}" ;;
+		a) silva_sortmerna_arc_ssu="${OPTARG}" ;;
+		E) silva_sortmerna_euk_lsu="${OPTARG}" ;;
+		e) silva_sortmerna_euk_ssu="${OPTARG}" ;;
+		R) silva_sortmerna_rfam_5="${OPTARG}" ;;
+		r) silva_sortmerna_rfam_5_8="${OPTARG}" ;;
 		T) trimmomatic="${OPTARG}" ;;
-		e) etetoolkit="${OPTARG}" ;;
-		t) threads="${OPTARG}" ;;
+		t) etetoolkit="${OPTARG}" ;;
+		p) threads="${OPTARG}" ;;
 		h) echo "$usage"
 			 exit ;;
 		:) printf "Option -$OPTARG requires an argument."
@@ -99,9 +111,13 @@ shift $((OPTIND - 1))
 # Check if required options are set:
 if [[ -z $forward_reads || -z $reverse_reads || -z $pipeline \
 || -z $ncbi_nt_blast_db || -z $silva_blast_db || -z $ncbi_nt_kraken2_db \
-|| -z $silva_kraken2_db || -z $etetoolkit || -z $silva_sortmerna_bac \
-|| -z $silva_sortmerna_arc || -z $silva_sortmerna_euk || -z $trimmomatic ]]; then
-   echo -e "-1, -2, -p, -N, -S, -n, -s, -B, -A, -E, -T, and -e must be set.\n"
+|| -z $silva_kraken2_db || -z $etetoolkit || -z $silva_sortmerna_bac_lsu \
+|| -z $silva_sortmerna_bac_ssu || -z $silva_sortmerna_arc_lsu \
+|| -z $silva_sortmerna_arc_ssu || -z $silva_sortmerna_euk_lsu \
+|| -z $silva_sortmerna_euk_ssu || -z $silva_sortmerna_rfam_5 \
+|| -z $silva_sortmerna_rfam_5_8 || -z $trimmomatic ]]; then
+   echo -e "-1, -2, -P, -N, -S, -n, -s, -B, -b, -A, -a, -E, -e, -R, -r, -T, \
+	 and -p must be set.\n"
    echo -e "$usage\n\n"
    echo -e "Exiting script.\n"
    exit
@@ -206,10 +222,15 @@ fi
 if [[ ${sorting} == "sortmerna" ]]; then
 	echo -e "\n======== RUNNING SORTMERNA ========\n"
 	mkdir SORTMERNA/
-	sortmerna --ref $silva_sortmerna_bac \
-	--ref $silva_sortmerna_arc \
-	--ref $silva_sortmerna_euk \
-	--reads ../*1P_error_corrected.fastq --reads ../*2P_error_corrected.fastq \
+	sortmerna --ref $silva_sortmerna_bac_lsu \
+	--ref $silva_sortmerna_bac_ssu \
+	--ref $silva_sortmerna_arc_lsu \
+	--ref $silva_sortmerna_arc_ssu \
+	--ref $silva_sortmerna_euk_lsu \
+	--ref $silva_sortmerna_euk_ssu \
+	--ref $silva_sortmerna_rfam_5 \
+	--ref $silva_sortmerna_rfam_5_8 \
+  --reads ../*1P_error_corrected.fastq --reads ../*2P_error_corrected.fastq \
 	--paired_in -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA/ \
 	--threads 1:1:$threads
 	# SortMeRNA interleaves reads, which we don't want, so we deinterleave them:
