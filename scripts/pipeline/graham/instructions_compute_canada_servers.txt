@@ -47,8 +47,8 @@ trimmomatic).
 To run every possible combination of tools, the pipeline requires the following
 programs/python packages (versions we used when writing this script are
 indicated in brackets):
-	FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
-	rRNAFILTER (1.1)[note: is downloaded within the script, doesn't need to be
+  FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
+  rRNAFILTER (1.1)[note: is downloaded within the script, doesn't need to be
   installed manually], SPADES (3.14.0)[note: runs with the --meta and --rna
   options for METASPADES and RNASPADES], MEGAHIT (1.2.9), IDBA-UD (1.1.1),
   IDBA-TRAN (1.1.1), Trinity (2.10.0),	bowtie2 (2.3.3.1), bwa (0.7.17),
