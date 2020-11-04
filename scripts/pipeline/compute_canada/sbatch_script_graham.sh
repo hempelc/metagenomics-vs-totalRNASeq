@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH --account=def-dsteinke
-#SBATCH --nodes=2
+#SBATCH --nodes=1
 #SBATCH --ntasks-per-node=44
 #SBATCH --mem=187G
 #SBATCH --array=1-512
@@ -11,56 +11,21 @@
 # parallel on graham
 
 # Uses full graham nodes with 44 cores and 192G memory (- 5G buffer) (72 nodes available)
-
-# --nodes=2 is set to 2 to reserve full nodes follwoing instructions here:
-# https://docs.computecanada.ca/wiki/Advanced_MPI_scheduling
 # --array=1-512 is set to 512 to generate 512 jobs for 512 pipeline combinations
-
-usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> -f <pipeline_file>
-
-Usage:
-	-1  Reads1
-	-2  Reads2
-	-f  File containing lines with pipeline combinations
-	-h  Display this help and exit"
 
 # Set slurm options:
 memory="$((${SLURM_MEM_PER_NODE} / 1024))G" # $SLURM_MEM_PER_NODE is in Megabyte,
 # so we transform it in Gigabyte and add "G" as required by Trinity
 threads=$SLURM_NTASKS_PER_NODE
 
-# Set specified options:
-while getopts ':1:2:f:h' opt; do
-  case "${opt}" in
-    1) R1="${OPTARG}" ;;
-    2) R2="${OPTARG}" ;;
-		f) file="${OPTARG}" ;;
-    h) echo "$usage"
-       exit ;;
-    :) printf "Option -$OPTARG requires an argument."
-       echo -e "\n$usage"
-       exit ;;
-    \?)printf "Invalid option: -$OPTARG"
-       echo -e "\n$usage"
-       exit
-  esac
-done
-shift $((OPTIND - 1))
-
-# Check if required options are set:
-if [[  -z $R1 || -z $R2 || -z $file ]]
-then
-   echo -e "\n-1 and -2 must be set.\n"
-   echo -e "$usage\n\n"
-   echo -e "Exiting script.\n"
-   exit
-fi
-
 # Load required modules:
 module load StdEnv/2018.3 nixpkgs/16.09 gcc/7.3.0 cuda/10.0.130 trimmomatic/0.36 \
 fastqc/0.11.9 spades/3.13.1 trinity/2.9.0 bowtie2/2.3.5.1 bwa/0.7.17 blast+/2.10.1 \
 seqtk/1.3 samtools/1.10 sortmerna/2.1 megahit/1.2.7 qt/5.12.3 scipy-stack/2019a \
 leveldb/1.20
+
+# activate the environment for justblast and ete3
+source ~/pipeline/bin/activate
 
 # Set pipeline based on SLURM_ARRAY_TASK_ID (1-512 for each job created in the job array):
 pipeline=$(sed -n "${SLURM_ARRAY_TASK_ID}p" $file)
@@ -69,7 +34,8 @@ pipeline=$(sed -n "${SLURM_ARRAY_TASK_ID}p" $file)
 #virtualenv --no-download ~/pipeline
 #source ~/pipeline/bin/activate
 #pip install --no-index ete3 --upgrade
-#pip install justblast
+#pip install justblast --no-index --upgrade
+#pip install distributed --no-index --upgrade
 
 # Each job in the array will create the same output directory by default. To not
 # let the jobs overwrite each other, each job will create a directory named after

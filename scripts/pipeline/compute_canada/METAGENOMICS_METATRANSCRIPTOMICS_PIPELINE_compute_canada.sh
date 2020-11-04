@@ -126,9 +126,6 @@ classification=$(echo $pipeline | cut -f6 -d,)
 
 ##################### Write start time and options to output ######################
 
-# Make open bracket to later tell script to write everything that follows into a logfile:
-(
-
 # Define starting time of script for total runtime calculation:
 start=$(date +%s)
 echo -e "\n\nSTART RUNNING SCRIPT AT $(date)\n"
@@ -393,10 +390,10 @@ elif [[ $assembly == "trinity" ]]; then
 	# Barrnap and rRNAFilter output fasta files which has to be indicated to Trinity:
   if [[ $sorting == "rrnafilter" || $sorting == "barrnap" ]]; then
 		Trinity --seqType fa --max_memory $memory --left ../$R1_sorted --right \
-    ../$R2_sorted --CPU $threads --output TRINITY/
+    ../$R2_sorted --CPU $threads --output TRINITY/ --NO_SEQTK
   else
     Trinity --seqType fq --max_memory $memory --left ../$R1_sorted --right \
-    ../$R2_sorted --CPU $threads --output TRINITY/
+    ../$R2_sorted --CPU $threads --output TRINITY/ --NO_SEQTK
   fi
   cat TRINITY/Trinity.fasta | sed 's/ len/_len/g' \
 	> TRINITY/Trinity_with_length.fasta  # Edit for universal format
@@ -993,6 +990,3 @@ fi
 # Display runtime
 echo -e "=================================================================\n"
 echo "SCRIPT DONE AFTER $((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m"
-
-# Write output to both console and log file
-) 2>&1 | tee METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_LOG.txt
