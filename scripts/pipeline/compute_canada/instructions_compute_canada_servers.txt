@@ -8,10 +8,9 @@ Then, after all pipeline combinations are run, we can make one directory FINAL_F
 and copy/move all files from */METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/*
 into the FINAL_FILES/ directory.
 
-The subscript generate_pipeline_combinations_file.py does what the name says,
-generates a file with all combinations of the pipeline tools (1560 or so). This
-file can be found in the same directory as the pipeline script, named
-combinations_metagenomics_metatranscriptomics_pipeline.txt
+The subscript generate_pipeline_combinations_file.py generates a list with all
+pipeline combinations and splits it up into 3 files, one for each compute canada
+server (graham, cedar, beluga) with 512 combinations each.
 
 The pipeline now contains several options to replace databases that were hardcoded in the code before.
 These are:
@@ -46,7 +45,7 @@ trimmomatic).
 
 To run every possible combination of tools, the pipeline requires the following
 programs/python packages (versions we used when writing this script are
-indicated in brackets):
+indicated in brackets but can differ from versions loaded on the clusters):
   FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
   rRNAFILTER (1.1)[note: is downloaded within the script, doesn't need to be
   installed manually], SPADES (3.14.0)[note: runs with the --meta and --rna
@@ -59,13 +58,7 @@ Note 1: we had to edit IDBA prior to compiling it because it didn't work
 using long reads and the -l option. This seems to be a common problem and
 can be circumvented following for example the instructions in
 http://seqanswers.com/forums/showthread.php?t=29109, and see also
-https://github.com/loneknightpy/idba/issues/26.
-We might have to do that manually for IDBA on graham, too.
-
-Note 2: Trinity uses the option --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024)-5)))G
-to get the machine's max RAM, substract 5 from it, and use that for the max_memory
-option. I assume that doesn't work on graham so needs to be replaced by
-global variable for SBATCH job's max memory
+https://github.com/loneknightpy/idba/issues/26..
 
 EXAMPLE COMMAND ON OUR SERVER:
 ~/chrisnatjulia/scripts/pipeline/graham/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_graham.sh \
@@ -83,4 +76,4 @@ EXAMPLE COMMAND ON OUR SERVER:
 -B /hdd1/databases/sortmerna_silva_databases/silva-bac-23s-id98.fasta \
 -R /hdd1/databases/sortmerna_silva_databases/rfam-5.8s-database-id98.fasta \
 -r /hdd1/databases/sortmerna_silva_databases/rfam-5s-database-id98.fasta \
--T ~/programs/Trimmomatic-0.39/trimmomatic-0.39.jar -p 32
+-T ~/programs/Trimmomatic-0.39/trimmomatic-0.39.jar -p 32 -m 120G

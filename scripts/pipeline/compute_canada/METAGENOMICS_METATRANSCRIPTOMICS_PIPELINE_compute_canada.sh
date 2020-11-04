@@ -3,7 +3,7 @@
 # Version 0.1
 # Written by Natalie Wright (nwrigh06@uoguelph.ca) and Chris Hempel (hempelc@uoguelph.ca)
 
-# This is a pipeline for Chris Hempel's first PhD chapter to be run on the Compute Canada graham cluster
+# This is a pipeline for Chris Hempel's first PhD chapter to be run on the Compute Canada servers
 
 # It takes in lines of a separate file containing combiantions of the pipeline steps that are to be run
 
@@ -16,40 +16,31 @@
 	# assign_NCBI_staxids_to_CREST_v4.py, fasta_to_tab, mergeFilesOnColumn.pl,
 	# assign_taxonomy_to_NCBI_staxids.sh  fastqc_on_R1_R2_and_optional_trimming.sh,
 	# merge_on_outer.py, blast_filtering.bash, filter-fasta.awk,
-	# SILVA_SSU_LSU_kraken2_preparation.sh, deinterleave_fastq_reads.sh,
-	# LookupTaxonDetails3.py, SILVA_SSU_LSU_makeblastdb_preparation.sh
+	# deinterleave_fastq_reads.sh, LookupTaxonDetails3.py
 
 # To run every possible combination of tools, the pipeline requires the following programs/python packages (versions we used
 # when writing this script are indicated in brackets):
 	#FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
-	#rRNAFILTER (1.1)[note: is downloaded within the script, doesn't need to be
-	#installed manually], SPADES (3.14.0)[note: runs with the --meta and --rna
-	#options for METASPADES and RNASPADES], MEGAHIT (1.2.9), IDBA-UD (1.1.1),
-	#IDBA-TRAN (1.1.1), Trinity (2.10.0),	bowtie2 (2.3.3.1), bwa (0.7.17),
-	#blast (2.10.0+), seqtk (1.2-r94),  samtools (1.10),
-	#python module justblast (2020.0.3), python module ete3 (3.1.2)
+	# rRNAFILTER (1.1)[note: is downloaded within the script, doesn't need to be
+	# installed manually], SPADES (3.14.0)[note: runs with the --meta and --rna
+	# options for METASPADES and RNASPADES], MEGAHIT (1.2.9), IDBA-UD (1.1.1),
+	# IDBA-TRAN (1.1.1), Trinity (2.10.0),	bowtie2 (2.3.3.1), bwa (0.7.17),
+	# blast+ (2.10.0+), seqtk (1.2-r94),  samtools (1.10),
+	# python module justblast (2020.0.3), python module ete3 (3.1.2)
 
-	# Note 1: we had to edit IDBA prior to compiling it because it didn't work
+	# Note: we had to edit IDBA prior to compiling it because it didn't work
 	# using long reads and the -l option. This seems to be a common problem and
 	# can be circumvented following for example the instructions in
 	# http://seqanswers.com/forums/showthread.php?t=29109, and see also
 	# https://github.com/loneknightpy/idba/issues/26
 
-	# Note 2: we had to install ete3 via conda in a conda environment, so we have
-	# to activate that environment when running this script
-
-# NOTE 1 FOR SERGIO: Trinity uses the option --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024)-5)))G
-# I assume that doesn't work so needs to be replaced by global variable for job's max memory
-
-# NOTE 2 FOR SERGIO: to test this on our server I activated a conda environment, this code needs to be deactivated/deleted
-
 cmd="$0 $@" # Make variable containing the entire entered command to print command to logfile
 usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> \
--p <line from external file with pipeline tools to use> -N <NCBI_NT BLAST database> \
+-P <line from external file with pipeline tools to use> -N <NCBI_NT BLAST database> \
 -S <SILVA BLAST databse> -n <NCBI_NT kraken2 database> -s <SILVA kraken2 database> \
 -B <SILVA SortMeRNA bacteria database> -A <SILVA SortMeRNA archaea database> \
 -E <SILVA SortMeRNA eukaryota database> -T <PATH/TO/trimmomatic-<version>.jar)> \
--e <PATH/TO/.etetoolkit/taxa.sqlite> [-t <n>]
+-t <PATH/TO/.etetoolkit/taxa.sqlite> -m <nnnG>[-p <n>]
 
 Usage:
 	-1 Full path to forward reads in .fastq/.fq format
@@ -69,6 +60,7 @@ Usage:
 	-r Path to rfam 5S database for SortMeRNA (comes with SortMeRNA, rfam-5s-database-id98.fasta)
 	-T Path to trimmomatic application (trimmomatic-<version>.jar)
 	-t Path to .etetoolkit/taxa.sqlite
+	-m Maximum memory (format: XXXG, where XXX is a numerical value for teh emmory in Gigabyte)
 	-p Number of threads (default:16)
 	-h Display this help and exit"
 
@@ -76,7 +68,7 @@ Usage:
 threads='16'
 
 # Set specified options:
-while getopts ':1:2:P:N:S:n:s:B:b:A:a:E:e:R:r:T:t:p:h' opt; do
+while getopts ':1:2:P:N:S:n:s:B:b:A:a:E:e:R:r:T:t:m:p:h' opt; do
  	case "${opt}" in
 		1) forward_reads="${OPTARG}" ;;
 		2) reverse_reads="${OPTARG}" ;;
@@ -95,6 +87,7 @@ while getopts ':1:2:P:N:S:n:s:B:b:A:a:E:e:R:r:T:t:p:h' opt; do
 		r) silva_sortmerna_rfam_5_8="${OPTARG}" ;;
 		T) trimmomatic="${OPTARG}" ;;
 		t) etetoolkit="${OPTARG}" ;;
+		m) memory="${OPTARG}" ;;
 		p) threads="${OPTARG}" ;;
 		h) echo "$usage"
 			 exit ;;
@@ -115,8 +108,8 @@ if [[ -z $forward_reads || -z $reverse_reads || -z $pipeline \
 || -z $silva_sortmerna_bac_ssu || -z $silva_sortmerna_arc_lsu \
 || -z $silva_sortmerna_arc_ssu || -z $silva_sortmerna_euk_lsu \
 || -z $silva_sortmerna_euk_ssu || -z $silva_sortmerna_rfam_5 \
-|| -z $silva_sortmerna_rfam_5_8 || -z $trimmomatic ]]; then
-   echo -e "-1, -2, -P, -N, -S, -n, -s, -B, -b, -A, -a, -E, -e, -R, -r, -T, \
+|| -z $silva_sortmerna_rfam_5_8 || -z $trimmomatic || -z $memory ]]; then
+   echo -e "-1, -2, -P, -N, -S, -n, -s, -B, -b, -A, -a, -E, -e, -R, -r, -T, -m, \
 	 and -p must be set.\n"
    echo -e "$usage\n\n"
    echo -e "Exiting script.\n"
@@ -159,9 +152,9 @@ echo -e "++++++++ START RUNNING SCRIPT ++++++++\n"
 # Activate the conda ete3 environment within this script to be able to run ete3.
 # I found this solution # to activate conda environments in scripts here:
 # https://github.com/conda/conda/issues/7980.
-#eval "$(conda shell.bash hook)" # Without this, the conda environment cannot be
+eval "$(conda shell.bash hook)" # Without this, the conda environment cannot be
 # activated within the script
-#conda activate ete3 # ete3 is our conda environemnt in which we installed ete3
+conda activate ete3 # ete3 is our conda environemnt in which we installed ete3
 # NOTE: outcommented to be run on graham, not needed
 
 # Make output directory and directory for final files:
@@ -276,11 +269,13 @@ elif [[ ${sorting} == "barrnap" ]]; then
 	mkdir BARRNAP/
 	for kingdom in euk bac arc; do # barrnap needs to be run on kingdoms separately
 		echo -e "\n======== RUNNING BARRNAP ON KINGDOM $kingdom AND R1 READS ========\n"
-		barrnap --quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
+		/home/hempelc/scratch/chris_pilot_project/programs/barrnap/bin/barrnap \
+		--quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
 		--threads $threads --outseq BARRNAP/${kingdom}_reads1.fa \
 		reads_in_fasta_format/R1.fa
 		echo -e "\n======== RUNNING BARRNAP ON KINGDOM $kingdom AND R2 READS ========\n"
-		barrnap --quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
+		/home/hempelc/scratch/chris_pilot_project/programs/barrnap/bin/barrnap \
+		--quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
 		--threads $threads --outseq BARRNAP/${kingdom}_reads2.fa \
 		reads_in_fasta_format/R2.fa
 		rm reads_in_fasta_format/*.fai
@@ -367,7 +362,8 @@ elif [[ $assembly == "idba-ud" ]]; then
 	# https://github.com/loneknightpy/idba/issues/26
 	# IDBA_UD only takes interleaved fasta files
 	fq2fa --merge --filter ../$R1_sorted ../$R2_sorted idba_ud_input.fa
-	idba_ud --num_threads $threads --pre_correction -r idba_ud_input.fa \
+	/home/hempelc/scratch/chris_pilot_project/programs/idba/bin/idba_ud \
+	--num_threads $threads --pre_correction -r idba_ud_input.fa \
   -o IDBA_UD/
 	mv idba_ud_input.fa IDBA_UD/
 	cd IDBA_UD/
@@ -385,7 +381,8 @@ elif [[ $assembly == "idba-tran" ]]; then
 	echo -e "\n======== RUNNING IDBA_TRAN ========\n"
 	# IDBA_TRAN only takes interleaved fasta files
 	fq2fa --merge ../$R1_sorted ../$R2_sorted idba_tran_input.fa
-	idba_tran --num_threads $threads --pre_correction -l idba_tran_input.fa \
+	/home/hempelc/scratch/chris_pilot_project/programs/idba/bin/idba_tran \
+	--num_threads $threads --pre_correction -l idba_tran_input.fa \
   -o IDBA_TRAN/
 	mv idba_tran_input.fa IDBA_TRAN/
 	cd IDBA_TRAN
@@ -394,12 +391,12 @@ elif [[ $assembly == "idba-tran" ]]; then
 elif [[ $assembly == "trinity" ]]; then
 	echo -e "\n======== RUNNING TRINITY ========\n"
 	# Barrnap and rRNAFilter output fasta files which has to be indicated to Trinity:
-  if [[ ${sorting} == "rrnafilter" || ${sorting} == "barrnap" ]]; then
-		Trinity --seqType fa --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024)-5)))G --left ../$R1_sorted --right \
-    ../$R2_sorted --CPU $threads --output TRINITY/ # The max_memory command simply takes the maximum RAM size in GB and subtracts 5GB
+  if [[ $sorting == "rrnafilter" || $sorting == "barrnap" ]]; then
+		Trinity --seqType fa --max_memory $memory --left ../$R1_sorted --right \
+    ../$R2_sorted --CPU $threads --output TRINITY/
   else
-    Trinity --seqType fq --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024)-5)))G --left ../$R1_sorted --right \
-    ../$R2_sorted --CPU $threads --output TRINITY/ # The max_memory command simply takes the maximum RAM size in GB and subtracts 5GB
+    Trinity --seqType fq --max_memory $memory --left ../$R1_sorted --right \
+    ../$R2_sorted --CPU $threads --output TRINITY/
   fi
   cat TRINITY/Trinity.fasta | sed 's/ len/_len/g' \
 	> TRINITY/Trinity_with_length.fasta  # Edit for universal format
