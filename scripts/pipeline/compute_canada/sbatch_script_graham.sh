@@ -2,15 +2,16 @@
 
 #SBATCH --account=def-dsteinke
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=44
-#SBATCH --mem=187G
+#SBATCH --ntasks-per-node=32
+#SBATCH --mem=120G
 #SBATCH --array=1-512
 #SBATCH --time=10:00:00
 
 # A script to run Chris Hempel's METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE in
 # parallel on graham
 
-# Uses full graham nodes with 44 cores and 192G memory (- 5G buffer) (72 nodes available)
+# Uses full graham nodes with 32 cores and 125G memory (- 5G buffer) (903 nodes available)
+
 # --array=1-512 is set to 512 to generate 512 jobs for 512 pipeline combinations
 
 # Set slurm options:
@@ -19,23 +20,23 @@ memory="$((${SLURM_MEM_PER_NODE} / 1024))G" # $SLURM_MEM_PER_NODE is in Megabyte
 threads=$SLURM_NTASKS_PER_NODE
 
 # Load required modules:
-module load StdEnv/2018.3 nixpkgs/16.09 gcc/7.3.0 cuda/10.0.130 trimmomatic/0.36 \
-fastqc/0.11.9 spades/3.13.1 trinity/2.9.0 bowtie2/2.3.5.1 bwa/0.7.17 blast+/2.10.1 \
-seqtk/1.3 samtools/1.10 sortmerna/2.1 megahit/1.2.7 qt/5.12.3 scipy-stack/2019a \
-leveldb/1.20
+module load StdEnv/2018.3 gcc/7.3.0 nixpkgs/16.09 openmpi/3.1.4 \
+trimmomatic/0.39 fastqc/0.11.9 spades/3.13.1 bowtie/1.1.2 trinity/2.9.0 \
+bowtie2/2.3.4.3 bwa/0.7.17 boost/1.68.0 kraken2/2.0.8-beta blast+/2.10.1 \
+seqtk/1.3 samtools/1.10 sortmerna/2.1 qt/5.12.3 scipy-stack/2018b leveldb/1.20 \
+cuda/10.0.130 megahit/1.2.7 trans-abyss/2.0.1 bedtools/2.29.2
+
+# This is the code I used to generate a virtual environment for ete3 and justblast:
+#virtualenv --no-download ~/scratch/chris_pilot_project/programs/pipeline_environment
+#source ~/scratch/chris_pilot_project/programs/pipeline_environment/bin/activate
+#pip install --no-index ete3 --upgrade
+#pip install git+https://github.com/jshleap/justblast.git
 
 # activate the environment for justblast and ete3
-source ~/pipeline/bin/activate
+source ~/scratch/chris_pilot_project/programs/pipeline_environment/bin/activate
 
 # Set pipeline based on SLURM_ARRAY_TASK_ID (1-512 for each job created in the job array):
 pipeline=$(sed -n "${SLURM_ARRAY_TASK_ID}p" $file)
-
-# This is the code I used to generate a virtual environment for ete3 and justblast:
-#virtualenv --no-download ~/pipeline
-#source ~/pipeline/bin/activate
-#pip install --no-index ete3 --upgrade
-#pip install justblast --no-index --upgrade
-#pip install distributed --no-index --upgrade
 
 # Each job in the array will create the same output directory by default. To not
 # let the jobs overwrite each other, each job will create a directory named after
