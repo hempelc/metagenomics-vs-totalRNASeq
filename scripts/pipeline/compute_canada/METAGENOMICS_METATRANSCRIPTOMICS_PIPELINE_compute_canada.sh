@@ -109,8 +109,7 @@ if [[ -z $forward_reads || -z $reverse_reads || -z $pipeline \
 || -z $silva_sortmerna_arc_ssu || -z $silva_sortmerna_euk_lsu \
 || -z $silva_sortmerna_euk_ssu || -z $silva_sortmerna_rfam_5 \
 || -z $silva_sortmerna_rfam_5_8 || -z $trimmomatic || -z $memory ]]; then
-   echo -e "-1, -2, -P, -N, -S, -n, -s, -B, -b, -A, -a, -E, -e, -R, -r, -T, -m, \
-	 and -p must be set.\n"
+   echo -e "-1, -2, -P, -N, -S, -n, -s, -B, -b, -A, -a, -E, -e, -R, -r, -T, -m, and -p must be set.\n"
    echo -e "$usage\n\n"
    echo -e "Exiting script.\n"
    exit
@@ -149,9 +148,9 @@ echo -e "++++++++ START RUNNING SCRIPT ++++++++\n"
 # Activate the conda ete3 environment within this script to be able to run ete3.
 # I found this solution # to activate conda environments in scripts here:
 # https://github.com/conda/conda/issues/7980.
-eval "$(conda shell.bash hook)" # Without this, the conda environment cannot be
+#val "$(conda shell.bash hook)" # Without this, the conda environment cannot be
 # activated within the script
-conda activate ete3 # ete3 is our conda environemnt in which we installed ete3
+#conda activate ete3 # ete3 is our conda environemnt in which we installed ete3
 # NOTE: outcommented to be run on graham, not needed
 
 # Make output directory and directory for final files:
