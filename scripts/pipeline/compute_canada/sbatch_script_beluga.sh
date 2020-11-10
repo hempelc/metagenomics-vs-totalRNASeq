@@ -45,7 +45,7 @@ mkdir ${pipeline}
 cd ${pipeline}
 
 # Run pipeline:
-~/chrisnatjulia/scripts/pipeline/graham/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_compute_canada.sh \
+METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_compute_canada.sh \
 -1 $R1 -2 $R2 -P $pipeline \
 -N /home/hempelc/scratch/chris_pilot_project/databases/nt_database_feb_2020_indexed/nt \
 -S /home/hempelc/scratch/chris_pilot_project/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta \
