@@ -20,11 +20,10 @@ memory="$((${SLURM_MEM_PER_NODE} / 1024))G" # $SLURM_MEM_PER_NODE is in Megabyte
 threads=$SLURM_NTASKS_PER_NODE
 
 # Load required modules:
-module load StdEnv/2018.3 gcc/7.3.0 nixpkgs/16.09 openmpi/3.1.4 \
-trimmomatic/0.39 fastqc/0.11.9 spades/3.13.1 bowtie/1.1.2 trinity/2.9.0 \
-bowtie2/2.3.4.3 bwa/0.7.17 boost/1.68.0 kraken2/2.0.8-beta blast+/2.10.1 \
-seqtk/1.3 samtools/1.10 sortmerna/2.1 qt/5.12.3 scipy-stack/2018b leveldb/1.20 \
-cuda/10.0.130 megahit/1.2.7 trans-abyss/2.0.1 bedtools/2.29.2
+module load StdEnv/2020 gcc/9.3.0  openmpi/4.0.3 trimmomatic/0.39 fastqc/0.11.9 \
+spades/3.14.1 bowtie/1.3.0 trinity/2.11.0 bowtie2/2.4.1 bwa/0.7.17 boost/1.72.0 \
+kraken2/2.1.1 blast+/2.11.0 seqtk/1.3 samtools/1.10 sortmerna/4.2.0 qt/5.12.8 \
+scipy-stack/2020b leveldb/1.22 trans-abyss/2.0.1 megahit/1.2.9 bedtools/2.29.2
 
 # This is the code I used to generate a virtual environment for ete3 and justblast:
 #virtualenv --no-download ~/scratch/chris_pilot_project/programs/pipeline_environment
@@ -46,7 +45,7 @@ mkdir ${pipeline}
 cd ${pipeline}
 
 # Run pipeline:
-~/chrisnatjulia/scripts/pipeline/graham/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_graham.sh \
+~/chrisnatjulia/scripts/pipeline/graham/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_compute_canada.sh \
 -1 $R1 -2 $R2 -P $pipeline \
 -N /home/hempelc/scratch/chris_pilot_project/databases/nt_database_feb_2020_indexed/nt \
 -S /home/hempelc/scratch/chris_pilot_project/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta \
