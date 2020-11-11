@@ -9,10 +9,10 @@
 # add taxonomy to the hits, and filter the hits so that each sequence gets
 # assigned to one taxonomy
 
-# Need to have scripts assign_taxonomy_NCBI_staxids.sh and LookupTaxonDetails3.py
+# Need to have scripts assign_taxonomy_to_NCBI_staxids.sh and LookupTaxonDetails3.py
 # in your PATH, and ete3 and justblast installed (https://pypi.org/project/justblast/)
 
-# In order for "assign_taxonomy_NCBI_staxids.sh" to work - you MUST have
+# In order for "assign_taxonomy_to_NCBI_staxids.sh" to work - you MUST have
 # .etetoolkit/taxa.sqlite in your HOME directory - check the ete3 toolkit
 # to see how that's set up (http://etetoolkit.org/)
 
@@ -164,7 +164,7 @@ if [[ $filtering == 'soft' ]] ; then
   # Keeping only the best hit of each sequence:
   echo -e "\n======== ASSIGNING TAXONOMY ========\n"
   # Using a subscript:
-  assign_taxonomy_NCBI_staxids.sh -b $assign_taxonomy_input -c 13 \
+  assign_taxonomy_to_NCBI_staxids.sh -b $assign_taxonomy_input -c 13 \
   -e $etetoolkit
   mv blast_output_with_taxonomy.txt blast_filtering_results/
   sed -i '1d' blast_filtering_results/blast_output_with_taxonomy.txt
@@ -226,7 +226,7 @@ if [[ $filtering == 'strict' ]] ; then
   # Filtering reads:
   echo -e "\n======== ASSIGNING TAXONOMY ========\n"
   # Using a subscript:
-  assign_taxonomy_NCBI_staxids.sh -b $assign_taxonomy_input -c 13 \
+  assign_taxonomy_to_NCBI_staxids.sh -b $assign_taxonomy_input -c 13 \
   -e $etetoolkit
   mv blast_output_with_taxonomy.txt blast_filtering_results/
   sed '1d' blast_filtering_results/blast_output_with_taxonomy.txt \
