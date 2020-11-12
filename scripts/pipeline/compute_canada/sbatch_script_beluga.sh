@@ -59,4 +59,7 @@ METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_compute_canada.sh \
 -B /home/hempelc/scratch/chris_pilot_project/databases/sortmerna_silva_databases/silva-bac-23s-id98.fasta \
 -R /home/hempelc/scratch/chris_pilot_project/databases/sortmerna_silva_databases/rfam-5.8s-database-id98.fasta \
 -r /home/hempelc/scratch/chris_pilot_project/databases/sortmerna_silva_databases/rfam-5s-database-id98.fasta \
+-x /home/hempelc/scratch/chris_pilot_project/programs/chrisnatjulia/scripts/pipeline/compute_canada/SILVA_paths_and_taxids.txt \
+-F /home/hempelc/scratch/chris_pilot_project/programs/chrisnatjulia/scripts/pipeline/compute_canada/NCBI_staxids_scientific.txt \
+-f /home/hempelc/scratch/chris_pilot_project/programs/chrisnatjulia/scripts/pipeline/compute_canada/NCBI_staxids_non_scientific.txt \
 -t ~/.etetoolkit/taxa.sqlite -T $EBROOTTRIMMOMATIC/trimmomatic-0.39.jar -m $memory -p $threads

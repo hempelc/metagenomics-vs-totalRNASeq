@@ -118,7 +118,8 @@ if [[ -z $forward_reads || -z $reverse_reads || -z $pipeline \
 || -z $silva_sortmerna_bac_ssu || -z $silva_sortmerna_arc_lsu \
 || -z $silva_sortmerna_arc_ssu || -z $silva_sortmerna_euk_lsu \
 || -z $silva_sortmerna_euk_ssu || -z $silva_sortmerna_rfam_5 \
-|| -z $silva_sortmerna_rfam_5_8 || -z $trimmomatic || -z $memory ]]; then
+|| -z $silva_sortmerna_rfam_5_8 || -z $silva_path_taxid || -z $ncbi_scientific \
+|| -z $ncbi_non_scientific || -z $trimmomatic || -z $memory ]]; then
    echo -e "-1, -2, -P, -N, -S, -n, -s, -B, -b, -A, -a, -E, -e, -R, -r, -T, -m, and -p must be set.\n"
    echo -e "$usage\n\n"
    echo -e "Exiting script.\n"
