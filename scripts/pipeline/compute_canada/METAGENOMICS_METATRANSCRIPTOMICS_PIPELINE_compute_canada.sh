@@ -38,8 +38,12 @@ cmd="$0 $@" # Make variable containing the entire entered command to print comma
 usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> \
 -P <line from external file with pipeline tools to use> -N <NCBI_NT BLAST database> \
 -S <SILVA BLAST databse> -n <NCBI_NT kraken2 database> -s <SILVA kraken2 database> \
--B <SILVA SortMeRNA bacteria database> -A <SILVA SortMeRNA archaea database> \
--E <SILVA SortMeRNA eukaryota database> -T <PATH/TO/trimmomatic-<version>.jar)> \
+-B <SILVA SortMeRNA LSU bacteria database> -b <SILVA SortMeRNA SSU bacteria database> \
+-A <SILVA SortMeRNA LSU archaea database> -a <SILVA SortMeRNA SSU archaea database> \
+-E <SILVA SortMeRNA LSU eukaryota database> -e <SILVA SortMeRNA SSU eukaryota database> \
+-R <SILVA SortMeRNA rfam 5.8S database> -r <SILVA SortMeRNA rfam 5S database> \
+-x <SILVA path taxid file> -F <NCBI staxid scientific file> \
+-f <NCBI staxid non-scientific file> -T <PATH/TO/trimmomatic-<version>.jar)> \
 -t <PATH/TO/.etetoolkit/taxa.sqlite> -m <nnnG>[-p <n>]
 
 Usage:
@@ -58,6 +62,9 @@ Usage:
 	-e Path to eukaryota SSU SILVA database for SortMeRNA (comes with SortMeRNA, silva-euk-18s-id95.fasta)
 	-R Path to rfam 5.8S database for SortMeRNA (comes with SortMeRNA, rfam-5.8s-database-id98.fasta)
 	-r Path to rfam 5S database for SortMeRNA (comes with SortMeRNA, rfam-5s-database-id98.fasta)
+	-x Path to SILVA_paths_and_taxids.txt
+	-F Path to NCBI_staxids_scientific.txt
+	-f Path to NCBI_staxids_non_scientific.txt
 	-T Path to trimmomatic application (trimmomatic-<version>.jar)
 	-t Path to .etetoolkit/taxa.sqlite
 	-m Maximum memory (format: XXXG, where XXX is a numerical value for teh emmory in Gigabyte)
@@ -68,7 +75,7 @@ Usage:
 threads='16'
 
 # Set specified options:
-while getopts ':1:2:P:N:S:n:s:B:b:A:a:E:e:R:r:T:t:m:p:h' opt; do
+while getopts ':1:2:P:N:S:n:s:B:b:A:a:E:e:R:r:x:F:f:T:t:m:p:h' opt; do
  	case "${opt}" in
 		1) forward_reads="${OPTARG}" ;;
 		2) reverse_reads="${OPTARG}" ;;
@@ -85,6 +92,9 @@ while getopts ':1:2:P:N:S:n:s:B:b:A:a:E:e:R:r:T:t:m:p:h' opt; do
 		e) silva_sortmerna_euk_ssu="${OPTARG}" ;;
 		R) silva_sortmerna_rfam_5="${OPTARG}" ;;
 		r) silva_sortmerna_rfam_5_8="${OPTARG}" ;;
+		x) silva_path_taxid="${OPTARG}" ;;
+		F) ncbi_scientific="${OPTARG}" ;;
+		f) ncbi_non_scientific="${OPTARG}" ;;
 		T) trimmomatic="${OPTARG}" ;;
 		t) etetoolkit="${OPTARG}" ;;
 		m) memory="${OPTARG}" ;;
@@ -529,39 +539,9 @@ elif [[ $classification == "kraken2" ]]; then
     # Extract the taxids column of the standard kraken output:
 		cut -f3 kraken2_output.txt > kraken2_taxids.txt
 
-    # Access the SILVA taxonomy file (downloaded taxmap files as in
-		# subscript SILVA_SSU_LSU_kraken2_preparation.sh and concatenated them)
-		# and generate a file containing one column for each SILVA taxid and
-		# one column for the respective SILVA taxonomy path:
-			# Note: since we work on the graham cluster, rather than accessing the files
-			# generated from the subscript SILVA_SSU_LSU_kraken2_preparation.sh, we
-			# perform the respecitve code here (lines taken from the subscript):
-				# As of 04 Sep 2020, the available SILVA LSU and SSU taxmap files contain
-				# duplicate accession IDs with different taxids in the SSU and LSU files. We're
-				# going to use all accession IDs from the SSU file, check which additional ones
-				# are in the LSU file (about 23,000 are not in the SSU file) and just take these
-				# extra ones from the LSU taxmap file to not overwrite SSU taxids with LSU taxids:
-				echo -e "\nDownloading SILVA taxmap files to generate SILVA_paths_and_taxids.txt:\n"
-				wget https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/taxonomy/taxmap_slv_lsu_ref_nr_138.1.txt.gz
-				wget https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/taxonomy/taxmap_slv_ssu_ref_nr_138.1.txt.gz
-				gunzip taxmap_slv_*su_ref_nr_138.1.txt.gz
-				cat taxmap_slv_ssu_ref_nr_138.1.txt > taxmap_slv_ssu_lsu_ref_nr_138.1.txt
-				tail -n +2 taxmap_slv_ssu_ref_nr_138.1.txt | cut -f1 > grep_list.txt
-				tail -n +2 taxmap_slv_lsu_ref_nr_138.1.txt | grep -v -f grep_list.txt \
-				>> taxmap_slv_ssu_lsu_ref_nr_138.1.txt
-		tail -n +2 taxmap_slv_ssu_lsu_ref_nr_138.1.txt | cut -f 4,6 | sort -u \
-		> SILVA_paths_and_taxids.txt
-		rm taxmap_slv_*_ref_nr_138.1.txt grep_list.txt
-
-    # Kraken2 spits out the taxid 0 when no hit is found, but 0 doesn't
-		# exist in the SILVA taxonomy, so manually add taxid 0 with path
-		# “No hits” to the SILVA path file:
-    echo -e "No hits;\t0" > tmp && cat SILVA_paths_and_taxids.txt >> tmp \
-    && mv tmp SILVA_paths_and_taxids.txt
-
     # Merge your kraken2 taxids with the SILVA path file to assign a SILVA
 		# taxonomy path to every kraken2 hit:
-    mergeFilesOnColumn.pl SILVA_paths_and_taxids.txt kraken2_taxids.txt 2 1 > merged.txt
+    mergeFilesOnColumn.pl $silva_path_taxid kraken2_taxids.txt 2 1 > merged.txt
     cut -f -2 merged.txt | sed 's/;\t/\t/g' > merged_edit.txt # Edit the output
 
     # Extract the sequence names from the kraken2 output and generate a
@@ -574,63 +554,8 @@ elif [[ $classification == "kraken2" ]]; then
 
 		# We run a separate script that was initially made to deal with the
 		# SILVA taxonomy of CREST output, by translating SILVA taxonomic paths
-		# into NCBI taxids, and use that script on the formatted kraken2 output.
-		# The files NCBI_staxids_(non_)scientific were generated by the script
-		# SILVA_SSU_LSU_makeblastdb_preparation.sh:
-			# Note: since we work on the graham cluster, rather than accessing the
-			# files generated from the subscript SILVA_SSU_LSU_makeblastdb_preparation.sh,
-			# we perform the respecitve code here (lines taken form the subscript):
-				# Get NCBI taxonomy files
-				echo -e "\nDownloading taxdmp.zip to generate NCBI_staxids_scientific.txt and NCBI_staxids_scientific.txt:\n"
-				wget ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdmp.zip
-				unzip taxdmp.zip
-				# Edit names.dmp file into a file only containing scientific names
-				sed "s/ <[a-zA-Z -,.&:'0-9]*>//g" names.dmp | grep 'scientific name' \
-				| cut -f 1,3 | awk -F $'\t' ' { t = $1; $1 = $2; $2 = t; print; } ' OFS=$'\t' \
-				| grep -v 'environmental\|uncultured\|unidentified\|metagenome' \
-				> NCBI_staxids_scientific.txt
-				  # 1. Remove <genus>, <family>, and other strings in <> brackets from taxonomy
-				  #    (otherwise the NCBI taxonomy won't match the SILVA taxonomy)
-				  # 2. Extract only scientific names and staxids
-				  # 3. Cut out columns we need
-				  # 4. Invert columns for script to work
-				  # 5. Removes lines containing "environmental", "uncultured", "unidentified",
-				  #    and "metagenome"
-				    # Needed because
-				      # SILVA taxonomy can have the same taxonomic ranks (e.g., "environmental
-				      # sample") for different higher ranks (e.g., "nematode; environmental
-				      # sample" and "bacteria;environmental sample"), which would, however, be
-				      # assigned to the same staxid because the lower rank "environmental sample"
-				      # is similar
-				      # NCBI taxonomy can have different staxids for the same taxonomic name,
-				      # which will cause issues when matching
-				# We match SILVA taxonomy against this file (against scientific names) first
-
-				# Edit names.dmp file into a file only containing non-scientific names
-				sed "s/ <[a-zA-Z -,.&:'0-9]*>//g" names.dmp | grep -v 'scientific name' \
-				| cut -f 1,3 | awk -F $'\t' ' { t = $1; $1 = $2; $2 = t; print; } ' OFS=$'\t' \
-				| grep -v 'environmental\|uncultured\|unidentified\|metagenome' \
-				> NCBI_staxids_non_scientific.txt
-					# 1. Remove <genus>, <family>, and other strings in <> brackets from taxonomy
-				  #    (otherwise the NCBI taxonomy won't match the SILVA taxonomy)
-					# 2. Extract only non-scientific names and staxids
-					# 3. Cut out columns we need
-					# 4. Invert columns for script to work
-					# 5. Removes lines containing "environmental", "uncultured", "unidentified",
-				  #    and "metagenome"
-						# Needed because
-							# SILVA taxonomy can have the same taxonomic ranks (e.g., "environmental
-				      # sample") for different higher ranks (e.g., "nematode; environmental
-				      # sample" and "bacteria;environmental sample"), wich would, however, be
-				      # assigned to the same staxid because the lower rank "environmental sample"
-				      # is similar
-							# NCBI taxonomy can different staxids for the same taxonomic name, which
-				      # will cause issue when matching
-				# If SILVA taxonomy is not in exact scientific names, then we match against these
-				# to check for synonyms etc.
-				rm *.dmp readme.txt taxdmp.zip gc.prt
-    assign_NCBI_staxids_to_CREST_v4.py NCBI_staxids_scientific.txt \
-  	NCBI_staxids_non_scientific.txt \
+		# into NCBI taxids, and use that script on the formatted kraken2 output:
+    assign_NCBI_staxids_to_CREST_v4.py $ncbi_scientific $ncbi_non_scientific \
     kraken2_SILVA_formatted.txt kraken2_SILVA_formatted_with_NCBI_taxids.txt
 		rm NCBI_staxids_*scientific.txt
     mergeFilesOnColumn.pl kraken2_SILVA_formatted_with_NCBI_taxids.txt \
