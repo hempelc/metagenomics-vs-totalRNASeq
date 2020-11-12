@@ -34,7 +34,7 @@ scipy-stack/2020b leveldb/1.22 trans-abyss/2.0.1 megahit/1.2.9 bedtools/2.29.2
 source ~/scratch/chris_pilot_project/programs/pipeline_environment/bin/activate
 
 # Set pipeline based on SLURM_ARRAY_TASK_ID (1-512 for each job created in the job array):
-pipeline="5,sortmerna,spades,bwa,silva,kraken2"
+pipeline=$(sed -n "${SLURM_ARRAY_TASK_ID}p" $file)
 
 # Each job in the array will create the same output directory by default. To not
 # let the jobs overwrite each other, each job will create a directory named after

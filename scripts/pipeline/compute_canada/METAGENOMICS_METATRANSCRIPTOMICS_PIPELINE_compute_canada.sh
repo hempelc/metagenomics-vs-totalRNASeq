@@ -558,7 +558,6 @@ elif [[ $classification == "kraken2" ]]; then
 		# into NCBI taxids, and use that script on the formatted kraken2 output:
     assign_NCBI_staxids_to_CREST_v4.py $ncbi_scientific $ncbi_non_scientific \
     kraken2_SILVA_formatted.txt kraken2_SILVA_formatted_with_NCBI_taxids.txt
-		rm NCBI_staxids_*scientific.txt
     mergeFilesOnColumn.pl kraken2_SILVA_formatted_with_NCBI_taxids.txt \
     kraken2_SILVA_formatted.txt 1 1 | cut -f3 > NCBItaxids.txt # Merge SILVA output with taxids and extract taxids
 		# We use a separate script to assign taxonomy to NCBI taxids:
@@ -573,8 +572,8 @@ elif [[ $classification == "kraken2" ]]; then
 
     # Sort files
    	mkdir intermediate_files
-    mv kraken2_output.txt kraken2_taxids.txt SILVA_paths_and_taxids.txt merged* \
-    names.txt kraken2_SILVA_formatted* NCBItaxids* contig* intermediate_files/
+    mv kraken2_output.txt kraken2_taxids.txt merged* names.txt \
+		kraken2_SILVA_formatted* NCBItaxids* contig* intermediate_files/
 
   elif [[ $db == 'ncbi_nt' ]]; then
   	cut -f 2-3 kraken2_output.txt > kraken2_output_contig_taxid.txt # Isolate contig names and taxids
