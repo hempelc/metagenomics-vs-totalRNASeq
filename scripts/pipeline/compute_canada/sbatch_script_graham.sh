@@ -4,7 +4,6 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=32
 #SBATCH --mem=120G
-#SBATCH --array=1-512
 #SBATCH --time=1:00:00
 
 # A script to run Chris Hempel's METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE in
@@ -35,7 +34,7 @@ scipy-stack/2020b leveldb/1.22 trans-abyss/2.0.1 megahit/1.2.9 bedtools/2.29.2
 source ~/scratch/chris_pilot_project/programs/pipeline_environment/bin/activate
 
 # Set pipeline based on SLURM_ARRAY_TASK_ID (1-512 for each job created in the job array):
-pipeline="5,sortmerna,spades,bwa,ncbi_nt,blast_first_hit"
+pipeline="5,sortmerna,spades,bwa,silva,kraken2"
 
 # Each job in the array will create the same output directory by default. To not
 # let the jobs overwrite each other, each job will create a directory named after
