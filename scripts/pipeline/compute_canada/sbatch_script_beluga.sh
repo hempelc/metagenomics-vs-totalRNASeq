@@ -49,7 +49,7 @@ METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_compute_canada.sh \
 -1 $R1 -2 $R2 -P $pipeline \
 -N /home/hempelc/scratch/chris_pilot_project/databases/nt_database_feb_2020_indexed/nt \
 -S /home/hempelc/scratch/chris_pilot_project/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta \
--s /home/hempelc/scratch/chris_pilot_project/databases/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Sep_2020 \
+-s /home/hempelc/scratch/chris_pilot_project/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Sep_2020 \
 -n /home/hempelc/scratch/chris_pilot_project/databases/kraken2_nt_DB \
 -a /home/hempelc/scratch/chris_pilot_project/databases/sortmerna_silva_databases/silva-arc-16s-id95.fasta \
 -b /home/hempelc/scratch/chris_pilot_project/databases/sortmerna_silva_databases/silva-bac-16s-id90.fasta \

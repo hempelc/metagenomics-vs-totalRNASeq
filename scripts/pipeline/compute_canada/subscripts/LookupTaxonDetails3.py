@@ -53,8 +53,7 @@ lineageFile = open(lineageFileName,'r')
 outputFile = open(outputFileName,'w')
 
 # Create a connection to the database
-print("etetoolkit variable is " + etetoolkit)
-conn = sqlite3.connect(etetoolkit.format(os.getlogin()))
+conn = sqlite3.connect(etetoolkit)
 
 c = conn.cursor()
 c.execute("PRAGMA foreign_keys=ON")
