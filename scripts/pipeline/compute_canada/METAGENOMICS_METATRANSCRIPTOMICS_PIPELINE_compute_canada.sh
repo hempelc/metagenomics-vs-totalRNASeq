@@ -244,10 +244,9 @@ elif [[ ${sorting} == "rrnafilter" ]]; then
 	mkdir rRNAFILTER/
 	cd rRNAFILTER/
 	# rRNAFilter only worked for us when we started it within the directory
-	# containing the .jar file. To simplify switching to that directory, we simply
-	# download the small program within the script and delete it after usage:
-	wget --no-check-certificate http://hulab.ucf.edu/research/projects/rRNAFilter/software/rRNAFilter.zip
-	unzip rRNAFilter.zip
+	# containing the .jar file. To simplify switching to that directory, we copy
+	# it from its location to the pwd:
+	cp /home/hempelc/scratch/chris_pilot_project/programs/rRNAFilter .
 	cd rRNAFilter/
 	# We use 7GB for the rRNAFilter .jar, as shown in the rRNAFilter manual:
 	java -jar -Xmx7g rRNAFilter_commandline.jar \
@@ -256,7 +255,7 @@ elif [[ ${sorting} == "rrnafilter" ]]; then
 	-i ../../reads_in_fasta_format/R2.fa -r 0
 	mv ../../reads_in_fasta_format/R*.fa_rRNA ..
 	cd ..
-	rm -r rRNAFilter rRNAFilter.zip
+	rm -r rRNAFilter
 	# We want to keep paired reads, so we extract all rRNA read names that were
 	# found in R1 and R2, save them as one list, and extract all reads from both
 	# R1 and R2 reads. That way, even if only one read from a pair was identified
