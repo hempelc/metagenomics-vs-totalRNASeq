@@ -246,7 +246,7 @@ elif [[ ${sorting} == "rrnafilter" ]]; then
 	# rRNAFilter only worked for us when we started it within the directory
 	# containing the .jar file. To simplify switching to that directory, we simply
 	# download the small program within the script and delete it after usage:
-	wget http://hulab.ucf.edu/research/projects/rRNAFilter/software/rRNAFilter.zip
+	wget --no-check-certificate http://hulab.ucf.edu/research/projects/rRNAFilter/software/rRNAFilter.zip
 	unzip rRNAFilter.zip
 	cd rRNAFilter/
 	# We use 7GB for the rRNAFilter .jar, as shown in the rRNAFilter manual:
