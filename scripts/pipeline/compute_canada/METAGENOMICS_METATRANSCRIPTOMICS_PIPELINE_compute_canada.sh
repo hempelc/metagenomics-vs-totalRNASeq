@@ -20,11 +20,10 @@
 
 # To run every possible combination of tools, the pipeline requires the following programs/python packages (versions we used
 # when writing this script are indicated in brackets):
-	#FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
-	# rRNAFILTER (1.1)[note: is downloaded within the script, doesn't need to be
-	# installed manually], SPADES (3.14.0)[note: runs with the --meta and --rna
+	# FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
+	# rRNAFILTER (1.1), SPADES (3.14.0)[note: runs with the --meta and --rna
 	# options for METASPADES and RNASPADES], MEGAHIT (1.2.9), IDBA-UD (1.1.1),
-	# IDBA-TRAN (1.1.1), Trinity (2.10.0),	bowtie2 (2.3.3.1), bwa (0.7.17),
+	# IDBA_tran (1.1.1), Trinity (2.10.0),	bowtie2 (2.3.3.1), bwa (0.7.17),
 	# blast+ (2.10.0+), seqtk (1.2-r94),  samtools (1.10),
 	# python module justblast (2020.0.3), python module ete3 (3.1.2)
 
@@ -127,12 +126,12 @@ if [[ -z $forward_reads || -z $reverse_reads || -z $pipeline \
 fi
 
 # Set pipeline tools to use
-trimming=$(echo $pipeline | cut -f1 -d,)
-sorting=$(echo $pipeline | cut -f2 -d,)
-assembly=$(echo $pipeline | cut -f3 -d,)
-mapping=$(echo $pipeline | cut -f4 -d,)
-db=$(echo $pipeline | cut -f5 -d,)
-classification=$(echo $pipeline | cut -f6 -d,)
+trimming=$(echo $pipeline | cut -f1 -d-)
+sorting=$(echo $pipeline | cut -f2 -d-)
+assembly=$(echo $pipeline | cut -f3 -d-)
+mapping=$(echo $pipeline | cut -f4 -d-)
+db=$(echo $pipeline | cut -f5 -d-)
+classification=$(echo $pipeline | cut -f6 -d-)
 
 ##################### Write start time and options to output ######################
 
@@ -246,7 +245,7 @@ elif [[ ${sorting} == "rrnafilter" ]]; then
 	# rRNAFilter only worked for us when we started it within the directory
 	# containing the .jar file. To simplify switching to that directory, we copy
 	# it from its location to the pwd:
-	cp /home/hempelc/scratch/chris_pilot_project/programs/rRNAFilter .
+	cp -r ~/scratch/chris_pilot_project/programs/rRNAFilter .
 	cd rRNAFilter/
 	# We use 7GB for the rRNAFilter .jar, as shown in the rRNAFilter manual:
 	java -jar -Xmx7g rRNAFilter_commandline.jar \
@@ -275,12 +274,12 @@ elif [[ ${sorting} == "barrnap" ]]; then
 	mkdir BARRNAP/
 	for kingdom in euk bac arc; do # barrnap needs to be run on kingdoms separately
 		echo -e "\n======== RUNNING BARRNAP ON KINGDOM $kingdom AND R1 READS ========\n"
-		/home/hempelc/scratch/chris_pilot_project/programs/barrnap/bin/barrnap \
+		~/scratch/chris_pilot_project/programs/barrnap/bin/barrnap \
 		--quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
 		--threads $threads --outseq BARRNAP/${kingdom}_reads1.fa \
 		reads_in_fasta_format/R1.fa
 		echo -e "\n======== RUNNING BARRNAP ON KINGDOM $kingdom AND R2 READS ========\n"
-		/home/hempelc/scratch/chris_pilot_project/programs/barrnap/bin/barrnap \
+		~/scratch/chris_pilot_project/programs/barrnap/bin/barrnap \
 		--quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
 		--threads $threads --outseq BARRNAP/${kingdom}_reads2.fa \
 		reads_in_fasta_format/R2.fa
@@ -359,7 +358,7 @@ elif [[ $assembly == "megahit" ]]; then
 	cd MEGAHIT/
 	echo -e "\n======== MEGAHIT DONE ========\n"
 
-elif [[ $assembly == "idba-ud" ]]; then
+elif [[ $assembly == "idba_ud" ]]; then
 	echo -e "\n======== RUNNING IDBA_UD ========\n"
 	# Note: we had to edit IDBA prior to compiling it because it didn't work
 	# using long reads and the -l option. This seems to be a common problem and
@@ -368,7 +367,7 @@ elif [[ $assembly == "idba-ud" ]]; then
 	# https://github.com/loneknightpy/idba/issues/26
 	# IDBA_UD only takes interleaved fasta files
 	fq2fa --merge --filter ../$R1_sorted ../$R2_sorted idba_ud_input.fa
-	/home/hempelc/scratch/chris_pilot_project/programs/idba/bin/idba_ud \
+	~/scratch/chris_pilot_project/programs/idba/bin/idba_ud \
 	--num_threads $threads --pre_correction -r idba_ud_input.fa \
   -o IDBA_UD/
 	mv idba_ud_input.fa IDBA_UD/
@@ -383,11 +382,11 @@ elif [[ $assembly == "rnaspades" ]]; then
 	cd RNASPADES/
 	echo -e "\n======== RNASPADES DONE ========\n"
 
-elif [[ $assembly == "idba-tran" ]]; then
+elif [[ $assembly == "idba_tran" ]]; then
 	echo -e "\n======== RUNNING IDBA_TRAN ========\n"
 	# IDBA_TRAN only takes interleaved fasta files
 	fq2fa --merge ../$R1_sorted ../$R2_sorted idba_tran_input.fa
-	/home/hempelc/scratch/chris_pilot_project/programs/idba/bin/idba_tran \
+	~/scratch/chris_pilot_project/programs/idba/bin/idba_tran \
 	--num_threads $threads --pre_correction -l idba_tran_input.fa \
   -o IDBA_TRAN/
 	mv idba_tran_input.fa IDBA_TRAN/
@@ -435,11 +434,11 @@ elif [[ $assembly == 'metaspades' ]]; then
 	scaffolds='scaffolds.fasta'
 elif [[ $assembly == 'megahit' ]]; then
 	scaffolds='final.contigs.fa'
-elif [[ $assembly == 'idba-ud' ]]; then
+elif [[ $assembly == 'idba_ud' ]]; then
 	scaffolds='scaffold.fa'
 elif [[ $assembly == 'rnaspades' ]]; then
 	scaffolds='transcripts.fasta'
-elif [[ $assembly == 'idba-tran' ]]; then
+elif [[ $assembly == 'idba_tran' ]]; then
 	scaffolds='contig.fa'
 elif [[ $assembly == 'trinity' ]]; then
 	scaffolds='Trinity_with_length.fasta'
@@ -603,7 +602,7 @@ mkdir FINAL_FILES/intermediate_files/
 cd FINAL_FILES/intermediate_files/
 
 if [[ $assembly == 'spades' || $assembly == 'metaspades' \
-|| $assembly == 'idba-ud' || $assembly == 'rnaspades' \
+|| $assembly == 'idba_ud' || $assembly == 'rnaspades' \
 || $assembly == 'transabyss' ]]; then
 	# Change the sequences' fasta format to tab delimited:
 	fasta_to_tab ../../../../../../${scaffolds} > tmp
@@ -630,7 +629,7 @@ elif [[ $assembly == 'megahit' ]]; then
 	merge_on_outer.py ../../../../../../step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/merge_input_mapped_${mapping}.txt \
 	${assembly}_tab_to_merge.txt ${assembly}_final_${mapping}_merge_ready.txt
 
-elif [[ $assembly == 'idba-tran' ]]; then
+elif [[ $assembly == 'idba_tran' ]]; then
 	# Change the sequences' fasta format to tab delimited:
 	fasta_to_tab ../../../../../../${scaffolds} \
 	| sed 's/_/\t/2'  | sed 's/_/\t/3' | sed 's/ /\t/g' | cut -f1,3,5,6 \
@@ -678,7 +677,7 @@ if [[ $classification == 'blast_filtered' ]]; then
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
 
-	elif [[ $assembly == 'idba-ud' ]]; then
+	elif [[ $assembly == 'idba_ud' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/scaffold_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
@@ -707,7 +706,7 @@ if [[ $classification == 'blast_filtered' ]]; then
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
 
-	elif [[ $assembly == 'idba-tran' ]]; then
+	elif [[ $assembly == 'idba_tran' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		|	sed 's/contig-[0-9]*_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
@@ -755,7 +754,7 @@ elif [[ $classification == 'blast_first_hit' ]]; then
 		>> tmp
 		cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 
-	elif [[ $assembly == 'idba-ud' ]]; then
+	elif [[ $assembly == 'idba_ud' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/scaffold_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
@@ -786,7 +785,7 @@ elif [[ $classification == 'blast_first_hit' ]]; then
 		cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& rm tmp
 
-	elif [[ $assembly == 'idba-tran' ]]; then
+	elif [[ $assembly == 'idba_tran' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		|	sed 's/contig-[0-9]*_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
@@ -839,7 +838,7 @@ elif [[ $classification == 'kraken2' ]]; then
 		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& rm tmp
 
-	elif [[ $assembly == 'idba-ud' ]]; then
+	elif [[ $assembly == 'idba_ud' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/1' | cut -f2-20 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
@@ -874,7 +873,7 @@ elif [[ $classification == 'kraken2' ]]; then
 		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& rm tmp
 
-	elif [[ $assembly == 'idba-tran' ]]; then
+	elif [[ $assembly == 'idba_tran' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/1' | cut -f2-20 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \

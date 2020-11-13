@@ -10,7 +10,7 @@ def split(a, n):
 # Manually enter tools for each step:
 trimming=["5", "10", "15", "20"]
 sorting=["sortmerna", "barrnap", "rrnafilter", "unsorted"]
-assembly=["spades", "metaspades", "idba-ud", "megahit", "rnaspades", "idba-tran", "trinity", "transabyss"]
+assembly=["spades", "metaspades", "idba_ud", "megahit", "rnaspades", "idba_tran", "trinity", "transabyss"]
 mapping=["bwa", "bowtie2"]
 db=["ncbi_nt", "silva"]
 classification=["blast_first_hit", "blast_filtered", "kraken2"]
@@ -19,7 +19,7 @@ all=[trimming, sorting, assembly, mapping, db, classification] # list of steps
 # Genearte list of tuples of all combinations:
 combinations_tuples_list=list(itertools.product(*all))
 # Turn that into list of strings:
-combinations_str_list = [','.join(tool) for tool in combinations_tuples_list]
+combinations_str_list = ['-'.join(tool) for tool in combinations_tuples_list]
 # Split up list in 3 chunks because we run pipelien on 3 servers:
 combinations_chunks=list(split(combinations_str_list, 3))
 combinations_graham=combinations_chunks[0]
