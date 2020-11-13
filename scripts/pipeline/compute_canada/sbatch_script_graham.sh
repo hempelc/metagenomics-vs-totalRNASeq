@@ -21,9 +21,10 @@ threads=$SLURM_NTASKS_PER_NODE
 
 # Load required modules:
 module load StdEnv/2020 gcc/9.3.0  openmpi/4.0.3 trimmomatic/0.39 fastqc/0.11.9 \
-spades/3.14.1 bowtie/1.3.0 trinity/2.11.0 bowtie2/2.4.1 bwa/0.7.17 boost/1.72.0 \
-kraken2/2.1.1 blast+/2.11.0 seqtk/1.3 samtools/1.10 sortmerna/4.2.0 qt/5.12.8 \
-scipy-stack/2020b leveldb/1.22 trans-abyss/2.0.1 megahit/1.2.9 bedtools/2.29.2
+spades/3.14.1 bowtie/1.3.0 trinity/2.11.0 jellyfish/2.3.0 salmon/1.3.0 \
+bowtie2/2.4.1 bwa/0.7.17 boost/1.72.0 kraken2/2.1.1 blast+/2.11.0 \
+seqtk/1.3 samtools/1.10 sortmerna/4.2.0 qt/5.12.8 scipy-stack/2020b \
+leveldb/1.22 trans-abyss/2.0.1 megahit/1.2.9 bedtools/2.29.2
 
 # This is the code I used to generate a virtual environment for ete3 and justblast:
 #virtualenv --no-download ~/scratch/chris_pilot_project/programs/pipeline_environment
@@ -35,7 +36,7 @@ scipy-stack/2020b leveldb/1.22 trans-abyss/2.0.1 megahit/1.2.9 bedtools/2.29.2
 source ~/scratch/chris_pilot_project/programs/pipeline_environment/bin/activate
 
 # Set pipeline based on SLURM_ARRAY_TASK_ID (1-512 for each job created in the job array):
-pipeline=$(sed -n "${SLURM_ARRAY_TASK_ID}p" $file)
+pipeline="5,rrnafilter,trinity,bwa,ncbi_nt,kraken2"
 
 # Each job in the array will create the same output directory by default. To not
 # let the jobs overwrite each other, each job will create a directory named after
