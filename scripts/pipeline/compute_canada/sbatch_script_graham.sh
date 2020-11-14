@@ -5,7 +5,7 @@
 #SBATCH --ntasks-per-node=32
 #SBATCH --mem=120G
 #SBATCH --array=1-512
-#SBATCH --time=1:00:00
+#SBATCH --time=10:00:00
 
 # A script to run Chris Hempel's METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE in
 # parallel on graham

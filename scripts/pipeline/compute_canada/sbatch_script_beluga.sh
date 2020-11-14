@@ -2,7 +2,7 @@
 
 #SBATCH --account=def-dsteinke
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=40
+#SBATCH --ntasks-per-node=44
 #SBATCH --mem=181G
 #SBATCH --array=1-512
 #SBATCH --time=10:00:00
