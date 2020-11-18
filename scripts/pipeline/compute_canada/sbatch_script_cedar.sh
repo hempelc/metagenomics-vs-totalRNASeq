@@ -5,7 +5,7 @@
 #SBATCH --ntasks-per-node=48
 #SBATCH --mem=182G
 #SBATCH --array=1-512
-#SBATCH --time=10:00:00
+#SBATCH --time=04:00:00
 
 # A script to run Chris Hempel's METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE in
 # parallel on cedar
@@ -44,6 +44,8 @@ pipeline=$(sed -n "${SLURM_ARRAY_TASK_ID}p" $file)
 # copy the final files out of these:
 mkdir ${pipeline}
 cd ${pipeline}
+pwd=$(pwd)
+cd $SLURM_TMPDIR
 
 # Run pipeline:
 METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_compute_canada.sh \
@@ -64,3 +66,5 @@ METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_compute_canada.sh \
 -F /home/hempelc/scratch/chris_pilot_project/databases/NCBI_staxids_scientific.txt \
 -f /home/hempelc/scratch/chris_pilot_project/databases/NCBI_staxids_non_scientific.txt \
 -t ~/.etetoolkit/taxa.sqlite -T $EBROOTTRIMMOMATIC/trimmomatic-0.39.jar -m $memory -p $threads
+
+cp METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/* $pwd
