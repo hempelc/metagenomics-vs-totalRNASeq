@@ -55,6 +55,8 @@ echo "Copying finished $(date +%H:%M:%S)"
 
 R1=${SLURM_TMPDIR}/$(basename ${R1})
 R2=${SLURM_TMPDIR}/$(basename ${R2})
+DBS=${SLURM_TMPDIR}/databases
+source ${SLURM_TMPDIR}/pipeline_environment/bin/activate
 
 
 # echo -e "\n----------\nContents of SLURM_TMPDIR" >> copy_databases.log
@@ -64,15 +66,18 @@ R2=${SLURM_TMPDIR}/$(basename ${R2})
 # Assign each job in array to bundle of pipelines
 jobfile=${SLURM_TMPDIR}/file_chunk_1
 
+cwd1=${PWD}
+
 # Run pipeline for each line in chunk file, i.e., each bundled pipeline
 while read pipeline; do
   mkdir -p ${pipeline}
   cd ${pipeline}
-  cwd=${PWD}
-
+  cwd2=${PWD}
   cd ${SLURM_TMPDIR}
-  DBS=${SLURM_TMPDIR}/databases
-  source ${SLURM_TMPDIR}/pipeline_environment/bin/activate
+
+  echo -e "\n+++++++++\nls for directories:\n+++++++++++++++++"
+  ls ${DBS}/
+  ls ${DBS}/sortmerna_silva_databases/
 
   /usr/bin/time -v -o time_pipeline_external.log METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_compute_canada.sh \
   -1 $R1 -2 $R2 -P $pipeline \
@@ -96,8 +101,10 @@ while read pipeline; do
   -m ${memory} \
   -p ${threads}
 
-  /usr/bin/time -v -o copy_cp_results.log cp METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/* ${cwd}
-  echo -e "\n----------\nContents of ${cwd}" >> copy_cp_results.log
+  /usr/bin/time -v -o copy_cp_results.log cp METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/* ${cwd2}
+  echo -e "\n----------\nContents of ${cwd2}" >> copy_cp_results.log
   ls ${SLURM_TMPDIR} >> copy_cp_results.log
-  rsync -a copy_cp_results.log time_pipeline_external.log ${cwd}
+  rsync -a copy_cp_results.log time_pipeline_external.log ${cwd2}
+  rm -r METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
+  cd ${cwd1}
 done < ${jobfile}
