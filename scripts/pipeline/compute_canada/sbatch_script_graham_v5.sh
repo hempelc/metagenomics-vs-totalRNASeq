@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=32
 #SBATCH --mem=120G
-#SBATCH --time=10:00:00
+#SBATCH --time=1:00:00
 
 parallel --record-env
 
@@ -69,6 +69,7 @@ jobfile=${SLURM_TMPDIR}/file_chunk_1
 cwd1=${PWD}
 
 # Run pipeline for each line in chunk file, i.e., each bundled pipeline
+echo "Pipeline for bundles started $(date +%H:%M:%S)"
 while read pipeline; do
   mkdir -p ${pipeline}
   cd ${pipeline}
@@ -108,3 +109,4 @@ while read pipeline; do
   rm -r METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
   cd ${cwd1}
 done < ${jobfile}
+echo "Pipeline for bundles ended $(date +%H:%M:%S)"
