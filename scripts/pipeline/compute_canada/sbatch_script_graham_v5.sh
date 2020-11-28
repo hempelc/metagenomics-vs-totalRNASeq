@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=32
 #SBATCH --mem=120G
-#SBATCH --time=1:00:00
+#SBATCH --time=2:00:00
 
 parallel --record-env
 
