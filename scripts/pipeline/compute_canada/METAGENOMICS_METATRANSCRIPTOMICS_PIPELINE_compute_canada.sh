@@ -142,7 +142,7 @@ echo -e "=================================================================\n\n"
 
 
 # Output specified options:
-echo -e "======== [$(date +%H:%M:%S)] OPTIONS ========\n"
+echo -e "======== [$(date +%H:%M:%S)] OPTIONS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 echo -e "Forward reads were defined as $forward_reads.\n"
 echo -e "Reverse reads were defined as $reverse_reads.\n"
@@ -153,7 +153,7 @@ echo -e "Script started with full command: $cmd\n"
 
 
 ######################### Start of the actual script ################################
-echo -e "++++++++ [$(date +%H:%M:%S)] START RUNNING SCRIPT ++++++++\n"
+echo -e "++++++++ [$(date +%H:%M:%S)] START RUNNING SCRIPT [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 # Activate the conda ete3 environment within this script to be able to run ete3.
 # I found this solution # to activate conda environments in scripts here:
@@ -173,7 +173,7 @@ base_directory=$(pwd)
 
 ######################### Step 1: trimming ################################
 
-echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 1: TRIMMING AND ERROR CORRECTION ++++++++\n"
+echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 1: TRIMMING AND ERROR CORRECTION [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 # Trimming is done with a separate subscript:
 fastqc_on_R1_R2_and_optional_trimming.sh \
 -T $trimmomatic -1 $forward_reads -2 $reverse_reads -t yes -p $threads -P $trimming
@@ -185,7 +185,7 @@ baseout=${forward_reads%_*} # Make basename
 cd step_1_trimming/trimmomatic/trimmed_at_phred_${trimming}_${baseout##*/}
 
 # Running error correction module of SPAdes on all trimmed reads
-echo -e "\n======== [$(date +%H:%M:%S)] ERROR-CORRECTING READS ========\n"
+echo -e "\n======== [$(date +%H:%M:%S)] ERROR-CORRECTING READS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 spades.py -1 *1P.fastq -2 *2P.fastq \
 --only-error-correction --disable-gzip-output -o error_correction \
 -t $threads
@@ -199,27 +199,27 @@ R2=$(echo *2P.00.0_0.cor.fastq) \
 && mv *2P.00.0_0.cor.fastq ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
 sed -r -i 's/ BH:.{2,6}//g' ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
 rm -r error_correction/
-echo -e "\n======== [$(date +%H:%M:%S)] FINISHED ERROR-CORRECTING READS ========\n"
+echo -e "\n======== [$(date +%H:%M:%S)] FINISHED ERROR-CORRECTING READS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
-echo -e "++++++++ [$(date +%H:%M:%S)] FINISHED STEP 1: TRIMMING AND ERROR CORRECTION ++++++++\n"
+echo -e "++++++++ [$(date +%H:%M:%S)] FINISHED STEP 1: TRIMMING AND ERROR CORRECTION [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 ######################### Step 2: rRNA sorting ################################
 
-echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 2: rRNA SORTING OF TRIMMED READS ++++++++\n"
+echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 2: rRNA SORTING OF TRIMMED READS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 mkdir step_2_rrna_sorting/
 cd step_2_rrna_sorting/
 
 if [[ ${sorting} == "barrnap" || ${sorting} == "rrnafilter" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] CONVERT READS IN FASTA FORMAT ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] CONVERT READS IN FASTA FORMAT [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	mkdir reads_in_fasta_format/
 	fq2fa ../*1P_error_corrected.fastq reads_in_fasta_format/R1.fa
 	fq2fa ../*2P_error_corrected.fastq reads_in_fasta_format/R2.fa
-	echo -e "\n======== [$(date +%H:%M:%S)] READS TO FASTA CONVERSION DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] READS TO FASTA CONVERSION DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 fi
 
 if [[ ${sorting} == "sortmerna" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING SORTMERNA ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING SORTMERNA [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	mkdir SORTMERNA/
 	sortmerna --ref $silva_sortmerna_bac_lsu \
 	--ref $silva_sortmerna_bac_ssu \
@@ -236,10 +236,10 @@ if [[ ${sorting} == "sortmerna" ]]; then
 	deinterleave_fastq_reads.sh < SORTMERNA/out/aligned.fastq \
 	SORTMERNA/out/aligned_R1.fq SORTMERNA/out/aligned_R2.fq
 	cd SORTMERNA/
-	echo -e "\n======== [$(date +%H:%M:%S)] SORTMERNA DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] SORTMERNA DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ ${sorting} == "rrnafilter" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING rRNAFILTER ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING rRNAFILTER [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	mkdir rRNAFILTER/
 	cd rRNAFILTER/
 	# rRNAFilter only worked for us when we started it within the directory
@@ -267,18 +267,18 @@ elif [[ ${sorting} == "rrnafilter" ]]; then
 	seqtk subseq ../reads_in_fasta_format/R2.fa names_sorted.txt \
 	> rRNAFilter_paired_R2.fa
 	rm names_sorted.txt names.txt
-	echo -e "\n======== [$(date +%H:%M:%S)] rRNAFILTER DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] rRNAFILTER DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ ${sorting} == "barrnap" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BARRNAP ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BARRNAP [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	mkdir BARRNAP/
 	for kingdom in euk bac arc; do # barrnap needs to be run on kingdoms separately
-		echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BARRNAP ON KINGDOM $kingdom AND R1 READS ========\n"
+		echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BARRNAP ON KINGDOM $kingdom AND R1 READS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 		~/scratch/chris_pilot_project/programs/barrnap/bin/barrnap \
 		--quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
 		--threads $threads --outseq BARRNAP/${kingdom}_reads1.fa \
 		reads_in_fasta_format/R1.fa
-		echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BARRNAP ON KINGDOM $kingdom AND R2 READS ========\n"
+		echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BARRNAP ON KINGDOM $kingdom AND R2 READS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 		~/scratch/chris_pilot_project/programs/barrnap/bin/barrnap \
 		--quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
 		--threads $threads --outseq BARRNAP/${kingdom}_reads2.fa \
@@ -303,20 +303,20 @@ elif [[ ${sorting} == "barrnap" ]]; then
 	> BARRNAP/barrnap_paired_R2.fa
 	rm BARRNAP/names_sorted.txt
 	cd BARRNAP/
-	echo -e "\n======== [$(date +%H:%M:%S)] BARRNAP DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] BARRNAP DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ ${sorting} == "unsorted" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] MAKING FOLDER UNSORTED/ AND COPYING UNSORTED READS IN THERE TO KEEP THE FOLDER STRUCTURE CONSTANT ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] MAKING FOLDER UNSORTED/ AND COPYING UNSORTED READS IN THERE TO KEEP THE FOLDER STRUCTURE CONSTANT [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	mkdir UNSORTED/
 	cp ../*1P_error_corrected.fastq ../*2P_error_corrected.fastq UNSORTED/
 	cd UNSORTED/
 fi
 
-echo -e "\n++++++++ [$(date +%H:%M:%S)] FINISHED STEP 2: rRNA SORTING ++++++++\n"
+echo -e "\n++++++++ [$(date +%H:%M:%S)] FINISHED STEP 2: rRNA SORTING [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 ######################### Step 3: Assembly ################################
 
-echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 3: ASSEMBLY ++++++++\n"
+echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 3: ASSEMBLY [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 mkdir step_3_assembly/
 cd step_3_assembly/
@@ -336,30 +336,30 @@ elif [[ $sorting == 'unsorted' ]]; then
 fi
 
 if [[ $assembly == "spades" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING SPADES ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING SPADES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	mkdir SPADES/
 	spades.py -1 ../$R1_sorted -2 ../$R2_sorted --only-assembler \
 	-o SPADES/ -t $threads
 	cd SPADES/
-	echo -e "\n======== [$(date +%H:%M:%S)] SPADES DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] SPADES DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ $assembly == "metaspades" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING METASPADES ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING METASPADES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	mkdir METASPADES/
 	spades.py --meta -1 ../$R1_sorted -2 ../$R2_sorted --only-assembler \
 	-o METASPADES/ -t $threads
 	cd METASPADES/
-	echo -e "\n======== [$(date +%H:%M:%S)] METASPADES DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] METASPADES DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ $assembly == "megahit" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING MEGAHIT ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING MEGAHIT [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	megahit --presets meta-large -t $threads -1 ../$R1_sorted \
 	-2 ../$R2_sorted -o MEGAHIT/
 	cd MEGAHIT/
-	echo -e "\n======== [$(date +%H:%M:%S)] MEGAHIT DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] MEGAHIT DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ $assembly == "idba_ud" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING IDBA_UD ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING IDBA_UD [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	# Note: we had to edit IDBA prior to compiling it because it didn't work
 	# using long reads and the -l option. This seems to be a common problem and
 	# can be circumvented following for example the instructions in
@@ -372,18 +372,18 @@ elif [[ $assembly == "idba_ud" ]]; then
   -o IDBA_UD/
 	mv idba_ud_input.fa IDBA_UD/
 	cd IDBA_UD/
-	echo -e "\n======== [$(date +%H:%M:%S)] IDBA_UD DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] IDBA_UD DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ $assembly == "rnaspades" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING RNASPADES ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING RNASPADES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	mkdir RNASPADES/
 	spades.py --rna -1 ../$R1_sorted -2 ../$R2_sorted --only-assembler \
 	-o RNASPADES/ -t $threads
 	cd RNASPADES/
-	echo -e "\n======== [$(date +%H:%M:%S)] RNASPADES DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RNASPADES DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ $assembly == "idba_tran" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING IDBA_TRAN ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING IDBA_TRAN [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	# IDBA_TRAN only takes interleaved fasta files
 	fq2fa --merge ../$R1_sorted ../$R2_sorted idba_tran_input.fa
 	~/scratch/chris_pilot_project/programs/idba/bin/idba_tran \
@@ -391,10 +391,10 @@ elif [[ $assembly == "idba_tran" ]]; then
   -o IDBA_TRAN/
 	mv idba_tran_input.fa IDBA_TRAN/
 	cd IDBA_TRAN
-	echo -e "\n======== [$(date +%H:%M:%S)] IDBA_TRAN DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] IDBA_TRAN DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ $assembly == "trinity" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING TRINITY ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING TRINITY [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	# Barrnap and rRNAFilter output fasta files which has to be indicated to Trinity:
   if [[ $sorting == "rrnafilter" || $sorting == "barrnap" ]]; then
 		Trinity --seqType fa --max_memory $memory --left ../$R1_sorted --right \
@@ -406,23 +406,23 @@ elif [[ $assembly == "trinity" ]]; then
   cat TRINITY/Trinity.fasta | sed 's/ len/_len/g' \
 	> TRINITY/Trinity_with_length.fasta  # Edit for universal format
 	cd TRINITY/
-	echo -e "\n======== [$(date +%H:%M:%S)] TRINITY DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] TRINITY DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ $assembly == "transabyss" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING TRANSABYSS ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING TRANSABYSS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
   transabyss --pe ../$R1_sorted ../$R2_sorted --threads $threads \
   --outdir TRANSABYSS/
   sed 's/ /_/g' TRANSABYSS/transabyss-final.fa \
 	> TRANSABYSS/transabyss-final_edited.fa # Edit for universal format
 	cd TRANSABYSS/
-	echo -e "\n======== [$(date +%H:%M:%S)] TRANSABYSS DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] TRANSABYSS DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 fi
 
-echo -e "\n++++++++ [$(date +%H:%M:%S)] FINISHED STEP 3: ASSEMBLY ++++++++\n"
+echo -e "\n++++++++ [$(date +%H:%M:%S)] FINISHED STEP 3: ASSEMBLY [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 ######################## Step 4: Mapping ################################
 
-echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 4: MAPPING ++++++++\n"
+echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 4: MAPPING [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 mkdir step_4_mapping/
 mkdir step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/
@@ -447,22 +447,22 @@ elif [[ $assembly == 'transabyss' ]]; then
 fi
 
 if [[ $mapping == 'bwa' ]]; then
-  echo -e "\n======== [$(date +%H:%M:%S)] Starting bwa index ========\n"
+  echo -e "\n======== [$(date +%H:%M:%S)] Starting bwa index [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
   bwa index -p bwa_index ../../$scaffolds
-  echo -e "\n======== [$(date +%H:%M:%S)] bwa index complete. Starting bwa mem ========\n"
+  echo -e "\n======== [$(date +%H:%M:%S)] bwa index complete. Starting bwa mem [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
   bwa mem -t $threads bwa_index ../../../../../../*1P_error_corrected.fastq \
 	../../../../../../*2P_error_corrected.fastq > ${mapping}_output.sam
   rm bwa_index*
-	echo -e "\n======== [$(date +%H:%M:%S)] bwa mem complete ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] bwa mem complete [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 elif [[ $mapping == 'bowtie2' ]]; then
-  echo -e "\n======== [$(date +%H:%M:%S)] Starting bowtie2 index ========\n"
+  echo -e "\n======== [$(date +%H:%M:%S)] Starting bowtie2 index [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	bowtie2-build -f ../../$scaffolds bowtie_index
-	echo -e "\n======== [$(date +%H:%M:%S)] bowtie2 index complete. Starting bowtie2 ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] bowtie2 index complete. Starting bowtie2 [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	bowtie2 -q -x bowtie_index -1 ../../../../../../*1P_error_corrected.fastq \
 	-2 ../../../../../../*2P_error_corrected.fastq -S ${mapping}_output.sam \
 	-p $threads
 	rm bowtie_index*
-  echo -e "\n======== [$(date +%H:%M:%S)] bowtie2 complete ========\n"
+  echo -e "\n======== [$(date +%H:%M:%S)] bowtie2 complete [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 fi
 
 # Editing the mapper outputs:
@@ -480,7 +480,7 @@ rm out_*mapped_${mapping}.txt
 # Moving back to assembler directory:
 cd ../../
 
-echo -e "++++++++ [$(date +%H:%M:%S)] FINISHED STEP 4: MAPPING ++++++++\n"
+echo -e "++++++++ [$(date +%H:%M:%S)] FINISHED STEP 4: MAPPING [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 ######################### Steps 5 and 6.1: Picking a referencd DB and taxonomic classification ################################
 
@@ -502,29 +502,29 @@ elif [[ $db == 'ncbi_nt' ]]; then
 fi
 
 if [[ $classification == "blast_first_hit" || $classification == "blast_filtered" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BLAST WITH DATABASE $blastDB ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BLAST WITH DATABASE $blastDB [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	blastn -query ../../../../$scaffolds -db $blastDB -out blast_output.txt \
 	-outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
 	-evalue 1e-05 -num_threads $threads
-	echo -e "\n======== [$(date +%H:%M:%S)] BLAST WITH DATABASE $blastDB DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] BLAST WITH DATABASE $blastDB DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 fi
 
 if [[ $classification == "blast_first_hit" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BLAST FIRST HIT ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BLAST FIRST HIT [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	# We run a separate script to filter the BLAST results:
 	blast_filtering.bash -i blast_output.txt -f blast -t soft -T $threads -e $etetoolkit
 	mv blast_output.txt blast_filtering_results/
-	echo -e "\n======== [$(date +%H:%M:%S)] BLAST FIRST HIT DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] BLAST FIRST HIT DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ $classification == "blast_filtered" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BLAST FILTERED ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BLAST FILTERED [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	# We run a separate script to filter the BLAST results:
 	blast_filtering.bash -i blast_output.txt -f blast -t strict -T $threads -e $etetoolkit
 	mv blast_output.txt blast_filtering_results/
 	echo -e "\n======== [$(date +%H:%M:%S)] BLAST FILTERED DONE========\n"
 
 elif [[ $classification == "kraken2" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING KRAKEN2 WITH DATABASE $krakenDB ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING KRAKEN2 WITH DATABASE $krakenDB [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	# Run kraken2
 	echo $krakenDB
 	kraken2 --db $krakenDB --threads $threads ../../../../$scaffolds \
@@ -585,12 +585,12 @@ elif [[ $classification == "kraken2" ]]; then
     mkdir intermediate_files
     mv kraken2_output* intermediate_files/
   fi
-echo -e "\n======== [$(date +%H:%M:%S)] KRAKEN2 WITH DATABASE $krakenDB DONE ========\n"
+echo -e "\n======== [$(date +%H:%M:%S)] KRAKEN2 WITH DATABASE $krakenDB DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 fi
 
 ######################### Step 6.2: Generating final putput files ################################
 
-echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 6.2: GENERATING FINAL OUTPUT FILES ++++++++\n"
+echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 6.2: GENERATING FINAL OUTPUT FILES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 # Each assembler/classification tool output has a different format. We
 # make that format universal with the following code.
@@ -815,7 +815,7 @@ elif [[ $classification == 'blast_first_hit' ]]; then
 		&& rm tmp
 	fi
 
-	echo -e "\n======== [$(date +%H:%M:%S)] DONE FINALIZING BLAST_FIRST_HIT FILES ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] DONE FINALIZING BLAST_FIRST_HIT FILES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ $classification == 'kraken2' ]]; then
 
@@ -904,7 +904,7 @@ elif [[ $classification == 'kraken2' ]]; then
 		&& rm tmp
 	fi
 
-	echo -e "\n======== [$(date +%H:%M:%S)] DONE FINALIZING KRAKEN2 FILES ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] DONE FINALIZING KRAKEN2 FILES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 fi
 
 # Display runtime

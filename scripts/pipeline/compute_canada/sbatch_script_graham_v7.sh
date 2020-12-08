@@ -18,12 +18,13 @@ leveldb/1.22 trans-abyss/2.0.1 megahit/1.2.9 bedtools/2.29.2
 memory="$((${SLURM_MEM_PER_NODE} / 1024))G" # $SLURM_MEM_PER_NODE is in Megabyte
 threads=${SLURM_NTASKS_PER_NODE}
 BASE="/home/hempelc/scratch/chris_pilot_project"
+start=$(date +%s)
 
 # Copy all necessary DBs and reads to temporary dir on server (SLURM_TMPDIR)
-echo "Copying started [$(date +%H:%M:%S)]"
+echo "[$(date +%H:%M:%S)] Copying started [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]"
 cp -r ${BASE}/databases ${BASE}/programs/pipeline_environment ${HOME}/.etetoolkit \
 ${R1} ${R2} ${BASE}/split_files/file_chunk_${SLURM_ARRAY_TASK_ID} ${SLURM_TMPDIR}
-echo "Copying finished [$(date +%H:%M:%S)]"
+echo "[$(date +%H:%M:%S)] Copying finished [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]"
 
 # Set some directory-specific variables
 R1=${SLURM_TMPDIR}/$(basename ${R1})
@@ -42,7 +43,7 @@ cwd1=${PWD}
 # Run pipeline for each line in chunk file, i.e., each bundled pipeline
 echo "Pipeline for bundles started $(date +%H:%M:%S)"
 while read pipeline; do
-  echo -e "\n\n================ START PIPELINE ${pipeline} [$(date +%H:%M:%S)] ==============\n\n"
+  echo -e "\n\n[$(date +%H:%M:%S)] ================ START PIPELINE ${pipeline} [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ==============\n\n"
   mkdir -p ${pipeline}
   cd ${pipeline}
   cwd2=${PWD}
@@ -73,7 +74,6 @@ while read pipeline; do
   cp METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/* ${cwd2}
   rm -r METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
   cd ${cwd1}
-  echo -e "\n\n================ END PIPELINE ${pipeline} [$(date +%H:%M:%S)] ==============\n\n"
+  echo -e "\n\n[$(date +%H:%M:%S)] ================ END PIPELINE ${pipeline} [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ==============\n\n"
 done < ${jobfile}
-echo "Bundled pipelines ended $(date +%H:%M:%S)"
-
+echo "[$(date +%H:%M:%S)] Bundled pipelines ended in $((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m"

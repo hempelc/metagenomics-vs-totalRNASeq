@@ -18,7 +18,7 @@ if [[ $num_dir != 512 ]]; then
   rm all.txt done.txt
 fi
 
-failed=$(du */METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/ | grep -P "^4\t" | wc -l)
+failed=$(du */*final.txt | grep -P "^4\t" | wc -l)
 echo "Number of failed pipelines: $failed"
 
 if [[ $failed != 0 ]]; then
