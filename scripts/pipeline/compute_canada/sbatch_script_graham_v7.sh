@@ -41,7 +41,10 @@ jobfile=${SLURM_TMPDIR}/file_chunk_${SLURM_ARRAY_TASK_ID}
 cwd1=${PWD}
 
 # Run pipeline for each line in chunk file, i.e., each bundled pipeline
-echo "Pipeline for bundles started $(date +%H:%M:%S)"
+echo "[$(date +%H:%M:%S)] Bundled pipelines started [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]"
+echo "Pipelines that are to be run are:"
+cat ${jobfile}
+echo ""
 while read pipeline; do
   echo -e "\n\n[$(date +%H:%M:%S)] ================ START PIPELINE ${pipeline} [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ==============\n\n"
   mkdir -p ${pipeline}
