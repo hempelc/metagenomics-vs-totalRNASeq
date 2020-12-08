@@ -20,6 +20,9 @@ threads=${SLURM_NTASKS_PER_NODE}
 BASE="/home/hempelc/scratch/chris_pilot_project"
 start=$(date +%s)
 
+# Echo array ID
+echo -e "Job array ID is ${SLURM_ARRAY_TASK_ID}"
+
 # Copy all necessary DBs and reads to temporary dir on server (SLURM_TMPDIR)
 echo "[$(date +%H:%M:%S)] Copying started [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]"
 cp -r ${BASE}/databases ${BASE}/programs/pipeline_environment ${HOME}/.etetoolkit \
