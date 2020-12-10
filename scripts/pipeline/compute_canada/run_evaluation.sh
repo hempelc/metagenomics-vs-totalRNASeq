@@ -23,14 +23,14 @@ echo "Number of failed pipelines: $failed"
 
 if [[ $failed != 0 ]]; then
   echo "Generate file containing failed pipelines: failed.txt"
-  du */METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/ | grep -P "^4\t" | cut -f 2 | sed 's/\/.*$//g' > failed.txt
+  du */*final.txt | grep -P "^4\t" | cut -f 2 | sed 's/\/.*$//g' > failed.txt
 else
   touch time.txt
-  for i in slurm-*; do tail -n 1 $i | sed 's/SCRIPT DONE AFTER//g' >> time.txt; done
+  for i in slurm-*; do grep "Bundled pipelines ended" $i | sed 's/\[.*\] Bundled pipelines ended in //g' >> time.txt; done
   sort -k 1n -k 2n -o time.txt time.txt
   max_time=$(tail -n 1 time.txt)
+  echo "Generate file containing times each bundled pipelines took: time.txt"
   echo "Longest time a pipeline took was: $max_time"
-  rm time.txt
 fi
 
 if [[ $failed != 0 && $num_dir != 512 ]]; then
