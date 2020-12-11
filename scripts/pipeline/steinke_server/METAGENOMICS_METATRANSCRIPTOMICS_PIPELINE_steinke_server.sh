@@ -100,7 +100,7 @@ echo -e "Script started with full command: $cmd\n"
 
 
 ######################### Start of the actual script ################################
-echo -e "++++++++ [$(date +%H:%M:%S)] START RUNNING SCRIPT ++++++++ [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]\n"
+echo -e "++++++++ [$(date +%H:%M:%S)] START RUNNING SCRIPT [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 # Activate the conda ete3 environment within this script to be able to run ete3.
 # I found this solution # to activate conda environments in scripts here:
@@ -118,7 +118,7 @@ cd METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
 base_directory=$(pwd)
 
 ######################### Step 1: trimming ################################
-echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 1: TRIMMING AND ERROR CORRECTION ++++++++ [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]\n"
+echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 1: TRIMMING AND ERROR CORRECTION [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 # Trimming is done with a separate subscript:
 fastqc_on_R1_R2_and_optional_trimming.sh \
@@ -145,7 +145,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	echo -e "\n======== [$(date +%H:%M:%S)] FINISHED ERROR-CORRECTING READS IN FOLDER $trimming_results [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 done
 
-echo -e "++++++++ [$(date +%H:%M:%S)] FINISHED STEP 1: TRIMMING AND ERROR CORRECTION ++++++++ [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]\n"
+echo -e "++++++++ [$(date +%H:%M:%S)] FINISHED STEP 1: TRIMMING AND ERROR CORRECTION [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 
 ######################### Step 2: rRNA sorting ################################
@@ -159,7 +159,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	mkdir $trimming_results/step_2_rrna_sorting/
 	cd $trimming_results/step_2_rrna_sorting/
 
-	echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER $trimming_results ++++++++ [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]\n"
+	echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER $trimming_results [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 	echo -e "\n======== [$(date +%H:%M:%S)] CONVERT READS IN FASTA FORMAT FOR rRNAFILTER AND BARRNAP [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	mkdir reads_in_fasta_format/
@@ -245,7 +245,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	mkdir UNSORTED/
 	cp ../*1P_error_corrected.fastq ../*2P_error_corrected.fastq UNSORTED/
 
-	echo -e "\n++++++++ [$(date +%H:%M:%S)] FINISHED STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER $trimming_results ++++++++ [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]\n"
+	echo -e "\n++++++++ [$(date +%H:%M:%S)] FINISHED STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER $trimming_results [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 
 	######################### Step 3: Assembly ################################
@@ -266,7 +266,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 			R2_sorted='UNSORTED/*2P_error_corrected.fastq'
 		fi
 
-		echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ ++++++++ [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]\n"
+		echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 		mkdir $rrna_filter_results/step_3_assembly/
 		cd $rrna_filter_results/step_3_assembly/
 
@@ -335,7 +335,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 		> TRANSABYSS/transabyss-final_edited.fa # Edit for universal format
 		echo -e "\n======== [$(date +%H:%M:%S)] TRANSABYSS DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
-		echo -e "\n++++++++ [$(date +%H:%M:%S)] FINISHED STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ ++++++++ [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]\n"
+		echo -e "\n++++++++ [$(date +%H:%M:%S)] FINISHED STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 
 		######################### Step 4: Mapping ################################
@@ -360,7 +360,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				scaffolds='TRANSABYSS/transabyss-final_edited.fa'
 			fi
 
-			echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 4: MAPPING OF TRIMMED READS IN FOLDER $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ ++++++++ [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]\n"
+			echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 4: MAPPING OF TRIMMED READS IN FOLDER $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 			mkdir $assembly_results/step_4_mapping/
 			cd $assembly_results/step_4_mapping/
 
@@ -411,7 +411,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 			# variables we generated during the script:
       cd $(realpath --relative-to=$(pwd) ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/)
 
-			echo -e "++++++++ [$(date +%H:%M:%S)] FINISHED STEP 4: MAPPING FOR TRIMMED READS IN FOLDER $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ ++++++++ [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]\n"
+			echo -e "++++++++ [$(date +%H:%M:%S)] FINISHED STEP 4: MAPPING FOR TRIMMED READS IN FOLDER $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 
 			######################### Steps 5 and 6.1: Picking a referencd DB and taxonomic classification ################################
@@ -541,7 +541,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				# For loop 5: loop over the classification tools for universal edits:
 				for classification_tool in KRAKEN2 BLAST_FILTERED BLAST_FIRST_HIT; do
 
-					echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 6.2: GENERATING FINAL OUTPUT FILES OF READS IN $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ AND CLASSIFICATION IN FOLDER $classification_tool/ ++++++++ [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]\n"
+					echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 6.2: GENERATING FINAL OUTPUT FILES OF READS IN $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ AND CLASSIFICATION IN FOLDER $classification_tool/ [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 					mkdir ${classification_tool}/FINAL_FILES/
 					mkdir ${classification_tool}/FINAL_FILES/intermediate_files/
