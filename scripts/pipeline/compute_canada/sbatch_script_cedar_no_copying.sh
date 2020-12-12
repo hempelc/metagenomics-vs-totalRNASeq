@@ -37,7 +37,7 @@ DBS=${BASE}/databases
 source ${BASE}/pipeline_environment/bin/activate
 
 # Assign each job in array to bundle of pipelines
-jobfile=${BASE}/file_chunk_${SLURM_ARRAY_TASK_ID}
+jobfile=${BASE}/split_files/file_chunk_${SLURM_ARRAY_TASK_ID}
 
 # Save path for directory in which pipeline was started
 cwd1=${PWD}
