@@ -34,7 +34,7 @@ echo -e "Job array ID is ${SLURM_ARRAY_TASK_ID}"
 DBS=${BASE}/databases
 
 # Activate copies environment
-source ${BASE}/pipeline_environment/bin/activate
+source ${BASE}/programs/pipeline_environment/bin/activate
 
 # Assign each job in array to bundle of pipelines
 jobfile=${BASE}/split_files/file_chunk_${SLURM_ARRAY_TASK_ID}

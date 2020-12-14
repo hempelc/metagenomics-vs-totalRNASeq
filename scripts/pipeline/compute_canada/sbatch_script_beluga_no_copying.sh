@@ -15,7 +15,7 @@
 # --array=1-64 is set to 64 to generate 64 jobs for 64 bundled pipeline combinations
 
 # Load modules
-module load StdEnv/2020 gcc/9.3.0 openmpi/4.0.3 trimmomatic/0.39 fastqc/0.11.9 \
+module load arch/avx2 StdEnv/2020 gcc/9.3.0 openmpi/4.0.3 trimmomatic/0.39 fastqc/0.11.9 \
 spades/3.14.1 bowtie/1.3.0 trinity/2.11.0 jellyfish/2.3.0 salmon/1.3.0 \
 bowtie2/2.4.1 bwa/0.7.17 boost/1.72.0 kraken2/2.1.1 blast+/2.11.0 \
 seqtk/1.3 samtools/1.10 sortmerna/4.2.0 qt/5.12.8 scipy-stack/2020b \
@@ -34,7 +34,7 @@ echo -e "Job array ID is ${SLURM_ARRAY_TASK_ID}"
 DBS=${BASE}/databases
 
 # Activate copies environment
-source ${BASE}/pipeline_environment/bin/activate
+source ${BASE}/programs/pipeline_environment/bin/activate
 
 # Assign each job in array to bundle of pipelines
 jobfile=${BASE}/split_files/file_chunk_${SLURM_ARRAY_TASK_ID}
