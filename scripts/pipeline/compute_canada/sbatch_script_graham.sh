@@ -3,15 +3,14 @@
 #SBATCH --account=def-dsteinke
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=32
-#SBATCH --mem=120G
+#SBATCH --mem=0
 #SBATCH --array=1-64
 #SBATCH --time=05:00:00
 
 # A script to run Chris Hempel's METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE in
 # parallel on graham
 
-# Uses full graham nodes with 32 cores and 125G memory (- 5G buffer)
-# (903 nodes available)
+# Uses full graham nodes with 32 cores and all available memory# (903 nodes available)
 
 # --array=1-64 is set to 64 to generate 64 jobs for 64 bundled pipeline combinations
 

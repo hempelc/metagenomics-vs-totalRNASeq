@@ -3,14 +3,14 @@
 #SBATCH --account=def-dsteinke
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=48
-#SBATCH --mem=182G
+#SBATCH --mem=0
 #SBATCH --array=1-64
 #SBATCH --time=10:00:00
 
 # A script to run Chris Hempel's METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE in
 # parallel on cedar
 
-# Uses full cedar nodes with 48 cores and 187G memory (- 5G buffer) (768 nodes available)
+# Uses full cedar nodes with 48 cores and all available memory (768 nodes available)
 
 # --array=1-64 is set to 64 to generate 64 jobs for 64 bundled pipeline combinations
 

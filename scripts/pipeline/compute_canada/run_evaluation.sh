@@ -18,12 +18,15 @@ if [[ $num_dir != 512 ]]; then
   rm all.txt done.txt
 fi
 
-failed=$(du */*final.txt | grep -P "^4\t" | wc -l)
+failed_started=$(du */ | grep -P "^4\t" | wc -l)
+failed_finished=$(du */*final.txt | grep -P "^4\t" | wc -l)
+failed=$(($failed_started + $failed_finished))
 echo "Number of failed pipelines: $failed"
 
 if [[ $failed != 0 ]]; then
   echo "Generate file containing failed pipelines: failed.txt"
-  du */*final.txt | grep -P "^4\t" | cut -f 2 | sed 's/\/.*$//g' > failed.txt
+  du */ | grep -P "^4\t" | cut -f 2 | sed 's/^.*\///g' > failed.txt
+  du */*final.txt | grep -P "^4\t" | cut -f 2 | sed 's/\/.*$//g' >> failed.txt
 else
   touch time.txt
   for i in slurm-*; do grep "Bundled pipelines ended" $i | sed 's/\[.*\] Bundled pipelines ended in //g' >> time.txt; done

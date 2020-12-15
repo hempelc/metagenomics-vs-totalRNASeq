@@ -3,14 +3,14 @@
 #SBATCH --account=def-dsteinke
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=40
-#SBATCH --mem=181G
+#SBATCH --mem=0
 #SBATCH --array=1-64
 #SBATCH --time=10:00:00
 
 # A script to run Chris Hempel's METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE in
 # parallel on beluga
 
-# Uses full beluga nodes with 40 cores and 186G memory (- 5G buffer) (516 nodes available)
+# Uses full beluga nodes with 40 cores and all available memory (516 nodes available)
 
 # --array=1-64 is set to 64 to generate 64 jobs for 64 bundled pipeline combinations
 
