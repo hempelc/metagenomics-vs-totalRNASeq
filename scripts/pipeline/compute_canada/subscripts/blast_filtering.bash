@@ -5,9 +5,8 @@
 # Version change: For option -t soft, if several hits have the same best bitscore
 # for a sequence, they're kept and an LCA approach is applied to them
 
-# Script to BLAST .fasta files using Sergio Hleap's justblast python module,
-# add taxonomy to the hits, and filter the hits so that each sequence gets
-# assigned to one taxonomy
+# Script to BLAST .fasta files using blastn, add taxonomy to the hits,
+# and filter the hits so that each sequence gets assigned to one taxonomy
 
 # Need to have scripts assign_taxonomy_to_NCBI_staxids.sh and LookupTaxonDetails3.py
 # in your PATH, and ete3 and justblast installed (https://pypi.org/project/justblast/)
@@ -150,10 +149,9 @@ mkdir blast_filtering_results/
 
 if [[ $format == 'fasta' ]] ; then
   echo -e "\n======== RUNNING JUSTBLAST AGAINST DB ========\n"
-  justblast $input $db --cpus $threads --evalue 1e-05 --outfmt "6 qseqid \
-  sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore \
-  staxids" --out_filename blast_filtering_results/blast_output.txt
-  rm -r dask-worker-space/
+  blastn -query $input -db $db -out blast_filtering_results/blast_output.txt \
+  -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
+  -evalue 1e-05 -num_threads $threads
   assign_taxonomy_input="blast_filtering_results/blast_output.txt"
   echo -e "\n======== JUSTBLAST DONE ========\n"
 else

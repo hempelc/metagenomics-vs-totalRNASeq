@@ -11,21 +11,22 @@
 # that contains tab-separated, taxonomically annotated scaffolds and read counts
 # for the specified pipeline.
 
-# To run every possible combination of tools, the pipeline requires the following subscripts, which are all located in the
-# subscripts/ directory:
+# To run every possible combination of tools, the pipeline requires the following
+# subscripts, which are all located in the subscripts/ directory:
 	# assign_NCBI_staxids_to_CREST_v4.py, fasta_to_tab, mergeFilesOnColumn.pl,
 	# assign_taxonomy_to_NCBI_staxids.sh  fastqc_on_R1_R2_and_optional_trimming.sh,
 	# merge_on_outer.py, blast_filtering.bash, filter-fasta.awk,
 	# deinterleave_fastq_reads.sh, LookupTaxonDetails3.py
 
-# To run every possible combination of tools, the pipeline requires the following programs/python packages (versions we used
-# when writing this script are indicated in brackets):
+# To run every possible combination of tools, the pipeline requires the following
+# programs/python packages (versions we used when writing this script are
+# indicated in brackets):
 	# FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
 	# rRNAFILTER (1.1), SPADES (3.14.0)[note: runs with the --meta and --rna
 	# options for METASPADES and RNASPADES], MEGAHIT (1.2.9), IDBA-UD (1.1.1),
 	# IDBA_tran (1.1.1), Trinity (2.10.0),	bowtie2 (2.3.3.1), bwa (0.7.17),
-	# blast+ [$(date +%H:%M:%S)] (2.10.0+), seqtk (1.2-r94),  samtools (1.10),
-	# python module justblast (2020.0.3), python module ete3 (3.1.2)
+	# blast+ (2.10.0+), seqtk (1.2-r94),  samtools (1.10),
+	# python module ete3 (3.1.2)
 
 	# Note: we had to edit IDBA prior to compiling it because it didn't work
 	# using long reads and the -l option. This seems to be a common problem and
@@ -230,11 +231,8 @@ if [[ ${sorting} == "sortmerna" ]]; then
 	--ref $silva_sortmerna_rfam_5 \
 	--ref $silva_sortmerna_rfam_5_8 \
   --reads ../*1P_error_corrected.fastq --reads ../*2P_error_corrected.fastq \
-	--paired_in -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA/ \
+	--paired_in	--out2 -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA/ \
 	--threads 1:1:$threads
-	# SortMeRNA interleaves reads, which we don't want, so we deinterleave them:
-	deinterleave_fastq_reads.sh < SORTMERNA/out/aligned.fastq \
-	SORTMERNA/out/aligned_R1.fq SORTMERNA/out/aligned_R2.fq
 	cd SORTMERNA/
 	echo -e "\n======== [$(date +%H:%M:%S)] SORTMERNA DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
@@ -325,8 +323,8 @@ if [[ $sorting == 'rrnafilter' ]]; then
 	R1_sorted='rRNAFilter_paired_R1.fa'
 	R2_sorted='rRNAFilter_paired_R2.fa'
 elif [[ $sorting == 'sortmerna' ]]; then
-	R1_sorted='out/aligned_R1.fq'
-	R2_sorted='out/aligned_R2.fq'
+	R1_sorted='out/aligned_fwd.fastq'
+	R2_sorted='out/aligned_rev.fastq'
 elif [[ $sorting == 'barrnap' ]]; then
 	R1_sorted='barrnap_paired_R1.fa'
 	R2_sorted='barrnap_paired_R2.fa'

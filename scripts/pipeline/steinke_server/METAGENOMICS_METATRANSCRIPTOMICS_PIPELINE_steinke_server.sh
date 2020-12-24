@@ -128,6 +128,7 @@ mv fastqc_on_R1_R2_and_optional_trimming_output step_1_trimming/
 
 # Running error correction module of SPAdes on all trimmed reads
 for trimming_results in step_1_trimming/trimmomatic/*; do
+	trim_phred=$(echo ${trimming_results##*/} | sed 's/trimmed_at_phred_//g' | sed 's/_.*$//g')
 	echo -e "\n======== [$(date +%H:%M:%S)] ERROR-CORRECTING READS IN FOLDER $trimming_results [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	spades.py -1 $trimming_results/*1P.fastq -2 $trimming_results/*2P.fastq \
 	--only-error-correction --disable-gzip-output -o $trimming_results/error_correction \
@@ -627,17 +628,17 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								| sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' \
 								| sed 's/length_//g' | sed 's/cov_//g' > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
 								echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
-								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
+								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
 
 							elif [[ $assembly_results == 'IDBA_UD' ]]; then
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								| sed 's/scaffold_//g' > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
 								echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
-								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
+								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
 
 							elif [[ $assembly_results == 'MEGAHIT' ]]; then
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
@@ -647,7 +648,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $15, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $16}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							elif [[ $assembly_results == 'RNASPADES' ]]; then
@@ -656,9 +657,9 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								| sed 's/length_//g' | sed 's/cov_//g' | sed 's/_/\t/1' \
 								| cut -f1,2,3,5-21 > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
 								echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
-								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
+								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
 
 							elif [[ $assembly_results == 'IDBA_TRAN' ]]; then
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
@@ -668,7 +669,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $15, $16, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $17}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							elif [[ $assembly_results == 'TRINITY' ]]; then
@@ -676,17 +677,17 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								| sed 's/_/\t/5' | sed 's/len=//g' | sed 's/TRINITY_//g' \
 								> ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
 								echo -e "sequence_name\tsequence_length\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
-								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
+								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
 
 							else #TRANSABYSS
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								| sed 's/_/\t/1' | sed 's/_/\t/1' | sed -r 's/_[0-9,.+-]*\t/\t/g' > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
 								echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
-								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
+								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
 
 							fi
 
@@ -708,15 +709,15 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								> tmp \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
-								cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
+								cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
 
 							elif [[ $assembly_results == 'IDBA_UD' ]]; then
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								| sed 's/scaffold_//g' > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
 								echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
-								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
+								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
 
 							elif [[ $assembly_results == 'MEGAHIT' ]]; then
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
@@ -726,7 +727,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $15, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $16}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							elif [[ $assembly_results == 'RNASPADES' ]]; then
@@ -738,7 +739,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								> tmp \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
-								cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
+								cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
 
 							elif [[ $assembly_results == 'IDBA_TRAN' ]]; then
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
@@ -748,7 +749,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $15, $16, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $17}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							elif [[ $assembly_results == 'TRINITY' ]]; then
@@ -758,7 +759,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								> tmp \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
-								cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
+								cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
 
 							else #TRANSABYSS
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
@@ -767,7 +768,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								> tmp \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
-								cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
+								cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
 
 							fi
 
@@ -790,7 +791,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $2, $3, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $6, $4, $18, $19}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							elif [[ $assembly_results == 'IDBA_UD' ]]; then
@@ -801,7 +802,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $4, $2, $16, $17}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							elif [[ $assembly_results == 'MEGAHIT' ]]; then
@@ -812,7 +813,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $16, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $4, $2, $17, $18}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							elif [[ $assembly_results == 'RNASPADES' ]]; then
@@ -825,7 +826,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $2, $3, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $6, $4, $18, $19}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							elif [[ $assembly_results == 'IDBA_TRAN' ]]; then
@@ -836,7 +837,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $17, $18, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $4, $2, $16, $19}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							elif [[ $assembly_results == 'TRINITY' ]]; then
@@ -847,7 +848,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $2, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $5, $4, $17, $18}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							else #TRANSABYSS
@@ -857,7 +858,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $2, $3, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $6, $4, $18, $19}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							fi
@@ -879,12 +880,6 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	done
 	cd $(realpath --relative-to=$(pwd) $base_directory)
 done
-
-# We make a final directory and extract all final files into that directory to
-# have everything in one place
-#mkdir METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/
-#find . -type f -name "*_pipeline_final.txt" -print0 | xargs -0 -Ifile cp file \
-#METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/
 
 # Display runtime
 echo -e "=================================================================\n"
