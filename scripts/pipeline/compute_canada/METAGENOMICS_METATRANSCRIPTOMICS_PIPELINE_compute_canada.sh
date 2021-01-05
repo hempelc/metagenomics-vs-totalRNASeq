@@ -366,8 +366,7 @@ elif [[ $assembly == "idba_ud" ]]; then
 	# IDBA_UD only takes interleaved fasta files
 	fq2fa --merge --filter ../$R1_sorted ../$R2_sorted idba_ud_input.fa
 	~/scratch/chris_pilot_project/programs/idba/bin/idba_ud \
-	--num_threads $threads --pre_correction -r idba_ud_input.fa \
-  -o IDBA_UD/
+	--num_threads $threads -r idba_ud_input.fa -o IDBA_UD/
 	mv idba_ud_input.fa IDBA_UD/
 	cd IDBA_UD/
 	echo -e "\n======== [$(date +%H:%M:%S)] IDBA_UD DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
@@ -385,8 +384,7 @@ elif [[ $assembly == "idba_tran" ]]; then
 	# IDBA_TRAN only takes interleaved fasta files
 	fq2fa --merge ../$R1_sorted ../$R2_sorted idba_tran_input.fa
 	~/scratch/chris_pilot_project/programs/idba/bin/idba_tran \
-	--num_threads $threads --pre_correction -l idba_tran_input.fa \
-  -o IDBA_TRAN/
+	--num_threads $threads -l idba_tran_input.fa -o IDBA_TRAN/
 	mv idba_tran_input.fa IDBA_TRAN/
 	cd IDBA_TRAN
 	echo -e "\n======== [$(date +%H:%M:%S)] IDBA_TRAN DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
