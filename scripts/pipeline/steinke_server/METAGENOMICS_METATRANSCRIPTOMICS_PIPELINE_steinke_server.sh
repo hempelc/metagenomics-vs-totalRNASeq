@@ -296,8 +296,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 		# https://github.com/loneknightpy/idba/issues/26
 		# IDBA_UD only takes interleaved fasta files
 		fq2fa --merge --filter ../../$R1_sorted ../../$R2_sorted idba_ud_input.fa
-		idba_ud --num_threads $threads --pre_correction -r idba_ud_input.fa \
-    -o IDBA_UD/
+		idba_ud --num_threads $threads -r idba_ud_input.fa -o IDBA_UD/
 		mv idba_ud_input.fa IDBA_UD/
 		echo -e "\n======== [$(date +%H:%M:%S)] IDBA_UD DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
@@ -310,8 +309,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 		echo -e "\n======== [$(date +%H:%M:%S)] RUNNING IDBA_TRAN [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 		# IDBA_TRAN only takes interleaved fasta files
 		fq2fa --merge ../../$R1_sorted ../../$R2_sorted idba_tran_input.fa
-		idba_tran --num_threads $threads --pre_correction -l idba_tran_input.fa \
-    -o IDBA_TRAN/
+		idba_tran --num_threads $threads -l idba_tran_input.fa -o IDBA_TRAN/
 		mv idba_tran_input.fa IDBA_TRAN/
 		echo -e "\n======== [$(date +%H:%M:%S)] IDBA_TRAN DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
