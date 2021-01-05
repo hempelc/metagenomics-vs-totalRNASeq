@@ -47,8 +47,8 @@ trimmomatic).
 To run every possible combination of tools, the pipeline requires the following
 programs/python packages (versions we used when writing this script are
 indicated in brackets):
-	FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
-	rRNAFILTER (1.1)[note: is downloaded within the script, doesn't need to be
+  FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
+  rRNAFILTER (1.1)[note: is downloaded within the script, doesn't need to be
   installed manually], SPADES (3.14.0)[note: runs with the --meta and --rna
   options for METASPADES and RNASPADES], MEGAHIT (1.2.9), IDBA-UD (1.1.1),
   IDBA-TRAN (1.1.1), Trinity (2.10.0),	bowtie2 (2.3.3.1), bwa (0.7.17),
@@ -63,7 +63,7 @@ https://github.com/loneknightpy/idba/issues/26.
 We might have to do that manually for IDBA on graham, too.
 
 Note 2: Trinity uses the option --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024)-5)))G
-to get the machine's max RAM, substract 5 from it, and use that for the max_memory
+to get the machine's max RAM, subtract 5 from it, and use that for the max_memory
 option. I assume that doesn't work on graham so needs to be replaced by
 global variable for SBATCH job's max memory
 
