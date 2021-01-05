@@ -1,3 +1,95 @@
+Instructions for running the pipeline on the Compute Canada supercomputers
+(clusters) graham, beluga, and cedar.
+
+Ideally requires a Compute Canada account.
+If you don't have access to one, then you have two options:
+
+  1) If you want to run the entire pipeline, you will have to run it on your own
+  machine, install each of the following programs on your machine, and have the
+  executables in your path (versions we used are in in brackets):
+  Trimmomatic (0.39), FastQC (0.11.9), SPAdes (3.14.1), bowtie (1.3.0),
+  Trinity (2.11.0), jellyfish (2.3.0), salmon (1.3.0), bowtie2 (2.4.1),
+  bwa (0.7.17), kraken2 (2.1.1), blast+ (2.11.0), seqtk (1.3), samtools (1.10),
+  sortmerna (4.2.0), qt (5.12.8), leveldb (python package, 1.22),
+  trans-abyss (2.0.1), MEGAHIT (1.2.9), bedtools (2.29.2),
+  justblast (python module, 2020.0.5), ete3 (python module, 3.1.1).
+
+  2) If you just want to run a portion of the pipeline, i.e., just certain program combinations,
+
+Summary:
+We have 1536 combinations of programs that we have to run, partially
+computationally very expensive. To run these combinations most efficiently,
+we run them in parallel by using job arrays that are split over the three
+clusters. Therefore, we generate a file that contains one line per combination
+of programs (1536 lines) and split this file up into three separate files
+(512 lines each). We then use these files to submit job arrays on each cluster,
+which means that we submit 512 jobs at the same time where each job reads in a
+different line of the program combinations file and executes only these programs.
+This allows to run all program combinations in parallel on the three clusters.
+We run these for each sample separately and eventually download the final files
+on our local computer for further processing.
+
+================================
+
+Preparation:
+
+Databases:
+On your local computer, you will have to make a kraken2 and BLAST database
+for both NCBI NT and SILVA. This is relatively straight forward for NCBI NT:
+download ftp://ftp.ncbi.nlm.nih.gov/blast/db/FASTA/nt.gz and follow instructions
+here [https://www.ncbi.nlm.nih.gov/books/NBK279688/] to make the NCBI NT BLAST
+database (note: make sure to use the -taxid_map option to add taxonomy IDs to
+the database) and follow instructions under "Custom databases" for nt here
+[https://github.com/DerrickWood/kraken2/blob/master/docs/MANUAL.markdown] to
+make the NCBI NT kraken2 database.
+For kraken2, it's less straight forward, therefore, we wrote scripts to take
+over the job. They can be found in the directory "subscripts"
+(SILVA_SSU_LSU_kraken2_preparation.sh and SILVA_SSU_LSU_makeblastdb_preparation.sh).
+The former requires one argument (check the top of the script, usage), the latter
+doesn't require any argument and will make the database in the current working directory.
+
+Combination files:
+Under the directory "subscripts" you will find the script
+generate_pipeline_combinations_file.py. Running this script will generate the three
+program combination files that are required to run the pipeline on the clusters,
+one combination of programs per line. They will be generated in the current
+working directory. Note: we already ran the script and moved the output files
+to the directory "pipeline".
+
+Kraken2 files:
+Kraken2 on NCBI NT requires some files that are generated via the script
+kraken2_required_file_generation.sh under the "subscripts" directory. Run the
+script to generate these files in your current working directory.
+
+Programs:
+  IDBA:
+  We couldn't use the default IDBA program available on Compute Canada but had to edit IDBA prior to compiling it because it didn't work
+  using long reads and the -l option. This seems to be a common problem and
+  # can be circumvented following for example the instructions in
+  # http://seqanswers.com/forums/showthread.php?t=29109, and see also
+  # https://github.com/loneknightpy/idba/issues/26. Follow these instruction to compile IDBA yourself.
+
+  barrnap:
+  Can be git cloned from GitHub (git clone https://github.com/tseemann/barrnap.git).
+
+  rRNAFilter:
+  Is a .jar file and only worked for us when we started it within the directory
+  	# containing the .jar file. To simplify switching to that directory, we copy
+  	# it from its location to the pwd:
+
+
+
+We recommend generating a directory under your Compute Canada account's scratch
+directory called "required_files" and moving all generated files into there. The
+most convenient way to do so is to generate the files on your own computer and
+sending them to the "scratch/required_files" directory on each of the three
+clusters using the scp command.
+
+================================
+
+
+TO DO
+
 The pipeline creates a folder METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/ and a
 subfolder METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/.
 The pipeline output is then saved to the subfolder when the pipeline is done.
@@ -8,10 +100,9 @@ Then, after all pipeline combinations are run, we can make one directory FINAL_F
 and copy/move all files from */METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/*
 into the FINAL_FILES/ directory.
 
-The subscript generate_pipeline_combinations_file.py does what the name says,
-generates a file with all combinations of the pipeline tools (1560 or so). This
-file can be found in the same directory as the pipeline script, named
-combinations_metagenomics_metatranscriptomics_pipeline.txt
+The subscript generate_pipeline_combinations_file.py generates a list with all
+pipeline combinations and splits it up into 3 files, one for each compute canada
+server (graham, cedar, beluga) with 512 combinations each.
 
 The pipeline now contains several options to replace databases that were hardcoded in the code before.
 These are:
@@ -46,7 +137,7 @@ trimmomatic).
 
 To run every possible combination of tools, the pipeline requires the following
 programs/python packages (versions we used when writing this script are
-indicated in brackets):
+indicated in brackets but can differ from versions loaded on the clusters):
   FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
   rRNAFILTER (1.1)[note: is downloaded within the script, doesn't need to be
   installed manually], SPADES (3.14.0)[note: runs with the --meta and --rna
@@ -59,13 +150,7 @@ Note 1: we had to edit IDBA prior to compiling it because it didn't work
 using long reads and the -l option. This seems to be a common problem and
 can be circumvented following for example the instructions in
 http://seqanswers.com/forums/showthread.php?t=29109, and see also
-https://github.com/loneknightpy/idba/issues/26.
-We might have to do that manually for IDBA on graham, too.
-
-Note 2: Trinity uses the option --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024)-5)))G
-to get the machine's max RAM, subtract 5 from it, and use that for the max_memory
-option. I assume that doesn't work on graham so needs to be replaced by
-global variable for SBATCH job's max memory
+https://github.com/loneknightpy/idba/issues/26..
 
 EXAMPLE COMMAND ON OUR SERVER:
 ~/chrisnatjulia/scripts/pipeline/graham/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_graham.sh \
@@ -83,4 +168,4 @@ EXAMPLE COMMAND ON OUR SERVER:
 -B /hdd1/databases/sortmerna_silva_databases/silva-bac-23s-id98.fasta \
 -R /hdd1/databases/sortmerna_silva_databases/rfam-5.8s-database-id98.fasta \
 -r /hdd1/databases/sortmerna_silva_databases/rfam-5s-database-id98.fasta \
--T ~/programs/Trimmomatic-0.39/trimmomatic-0.39.jar -p 32
+-T ~/programs/Trimmomatic-0.39/trimmomatic-0.39.jar -p 32 -m 120G

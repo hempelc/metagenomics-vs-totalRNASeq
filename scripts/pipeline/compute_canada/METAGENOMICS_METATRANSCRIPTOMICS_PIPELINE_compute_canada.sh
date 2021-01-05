@@ -3,7 +3,7 @@
 # Version 0.1
 # Written by Natalie Wright (nwrigh06@uoguelph.ca) and Chris Hempel (hempelc@uoguelph.ca)
 
-# This is a pipeline for Chris Hempel's first PhD chapter to be run on the Compute Canada graham cluster
+# This is a pipeline for Chris Hempel's first PhD chapter to be run on the Compute Canada servers
 
 # It takes in lines of a separate file containing combiantions of the pipeline steps that are to be run
 
@@ -11,45 +11,40 @@
 # that contains tab-separated, taxonomically annotated scaffolds and read counts
 # for the specified pipeline.
 
-# To run every possible combination of tools, the pipeline requires the following subscripts, which are all located in the
-# subscripts/ directory:
+# To run every possible combination of tools, the pipeline requires the following
+# subscripts, which are all located in the subscripts/ directory:
 	# assign_NCBI_staxids_to_CREST_v4.py, fasta_to_tab, mergeFilesOnColumn.pl,
 	# assign_taxonomy_to_NCBI_staxids.sh  fastqc_on_R1_R2_and_optional_trimming.sh,
 	# merge_on_outer.py, blast_filtering.bash, filter-fasta.awk,
-	# SILVA_SSU_LSU_kraken2_preparation.sh, deinterleave_fastq_reads.sh,
-	# LookupTaxonDetails3.py, SILVA_SSU_LSU_makeblastdb_preparation.sh
+	# deinterleave_fastq_reads.sh, LookupTaxonDetails3.py
 
-# To run every possible combination of tools, the pipeline requires the following programs/python packages (versions we used
-# when writing this script are indicated in brackets):
-	#FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
-	#rRNAFILTER (1.1)[note: is downloaded within the script, doesn't need to be
-	#installed manually], SPADES (3.14.0)[note: runs with the --meta and --rna
-	#options for METASPADES and RNASPADES], MEGAHIT (1.2.9), IDBA-UD (1.1.1),
-	#IDBA-TRAN (1.1.1), Trinity (2.10.0),	bowtie2 (2.3.3.1), bwa (0.7.17),
-	#blast (2.10.0+), seqtk (1.2-r94),  samtools (1.10),
-	#python module justblast (2020.0.3), python module ete3 (3.1.2)
+# To run every possible combination of tools, the pipeline requires the following
+# programs/python packages (versions we used when writing this script are
+# indicated in brackets):
+	# FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
+	# rRNAFILTER (1.1), SPADES (3.14.0)[note: runs with the --meta and --rna
+	# options for METASPADES and RNASPADES], MEGAHIT (1.2.9), IDBA-UD (1.1.1),
+	# IDBA_tran (1.1.1), Trinity (2.10.0),	bowtie2 (2.3.3.1), bwa (0.7.17),
+	# blast+ (2.10.0+), seqtk (1.2-r94),  samtools (1.10),
+	# python module ete3 (3.1.2)
 
-	# Note 1: we had to edit IDBA prior to compiling it because it didn't work
+	# Note: we had to edit IDBA prior to compiling it because it didn't work
 	# using long reads and the -l option. This seems to be a common problem and
 	# can be circumvented following for example the instructions in
 	# http://seqanswers.com/forums/showthread.php?t=29109, and see also
 	# https://github.com/loneknightpy/idba/issues/26
 
-	# Note 2: we had to install ete3 via conda in a conda environment, so we have
-	# to activate that environment when running this script
-
-# NOTE 1 FOR SERGIO: Trinity uses the option --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024)-5)))G
-# I assume that doesn't work so needs to be replaced by global variable for job's max memory
-
-# NOTE 2 FOR SERGIO: to test this on our server I activated a conda environment, this code needs to be deactivated/deleted
-
 cmd="$0 $@" # Make variable containing the entire entered command to print command to logfile
 usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> \
--p <line from external file with pipeline tools to use> -N <NCBI_NT BLAST database> \
+-P <line from external file with pipeline tools to use> -N <NCBI_NT BLAST database> \
 -S <SILVA BLAST databse> -n <NCBI_NT kraken2 database> -s <SILVA kraken2 database> \
--B <SILVA SortMeRNA bacteria database> -A <SILVA SortMeRNA archaea database> \
--E <SILVA SortMeRNA eukaryota database> -T <PATH/TO/trimmomatic-<version>.jar)> \
--e <PATH/TO/.etetoolkit/taxa.sqlite> [-t <n>]
+-B <SILVA SortMeRNA LSU bacteria database> -b <SILVA SortMeRNA SSU bacteria database> \
+-A <SILVA SortMeRNA LSU archaea database> -a <SILVA SortMeRNA SSU archaea database> \
+-E <SILVA SortMeRNA LSU eukaryota database> -e <SILVA SortMeRNA SSU eukaryota database> \
+-R <SILVA SortMeRNA rfam 5.8S database> -r <SILVA SortMeRNA rfam 5S database> \
+-x <SILVA path taxid file> -F <NCBI staxid scientific file> \
+-f <NCBI staxid non-scientific file> -T <PATH/TO/trimmomatic-<version>.jar)> \
+-t <PATH/TO/.etetoolkit/taxa.sqlite> -m <nnnG>[-p <n>]
 
 Usage:
 	-1 Full path to forward reads in .fastq/.fq format
@@ -67,8 +62,12 @@ Usage:
 	-e Path to eukaryota SSU SILVA database for SortMeRNA (comes with SortMeRNA, silva-euk-18s-id95.fasta)
 	-R Path to rfam 5.8S database for SortMeRNA (comes with SortMeRNA, rfam-5.8s-database-id98.fasta)
 	-r Path to rfam 5S database for SortMeRNA (comes with SortMeRNA, rfam-5s-database-id98.fasta)
+	-x Path to SILVA_paths_and_taxids.txt
+	-F Path to NCBI_staxids_scientific.txt
+	-f Path to NCBI_staxids_non_scientific.txt
 	-T Path to trimmomatic application (trimmomatic-<version>.jar)
 	-t Path to .etetoolkit/taxa.sqlite
+	-m Maximum memory (format: XXXG, where XXX is a numerical value for teh emmory in Gigabyte)
 	-p Number of threads (default:16)
 	-h Display this help and exit"
 
@@ -76,7 +75,7 @@ Usage:
 threads='16'
 
 # Set specified options:
-while getopts ':1:2:P:N:S:n:s:B:b:A:a:E:e:R:r:T:t:p:h' opt; do
+while getopts ':1:2:P:N:S:n:s:B:b:A:a:E:e:R:r:x:F:f:T:t:m:p:h' opt; do
  	case "${opt}" in
 		1) forward_reads="${OPTARG}" ;;
 		2) reverse_reads="${OPTARG}" ;;
@@ -93,8 +92,12 @@ while getopts ':1:2:P:N:S:n:s:B:b:A:a:E:e:R:r:T:t:p:h' opt; do
 		e) silva_sortmerna_euk_ssu="${OPTARG}" ;;
 		R) silva_sortmerna_rfam_5="${OPTARG}" ;;
 		r) silva_sortmerna_rfam_5_8="${OPTARG}" ;;
+		x) silva_path_taxid="${OPTARG}" ;;
+		F) ncbi_scientific="${OPTARG}" ;;
+		f) ncbi_non_scientific="${OPTARG}" ;;
 		T) trimmomatic="${OPTARG}" ;;
 		t) etetoolkit="${OPTARG}" ;;
+		m) memory="${OPTARG}" ;;
 		p) threads="${OPTARG}" ;;
 		h) echo "$usage"
 			 exit ;;
@@ -115,26 +118,23 @@ if [[ -z $forward_reads || -z $reverse_reads || -z $pipeline \
 || -z $silva_sortmerna_bac_ssu || -z $silva_sortmerna_arc_lsu \
 || -z $silva_sortmerna_arc_ssu || -z $silva_sortmerna_euk_lsu \
 || -z $silva_sortmerna_euk_ssu || -z $silva_sortmerna_rfam_5 \
-|| -z $silva_sortmerna_rfam_5_8 || -z $trimmomatic ]]; then
-   echo -e "-1, -2, -P, -N, -S, -n, -s, -B, -b, -A, -a, -E, -e, -R, -r, -T, \
-	 and -p must be set.\n"
+|| -z $silva_sortmerna_rfam_5_8 || -z $silva_path_taxid || -z $ncbi_scientific \
+|| -z $ncbi_non_scientific || -z $trimmomatic || -z $memory ]]; then
+   echo -e "-1, -2, -P, -N, -S, -n, -s, -B, -b, -A, -a, -E, -e, -R, -r, -x, -F, -f, -T, -m, and -p must be set.\n"
    echo -e "$usage\n\n"
    echo -e "Exiting script.\n"
    exit
 fi
 
 # Set pipeline tools to use
-trimming=$(echo $pipeline | cut -f1 -d,)
-sorting=$(echo $pipeline | cut -f2 -d,)
-assembly=$(echo $pipeline | cut -f3 -d,)
-mapping=$(echo $pipeline | cut -f4 -d,)
-db=$(echo $pipeline | cut -f5 -d,)
-classification=$(echo $pipeline | cut -f6 -d,)
+trimming=$(echo $pipeline | cut -f1 -d-)
+sorting=$(echo $pipeline | cut -f2 -d-)
+assembly=$(echo $pipeline | cut -f3 -d-)
+mapping=$(echo $pipeline | cut -f4 -d-)
+db=$(echo $pipeline | cut -f5 -d-)
+classification=$(echo $pipeline | cut -f6 -d-)
 
 ##################### Write start time and options to output ######################
-
-# Make open bracket to later tell script to write everything that follows into a logfile:
-(
 
 # Define starting time of script for total runtime calculation:
 start=$(date +%s)
@@ -143,7 +143,7 @@ echo -e "=================================================================\n\n"
 
 
 # Output specified options:
-echo -e "======== OPTIONS ========\n"
+echo -e "======== [$(date +%H:%M:%S)] OPTIONS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 echo -e "Forward reads were defined as $forward_reads.\n"
 echo -e "Reverse reads were defined as $reverse_reads.\n"
@@ -154,12 +154,12 @@ echo -e "Script started with full command: $cmd\n"
 
 
 ######################### Start of the actual script ################################
-echo -e "++++++++ START RUNNING SCRIPT ++++++++\n"
+echo -e "++++++++ [$(date +%H:%M:%S)] START RUNNING SCRIPT [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 # Activate the conda ete3 environment within this script to be able to run ete3.
 # I found this solution # to activate conda environments in scripts here:
 # https://github.com/conda/conda/issues/7980.
-#eval "$(conda shell.bash hook)" # Without this, the conda environment cannot be
+#val "$(conda shell.bash hook)" # Without this, the conda environment cannot be
 # activated within the script
 #conda activate ete3 # ete3 is our conda environemnt in which we installed ete3
 # NOTE: outcommented to be run on graham, not needed
@@ -174,7 +174,7 @@ base_directory=$(pwd)
 
 ######################### Step 1: trimming ################################
 
-echo -e "++++++++ START STEP 1: TRIMMING AND ERROR CORRECTION ++++++++\n"
+echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 1: TRIMMING AND ERROR CORRECTION [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 # Trimming is done with a separate subscript:
 fastqc_on_R1_R2_and_optional_trimming.sh \
 -T $trimmomatic -1 $forward_reads -2 $reverse_reads -t yes -p $threads -P $trimming
@@ -186,7 +186,7 @@ baseout=${forward_reads%_*} # Make basename
 cd step_1_trimming/trimmomatic/trimmed_at_phred_${trimming}_${baseout##*/}
 
 # Running error correction module of SPAdes on all trimmed reads
-echo -e "\n======== ERROR-CORRECTING READS ========\n"
+echo -e "\n======== [$(date +%H:%M:%S)] ERROR-CORRECTING READS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 spades.py -1 *1P.fastq -2 *2P.fastq \
 --only-error-correction --disable-gzip-output -o error_correction \
 -t $threads
@@ -200,27 +200,27 @@ R2=$(echo *2P.00.0_0.cor.fastq) \
 && mv *2P.00.0_0.cor.fastq ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
 sed -r -i 's/ BH:.{2,6}//g' ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
 rm -r error_correction/
-echo -e "\n======== FINISHED ERROR-CORRECTING READS ========\n"
+echo -e "\n======== [$(date +%H:%M:%S)] FINISHED ERROR-CORRECTING READS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
-echo -e "++++++++ FINISHED STEP 1: TRIMMING AND ERROR CORRECTION ++++++++\n"
+echo -e "++++++++ [$(date +%H:%M:%S)] FINISHED STEP 1: TRIMMING AND ERROR CORRECTION [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 ######################### Step 2: rRNA sorting ################################
 
-echo -e "++++++++ START STEP 2: rRNA SORTING OF TRIMMED READS ++++++++\n"
+echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 2: rRNA SORTING OF TRIMMED READS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 mkdir step_2_rrna_sorting/
 cd step_2_rrna_sorting/
 
 if [[ ${sorting} == "barrnap" || ${sorting} == "rrnafilter" ]]; then
-	echo -e "\n======== CONVERT READS IN FASTA FORMAT ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] CONVERT READS IN FASTA FORMAT [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	mkdir reads_in_fasta_format/
 	fq2fa ../*1P_error_corrected.fastq reads_in_fasta_format/R1.fa
 	fq2fa ../*2P_error_corrected.fastq reads_in_fasta_format/R2.fa
-	echo -e "\n======== READS TO FASTA CONVERSION DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] READS TO FASTA CONVERSION DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 fi
 
 if [[ ${sorting} == "sortmerna" ]]; then
-	echo -e "\n======== RUNNING SORTMERNA ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING SORTMERNA [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	mkdir SORTMERNA/
 	sortmerna --ref $silva_sortmerna_bac_lsu \
 	--ref $silva_sortmerna_bac_ssu \
@@ -231,23 +231,19 @@ if [[ ${sorting} == "sortmerna" ]]; then
 	--ref $silva_sortmerna_rfam_5 \
 	--ref $silva_sortmerna_rfam_5_8 \
   --reads ../*1P_error_corrected.fastq --reads ../*2P_error_corrected.fastq \
-	--paired_in -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA/ \
+	--paired_in	--out2 -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA/ \
 	--threads 1:1:$threads
-	# SortMeRNA interleaves reads, which we don't want, so we deinterleave them:
-	deinterleave_fastq_reads.sh < SORTMERNA/out/aligned.fastq \
-	SORTMERNA/out/aligned_R1.fq SORTMERNA/out/aligned_R2.fq
 	cd SORTMERNA/
-	echo -e "\n======== SORTMERNA DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] SORTMERNA DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ ${sorting} == "rrnafilter" ]]; then
-	echo -e "\n======== RUNNING rRNAFILTER ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING rRNAFILTER [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	mkdir rRNAFILTER/
 	cd rRNAFILTER/
 	# rRNAFilter only worked for us when we started it within the directory
-	# containing the .jar file. To simplify switching to that directory, we simply
-	# download the small program within the script and delete it after usage:
-	wget http://hulab.ucf.edu/research/projects/rRNAFilter/software/rRNAFilter.zip
-	unzip rRNAFilter.zip
+	# containing the .jar file. To simplify switching to that directory, we copy
+	# it from its location to the pwd:
+	cp -r ~/scratch/chris_pilot_project/programs/rRNAFilter .
 	cd rRNAFilter/
 	# We use 7GB for the rRNAFilter .jar, as shown in the rRNAFilter manual:
 	java -jar -Xmx7g rRNAFilter_commandline.jar \
@@ -256,7 +252,7 @@ elif [[ ${sorting} == "rrnafilter" ]]; then
 	-i ../../reads_in_fasta_format/R2.fa -r 0
 	mv ../../reads_in_fasta_format/R*.fa_rRNA ..
 	cd ..
-	rm -r rRNAFilter rRNAFilter.zip
+	rm -r rRNAFilter
 	# We want to keep paired reads, so we extract all rRNA read names that were
 	# found in R1 and R2, save them as one list, and extract all reads from both
 	# R1 and R2 reads. That way, even if only one read from a pair was identified
@@ -269,18 +265,20 @@ elif [[ ${sorting} == "rrnafilter" ]]; then
 	seqtk subseq ../reads_in_fasta_format/R2.fa names_sorted.txt \
 	> rRNAFilter_paired_R2.fa
 	rm names_sorted.txt names.txt
-	echo -e "\n======== rRNAFILTER DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] rRNAFILTER DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ ${sorting} == "barrnap" ]]; then
-	echo -e "\n======== RUNNING BARRNAP ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BARRNAP [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	mkdir BARRNAP/
 	for kingdom in euk bac arc; do # barrnap needs to be run on kingdoms separately
-		echo -e "\n======== RUNNING BARRNAP ON KINGDOM $kingdom AND R1 READS ========\n"
-		barrnap --quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
+		echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BARRNAP ON KINGDOM $kingdom AND R1 READS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		~/scratch/chris_pilot_project/programs/barrnap/bin/barrnap \
+		--quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
 		--threads $threads --outseq BARRNAP/${kingdom}_reads1.fa \
 		reads_in_fasta_format/R1.fa
-		echo -e "\n======== RUNNING BARRNAP ON KINGDOM $kingdom AND R2 READS ========\n"
-		barrnap --quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
+		echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BARRNAP ON KINGDOM $kingdom AND R2 READS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		~/scratch/chris_pilot_project/programs/barrnap/bin/barrnap \
+		--quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
 		--threads $threads --outseq BARRNAP/${kingdom}_reads2.fa \
 		reads_in_fasta_format/R2.fa
 		rm reads_in_fasta_format/*.fai
@@ -303,20 +301,20 @@ elif [[ ${sorting} == "barrnap" ]]; then
 	> BARRNAP/barrnap_paired_R2.fa
 	rm BARRNAP/names_sorted.txt
 	cd BARRNAP/
-	echo -e "\n======== BARRNAP DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] BARRNAP DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ ${sorting} == "unsorted" ]]; then
-	echo -e "\n======== MAKING FOLDER UNSORTED/ AND COPYING UNSORTED READS IN THERE TO KEEP THE FOLDER STRUCTURE CONSTANT ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] MAKING FOLDER UNSORTED/ AND COPYING UNSORTED READS IN THERE TO KEEP THE FOLDER STRUCTURE CONSTANT [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	mkdir UNSORTED/
 	cp ../*1P_error_corrected.fastq ../*2P_error_corrected.fastq UNSORTED/
 	cd UNSORTED/
 fi
 
-echo -e "\n++++++++ FINISHED STEP 2: rRNA SORTING ++++++++\n"
+echo -e "\n++++++++ [$(date +%H:%M:%S)] FINISHED STEP 2: rRNA SORTING [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 ######################### Step 3: Assembly ################################
 
-echo -e "++++++++ START STEP 3: ASSEMBLY ++++++++\n"
+echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 3: ASSEMBLY [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 mkdir step_3_assembly/
 cd step_3_assembly/
@@ -325,8 +323,8 @@ if [[ $sorting == 'rrnafilter' ]]; then
 	R1_sorted='rRNAFilter_paired_R1.fa'
 	R2_sorted='rRNAFilter_paired_R2.fa'
 elif [[ $sorting == 'sortmerna' ]]; then
-	R1_sorted='out/aligned_R1.fq'
-	R2_sorted='out/aligned_R2.fq'
+	R1_sorted='out/aligned_fwd.fastq'
+	R2_sorted='out/aligned_rev.fastq'
 elif [[ $sorting == 'barrnap' ]]; then
 	R1_sorted='barrnap_paired_R1.fa'
 	R2_sorted='barrnap_paired_R2.fa'
@@ -336,30 +334,30 @@ elif [[ $sorting == 'unsorted' ]]; then
 fi
 
 if [[ $assembly == "spades" ]]; then
-	echo -e "\n======== RUNNING SPADES ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING SPADES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	mkdir SPADES/
 	spades.py -1 ../$R1_sorted -2 ../$R2_sorted --only-assembler \
 	-o SPADES/ -t $threads
 	cd SPADES/
-	echo -e "\n======== SPADES DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] SPADES DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ $assembly == "metaspades" ]]; then
-	echo -e "\n======== RUNNING METASPADES ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING METASPADES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	mkdir METASPADES/
 	spades.py --meta -1 ../$R1_sorted -2 ../$R2_sorted --only-assembler \
 	-o METASPADES/ -t $threads
 	cd METASPADES/
-	echo -e "\n======== METASPADES DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] METASPADES DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ $assembly == "megahit" ]]; then
-	echo -e "\n======== RUNNING MEGAHIT ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING MEGAHIT [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	megahit --presets meta-large -t $threads -1 ../$R1_sorted \
 	-2 ../$R2_sorted -o MEGAHIT/
 	cd MEGAHIT/
-	echo -e "\n======== MEGAHIT DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] MEGAHIT DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
-elif [[ $assembly == "idba-ud" ]]; then
-	echo -e "\n======== RUNNING IDBA_UD ========\n"
+elif [[ $assembly == "idba_ud" ]]; then
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING IDBA_UD [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	# Note: we had to edit IDBA prior to compiling it because it didn't work
 	# using long reads and the -l option. This seems to be a common problem and
 	# can be circumvented following for example the instructions in
@@ -367,60 +365,62 @@ elif [[ $assembly == "idba-ud" ]]; then
 	# https://github.com/loneknightpy/idba/issues/26
 	# IDBA_UD only takes interleaved fasta files
 	fq2fa --merge --filter ../$R1_sorted ../$R2_sorted idba_ud_input.fa
-	idba_ud --num_threads $threads --pre_correction -r idba_ud_input.fa \
+	~/scratch/chris_pilot_project/programs/idba/bin/idba_ud \
+	--num_threads $threads --pre_correction -r idba_ud_input.fa \
   -o IDBA_UD/
 	mv idba_ud_input.fa IDBA_UD/
 	cd IDBA_UD/
-	echo -e "\n======== IDBA_UD DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] IDBA_UD DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ $assembly == "rnaspades" ]]; then
-	echo -e "\n======== RUNNING RNASPADES ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING RNASPADES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	mkdir RNASPADES/
 	spades.py --rna -1 ../$R1_sorted -2 ../$R2_sorted --only-assembler \
 	-o RNASPADES/ -t $threads
 	cd RNASPADES/
-	echo -e "\n======== RNASPADES DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RNASPADES DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
-elif [[ $assembly == "idba-tran" ]]; then
-	echo -e "\n======== RUNNING IDBA_TRAN ========\n"
+elif [[ $assembly == "idba_tran" ]]; then
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING IDBA_TRAN [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	# IDBA_TRAN only takes interleaved fasta files
 	fq2fa --merge ../$R1_sorted ../$R2_sorted idba_tran_input.fa
-	idba_tran --num_threads $threads --pre_correction -l idba_tran_input.fa \
+	~/scratch/chris_pilot_project/programs/idba/bin/idba_tran \
+	--num_threads $threads --pre_correction -l idba_tran_input.fa \
   -o IDBA_TRAN/
 	mv idba_tran_input.fa IDBA_TRAN/
 	cd IDBA_TRAN
-	echo -e "\n======== IDBA_TRAN DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] IDBA_TRAN DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ $assembly == "trinity" ]]; then
-	echo -e "\n======== RUNNING TRINITY ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING TRINITY [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	# Barrnap and rRNAFilter output fasta files which has to be indicated to Trinity:
-  if [[ ${sorting} == "rrnafilter" || ${sorting} == "barrnap" ]]; then
-		Trinity --seqType fa --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024)-5)))G --left ../$R1_sorted --right \
-    ../$R2_sorted --CPU $threads --output TRINITY/ # The max_memory command simply takes the maximum RAM size in GB and subtracts 5GB
+  if [[ $sorting == "rrnafilter" || $sorting == "barrnap" ]]; then
+		Trinity --seqType fa --max_memory $memory --left ../$R1_sorted --right \
+    ../$R2_sorted --CPU $threads --output TRINITY/ --NO_SEQTK
   else
-    Trinity --seqType fq --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024)-5)))G --left ../$R1_sorted --right \
-    ../$R2_sorted --CPU $threads --output TRINITY/ # The max_memory command simply takes the maximum RAM size in GB and subtracts 5GB
+    Trinity --seqType fq --max_memory $memory --left ../$R1_sorted --right \
+    ../$R2_sorted --CPU $threads --output TRINITY/ --NO_SEQTK
   fi
   cat TRINITY/Trinity.fasta | sed 's/ len/_len/g' \
 	> TRINITY/Trinity_with_length.fasta  # Edit for universal format
 	cd TRINITY/
-	echo -e "\n======== TRINITY DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] TRINITY DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ $assembly == "transabyss" ]]; then
-	echo -e "\n======== RUNNING TRANSABYSS ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING TRANSABYSS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
   transabyss --pe ../$R1_sorted ../$R2_sorted --threads $threads \
   --outdir TRANSABYSS/
   sed 's/ /_/g' TRANSABYSS/transabyss-final.fa \
 	> TRANSABYSS/transabyss-final_edited.fa # Edit for universal format
 	cd TRANSABYSS/
-	echo -e "\n======== TRANSABYSS DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] TRANSABYSS DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 fi
 
-echo -e "\n++++++++ FINISHED STEP 3: ASSEMBLY ++++++++\n"
+echo -e "\n++++++++ [$(date +%H:%M:%S)] FINISHED STEP 3: ASSEMBLY [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 ######################## Step 4: Mapping ################################
 
-echo -e "++++++++ START STEP 4: MAPPING ++++++++\n"
+echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 4: MAPPING [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 mkdir step_4_mapping/
 mkdir step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/
@@ -432,11 +432,11 @@ elif [[ $assembly == 'metaspades' ]]; then
 	scaffolds='scaffolds.fasta'
 elif [[ $assembly == 'megahit' ]]; then
 	scaffolds='final.contigs.fa'
-elif [[ $assembly == 'idba-ud' ]]; then
+elif [[ $assembly == 'idba_ud' ]]; then
 	scaffolds='scaffold.fa'
 elif [[ $assembly == 'rnaspades' ]]; then
 	scaffolds='transcripts.fasta'
-elif [[ $assembly == 'idba-tran' ]]; then
+elif [[ $assembly == 'idba_tran' ]]; then
 	scaffolds='contig.fa'
 elif [[ $assembly == 'trinity' ]]; then
 	scaffolds='Trinity_with_length.fasta'
@@ -445,22 +445,22 @@ elif [[ $assembly == 'transabyss' ]]; then
 fi
 
 if [[ $mapping == 'bwa' ]]; then
-  echo -e "\n======== Starting bwa index ========\n"
+  echo -e "\n======== [$(date +%H:%M:%S)] Starting bwa index [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
   bwa index -p bwa_index ../../$scaffolds
-  echo -e "\n======== bwa index complete. Starting bwa mem ========\n"
+  echo -e "\n======== [$(date +%H:%M:%S)] bwa index complete. Starting bwa mem [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
   bwa mem -t $threads bwa_index ../../../../../../*1P_error_corrected.fastq \
 	../../../../../../*2P_error_corrected.fastq > ${mapping}_output.sam
   rm bwa_index*
-	echo -e "\n======== bwa mem complete ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] bwa mem complete [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 elif [[ $mapping == 'bowtie2' ]]; then
-  echo -e "\n======== Starting bowtie2 index ========\n"
+  echo -e "\n======== [$(date +%H:%M:%S)] Starting bowtie2 index [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	bowtie2-build -f ../../$scaffolds bowtie_index
-	echo -e "\n======== bowtie2 index complete. Starting bowtie2 ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] bowtie2 index complete. Starting bowtie2 [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	bowtie2 -q -x bowtie_index -1 ../../../../../../*1P_error_corrected.fastq \
 	-2 ../../../../../../*2P_error_corrected.fastq -S ${mapping}_output.sam \
 	-p $threads
 	rm bowtie_index*
-  echo -e "\n======== bowtie2 complete ========\n"
+  echo -e "\n======== [$(date +%H:%M:%S)] bowtie2 complete [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 fi
 
 # Editing the mapper outputs:
@@ -478,11 +478,11 @@ rm out_*mapped_${mapping}.txt
 # Moving back to assembler directory:
 cd ../../
 
-echo -e "++++++++ FINISHED STEP 4: MAPPING ++++++++\n"
+echo -e "++++++++ [$(date +%H:%M:%S)] FINISHED STEP 4: MAPPING [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 ######################### Steps 5 and 6.1: Picking a referencd DB and taxonomic classification ################################
 
-echo -e "++++++++ START STEP 5 AND 6.1: CLASSIFICATION OF ASSEMBLED SCAFFOLDS WITH $(echo $db | tr '[:lower:]' '[:upper:]') DATABASE +++++++\n"
+echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 5 AND 6.1: CLASSIFICATION OF ASSEMBLED SCAFFOLDS WITH $(echo $db | tr '[:lower:]' '[:upper:]') DATABASE +++++++\n"
 
 mkdir step_5_reference_DB/
 mkdir step_5_reference_DB/$(echo $db | tr '[:lower:]' '[:upper:]')/
@@ -500,31 +500,29 @@ elif [[ $db == 'ncbi_nt' ]]; then
 fi
 
 if [[ $classification == "blast_first_hit" || $classification == "blast_filtered" ]]; then
-	echo -e "\n======== RUNNING JUSTBLAST WITH DATABASE $blastDB ========\n"
-	# Run BLAST via justblast
-	justblast ../../../../$scaffolds $blastDB --cpus $threads --evalue 1e-05 \
-	--outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
-	--out_filename blast_output.txt
-	rm -r dask-worker-space/
-	echo -e "\n======== JUSTBLAST WITH DATABASE $blastDB DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BLAST WITH DATABASE $blastDB [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	blastn -query ../../../../$scaffolds -db $blastDB -out blast_output.txt \
+	-outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
+	-evalue 1e-05 -num_threads $threads
+	echo -e "\n======== [$(date +%H:%M:%S)] BLAST WITH DATABASE $blastDB DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 fi
 
 if [[ $classification == "blast_first_hit" ]]; then
-	echo -e "\n======== RUNNING BLAST FIRST HIT ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BLAST FIRST HIT [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	# We run a separate script to filter the BLAST results:
 	blast_filtering.bash -i blast_output.txt -f blast -t soft -T $threads -e $etetoolkit
 	mv blast_output.txt blast_filtering_results/
-	echo -e "\n======== BLAST FIRST HIT DONE ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] BLAST FIRST HIT DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ $classification == "blast_filtered" ]]; then
-	echo -e "\n======== RUNNING BLAST FILTERED ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BLAST FILTERED [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	# We run a separate script to filter the BLAST results:
 	blast_filtering.bash -i blast_output.txt -f blast -t strict -T $threads -e $etetoolkit
 	mv blast_output.txt blast_filtering_results/
-	echo -e "\n======== BLAST FILTERED DONE========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] BLAST FILTERED DONE========\n"
 
 elif [[ $classification == "kraken2" ]]; then
-	echo -e "\n======== RUNNING KRAKEN2 WITH DATABASE $krakenDB ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING KRAKEN2 WITH DATABASE $krakenDB [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 	# Run kraken2
 	echo $krakenDB
 	kraken2 --db $krakenDB --threads $threads ../../../../$scaffolds \
@@ -536,39 +534,9 @@ elif [[ $classification == "kraken2" ]]; then
     # Extract the taxids column of the standard kraken output:
 		cut -f3 kraken2_output.txt > kraken2_taxids.txt
 
-    # Access the SILVA taxonomy file (downloaded taxmap files as in
-		# subscript SILVA_SSU_LSU_kraken2_preparation.sh and concatenated them)
-		# and generate a file containing one column for each SILVA taxid and
-		# one column for the respective SILVA taxonomy path:
-			# Note: since we work on the graham cluster, rather than accessing the files
-			# generated from the subscript SILVA_SSU_LSU_kraken2_preparation.sh, we
-			# perform the respecitve code here (lines taken from the subscript):
-				# As of 04 Sep 2020, the available SILVA LSU and SSU taxmap files contain
-				# duplicate accession IDs with different taxids in the SSU and LSU files. We're
-				# going to use all accession IDs from the SSU file, check which additional ones
-				# are in the LSU file (about 23,000 are not in the SSU file) and just take these
-				# extra ones from the LSU taxmap file to not overwrite SSU taxids with LSU taxids:
-				echo -e "\nDownloading SILVA taxmap files to generate SILVA_paths_and_taxids.txt:\n"
-				wget https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/taxonomy/taxmap_slv_lsu_ref_nr_138.1.txt.gz
-				wget https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/taxonomy/taxmap_slv_ssu_ref_nr_138.1.txt.gz
-				gunzip taxmap_slv_*su_ref_nr_138.1.txt.gz
-				cat taxmap_slv_ssu_ref_nr_138.1.txt > taxmap_slv_ssu_lsu_ref_nr_138.1.txt
-				tail -n +2 taxmap_slv_ssu_ref_nr_138.1.txt | cut -f1 > grep_list.txt
-				tail -n +2 taxmap_slv_lsu_ref_nr_138.1.txt | grep -v -f grep_list.txt \
-				>> taxmap_slv_ssu_lsu_ref_nr_138.1.txt
-		tail -n +2 taxmap_slv_ssu_lsu_ref_nr_138.1.txt | cut -f 4,6 | sort -u \
-		> SILVA_paths_and_taxids.txt
-		rm taxmap_slv_*_ref_nr_138.1.txt grep_list.txt
-
-    # Kraken2 spits out the taxid 0 when no hit is found, but 0 doesn't
-		# exist in the SILVA taxonomy, so manually add taxid 0 with path
-		# “No hits” to the SILVA path file:
-    echo -e "No hits;\t0" > tmp && cat SILVA_paths_and_taxids.txt >> tmp \
-    && mv tmp SILVA_paths_and_taxids.txt
-
     # Merge your kraken2 taxids with the SILVA path file to assign a SILVA
 		# taxonomy path to every kraken2 hit:
-    mergeFilesOnColumn.pl SILVA_paths_and_taxids.txt kraken2_taxids.txt 2 1 > merged.txt
+    mergeFilesOnColumn.pl $silva_path_taxid kraken2_taxids.txt 2 1 > merged.txt
     cut -f -2 merged.txt | sed 's/;\t/\t/g' > merged_edit.txt # Edit the output
 
     # Extract the sequence names from the kraken2 output and generate a
@@ -581,65 +549,9 @@ elif [[ $classification == "kraken2" ]]; then
 
 		# We run a separate script that was initially made to deal with the
 		# SILVA taxonomy of CREST output, by translating SILVA taxonomic paths
-		# into NCBI taxids, and use that script on the formatted kraken2 output.
-		# The files NCBI_staxids_(non_)scientific were generated by the script
-		# SILVA_SSU_LSU_makeblastdb_preparation.sh:
-			# Note: since we work on the graham cluster, rather than accessing the
-			# files generated from the subscript SILVA_SSU_LSU_makeblastdb_preparation.sh,
-			# we perform the respecitve code here (lines taken form the subscript):
-				# Get NCBI taxonomy files
-				echo -e "\nDownloading taxdmp.zip to generate NCBI_staxids_scientific.txt and NCBI_staxids_scientific.txt:\n"
-				wget ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdmp.zip
-				unzip taxdmp.zip
-				# Edit names.dmp file into a file only containing scientific names
-				sed "s/ <[a-zA-Z -,.&:'0-9]*>//g" names.dmp | grep 'scientific name' \
-				| cut -f 1,3 | awk -F $'\t' ' { t = $1; $1 = $2; $2 = t; print; } ' OFS=$'\t' \
-				| grep -v 'environmental\|uncultured\|unidentified\|metagenome' \
-				> NCBI_staxids_scientific.txt
-				  # 1. Remove <genus>, <family>, and other strings in <> brackets from taxonomy
-				  #    (otherwise the NCBI taxonomy won't match the SILVA taxonomy)
-				  # 2. Extract only scientific names and staxids
-				  # 3. Cut out columns we need
-				  # 4. Invert columns for script to work
-				  # 5. Removes lines containing "environmental", "uncultured", "unidentified",
-				  #    and "metagenome"
-				    # Needed because
-				      # SILVA taxonomy can have the same taxonomic ranks (e.g., "environmental
-				      # sample") for different higher ranks (e.g., "nematode; environmental
-				      # sample" and "bacteria;environmental sample"), which would, however, be
-				      # assigned to the same staxid because the lower rank "environmental sample"
-				      # is similar
-				      # NCBI taxonomy can have different staxids for the same taxonomic name,
-				      # which will cause issues when matching
-				# We match SILVA taxonomy against this file (against scientific names) first
-
-				# Edit names.dmp file into a file only containing non-scientific names
-				sed "s/ <[a-zA-Z -,.&:'0-9]*>//g" names.dmp | grep -v 'scientific name' \
-				| cut -f 1,3 | awk -F $'\t' ' { t = $1; $1 = $2; $2 = t; print; } ' OFS=$'\t' \
-				| grep -v 'environmental\|uncultured\|unidentified\|metagenome' \
-				> NCBI_staxids_non_scientific.txt
-					# 1. Remove <genus>, <family>, and other strings in <> brackets from taxonomy
-				  #    (otherwise the NCBI taxonomy won't match the SILVA taxonomy)
-					# 2. Extract only non-scientific names and staxids
-					# 3. Cut out columns we need
-					# 4. Invert columns for script to work
-					# 5. Removes lines containing "environmental", "uncultured", "unidentified",
-				  #    and "metagenome"
-						# Needed because
-							# SILVA taxonomy can have the same taxonomic ranks (e.g., "environmental
-				      # sample") for different higher ranks (e.g., "nematode; environmental
-				      # sample" and "bacteria;environmental sample"), wich would, however, be
-				      # assigned to the same staxid because the lower rank "environmental sample"
-				      # is similar
-							# NCBI taxonomy can different staxids for the same taxonomic name, which
-				      # will cause issue when matching
-				# If SILVA taxonomy is not in exact scientific names, then we match against these
-				# to check for synonyms etc.
-				rm *.dmp readme.txt taxdmp.zip gc.prt
-    assign_NCBI_staxids_to_CREST_v4.py NCBI_staxids_scientific.txt \
-  	NCBI_staxids_non_scientific.txt \
+		# into NCBI taxids, and use that script on the formatted kraken2 output:
+    assign_NCBI_staxids_to_CREST_v4.py $ncbi_scientific $ncbi_non_scientific \
     kraken2_SILVA_formatted.txt kraken2_SILVA_formatted_with_NCBI_taxids.txt
-		rm NCBI_staxids_*scientific.txt
     mergeFilesOnColumn.pl kraken2_SILVA_formatted_with_NCBI_taxids.txt \
     kraken2_SILVA_formatted.txt 1 1 | cut -f3 > NCBItaxids.txt # Merge SILVA output with taxids and extract taxids
 		# We use a separate script to assign taxonomy to NCBI taxids:
@@ -654,8 +566,8 @@ elif [[ $classification == "kraken2" ]]; then
 
     # Sort files
    	mkdir intermediate_files
-    mv kraken2_output.txt kraken2_taxids.txt SILVA_paths_and_taxids.txt merged* \
-    names.txt kraken2_SILVA_formatted* NCBItaxids* contig* intermediate_files/
+    mv kraken2_output.txt kraken2_taxids.txt merged* names.txt \
+		kraken2_SILVA_formatted* NCBItaxids* contig* intermediate_files/
 
   elif [[ $db == 'ncbi_nt' ]]; then
   	cut -f 2-3 kraken2_output.txt > kraken2_output_contig_taxid.txt # Isolate contig names and taxids
@@ -671,12 +583,12 @@ elif [[ $classification == "kraken2" ]]; then
     mkdir intermediate_files
     mv kraken2_output* intermediate_files/
   fi
-echo -e "\n======== KRAKEN2 WITH DATABASE $krakenDB DONE ========\n"
+echo -e "\n======== [$(date +%H:%M:%S)] KRAKEN2 WITH DATABASE $krakenDB DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 fi
 
 ######################### Step 6.2: Generating final putput files ################################
 
-echo -e "++++++++ START STEP 6.2: GENERATING FINAL OUTPUT FILES ++++++++\n"
+echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 6.2: GENERATING FINAL OUTPUT FILES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
 
 # Each assembler/classification tool output has a different format. We
 # make that format universal with the following code.
@@ -686,7 +598,7 @@ mkdir FINAL_FILES/intermediate_files/
 cd FINAL_FILES/intermediate_files/
 
 if [[ $assembly == 'spades' || $assembly == 'metaspades' \
-|| $assembly == 'idba-ud' || $assembly == 'rnaspades' \
+|| $assembly == 'idba_ud' || $assembly == 'rnaspades' \
 || $assembly == 'transabyss' ]]; then
 	# Change the sequences' fasta format to tab delimited:
 	fasta_to_tab ../../../../../../${scaffolds} > tmp
@@ -713,7 +625,7 @@ elif [[ $assembly == 'megahit' ]]; then
 	merge_on_outer.py ../../../../../../step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/merge_input_mapped_${mapping}.txt \
 	${assembly}_tab_to_merge.txt ${assembly}_final_${mapping}_merge_ready.txt
 
-elif [[ $assembly == 'idba-tran' ]]; then
+elif [[ $assembly == 'idba_tran' ]]; then
 	# Change the sequences' fasta format to tab delimited:
 	fasta_to_tab ../../../../../../${scaffolds} \
 	| sed 's/_/\t/2'  | sed 's/_/\t/3' | sed 's/ /\t/g' | cut -f1,3,5,6 \
@@ -761,7 +673,7 @@ if [[ $classification == 'blast_filtered' ]]; then
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
 
-	elif [[ $assembly == 'idba-ud' ]]; then
+	elif [[ $assembly == 'idba_ud' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/scaffold_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
@@ -790,7 +702,7 @@ if [[ $classification == 'blast_filtered' ]]; then
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
 
-	elif [[ $assembly == 'idba-tran' ]]; then
+	elif [[ $assembly == 'idba_tran' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		|	sed 's/contig-[0-9]*_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
@@ -819,7 +731,7 @@ if [[ $classification == 'blast_filtered' ]]; then
 		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
 	fi
 
-	echo -e "\n======== DONE FINALIZING BLAST_FILTERED FILES =======\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] DONE FINALIZING BLAST_FILTERED FILES =======\n"
 
 elif [[ $classification == 'blast_first_hit' ]]; then
 
@@ -838,7 +750,7 @@ elif [[ $classification == 'blast_first_hit' ]]; then
 		>> tmp
 		cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 
-	elif [[ $assembly == 'idba-ud' ]]; then
+	elif [[ $assembly == 'idba_ud' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/scaffold_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
@@ -869,7 +781,7 @@ elif [[ $classification == 'blast_first_hit' ]]; then
 		cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& rm tmp
 
-	elif [[ $assembly == 'idba-tran' ]]; then
+	elif [[ $assembly == 'idba_tran' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		|	sed 's/contig-[0-9]*_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
@@ -901,7 +813,7 @@ elif [[ $classification == 'blast_first_hit' ]]; then
 		&& rm tmp
 	fi
 
-	echo -e "\n======== DONE FINALIZING BLAST_FIRST_HIT FILES ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] DONE FINALIZING BLAST_FIRST_HIT FILES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 
 elif [[ $classification == 'kraken2' ]]; then
 
@@ -922,7 +834,7 @@ elif [[ $classification == 'kraken2' ]]; then
 		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& rm tmp
 
-	elif [[ $assembly == 'idba-ud' ]]; then
+	elif [[ $assembly == 'idba_ud' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/1' | cut -f2-20 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
@@ -957,7 +869,7 @@ elif [[ $classification == 'kraken2' ]]; then
 		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& rm tmp
 
-	elif [[ $assembly == 'idba-tran' ]]; then
+	elif [[ $assembly == 'idba_tran' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/1' | cut -f2-20 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
 		echo -e "sequence_name\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
@@ -990,12 +902,9 @@ elif [[ $classification == 'kraken2' ]]; then
 		&& rm tmp
 	fi
 
-	echo -e "\n======== DONE FINALIZING KRAKEN2 FILES ========\n"
+	echo -e "\n======== [$(date +%H:%M:%S)] DONE FINALIZING KRAKEN2 FILES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
 fi
 
 # Display runtime
 echo -e "=================================================================\n"
 echo "SCRIPT DONE AFTER $((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m"
-
-# Write output to both console and log file
-) 2>&1 | tee METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_LOG.txt

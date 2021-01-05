@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python
 
 # Script from David Ryder (CEFAS, Weymouth, England)
 
@@ -53,7 +53,7 @@ lineageFile = open(lineageFileName,'r')
 outputFile = open(outputFileName,'w')
 
 # Create a connection to the database
-conn = sqlite3.connect(etetoolkit.format(os.getlogin()))
+conn = sqlite3.connect(etetoolkit)
 
 c = conn.cursor()
 c.execute("PRAGMA foreign_keys=ON")
