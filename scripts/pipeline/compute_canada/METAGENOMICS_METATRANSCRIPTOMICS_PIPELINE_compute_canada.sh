@@ -24,9 +24,9 @@
 	# FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
 	# rRNAFILTER (1.1), SPADES (3.14.0)[note: runs with the --meta and --rna
 	# options for METASPADES and RNASPADES], MEGAHIT (1.2.9), IDBA-UD (1.1.1),
-	# IDBA_tran (1.1.1), Trinity (2.10.0),	bowtie2 (2.3.3.1), bwa (0.7.17),
-	# blast+ (2.10.0+), seqtk (1.2-r94),  samtools (1.10),
-	# python module ete3 (3.1.2)
+	# IDBA_tran (1.1.1), Trinity (2.10.0),	Trans-ABySS (2.0.1), bowtie2 (2.3.3.1),
+	# bwa (0.7.17), blast+ (2.10.0+), kraken2 (2.1.1), seqtk (1.2-r94),
+	# samtools (1.10), python module ete3 (3.1.2)
 
 	# Note: we had to edit IDBA prior to compiling it because it didn't work
 	# using long reads and the -l option. This seems to be a common problem and
