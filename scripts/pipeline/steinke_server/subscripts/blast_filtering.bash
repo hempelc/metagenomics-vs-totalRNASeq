@@ -164,59 +164,65 @@ if [[ $filtering == 'soft' ]] ; then
   # Using a subscript:
   assign_taxonomy_to_NCBI_staxids.sh -b $assign_taxonomy_input -c 13 \
   -e $etetoolkit
-  mv blast_output_with_taxonomy.txt blast_filtering_results/
-  sed -i '1d' blast_filtering_results/blast_output_with_taxonomy.txt
+  mv ${assign_taxonomy_input%.txt}_with_taxonomy.txt blast_filtering_results/
+  sed -i '1d' blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy.txt
 
   echo -e "\n======== KEEPING ONLY BEST HIT PER SEQUENCE ========\n"
-  # Just keep hits with the same bitscore for each sequence, in case multiple
+  # Just keep hits with the same best bitscore for each sequence, in case multiple
   # hits have the same bitscore:
-  touch blast_filtering_results/blast_output_with_taxonomy_and_bitscore_filter.txt
-  sort -u -k1,1 blast_filtering_results/blast_output_with_taxonomy.txt \
+  touch blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_filter.txt
+  sort -u -k1,1 blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy.txt \
   | cut -f 1 | while read hit; do
-    best_bitscore=$(grep "$(printf "^$hit\t")" blast_filtering_results/blast_output_with_taxonomy.txt \
+    best_bitscore=$(grep "$(printf "^$hit\t")" blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy.txt \
     | sort -k1,1 -k12,12nr | sort -u -k1,1 | cut -f 12)
     echo "Processing sequence $hit with bitscore $best_bitscore"
-    grep $hit blast_filtering_results/blast_output_with_taxonomy.txt \
+    grep $hit blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy.txt \
     | awk -v x=$best_bitscore '($12 >= x)' \
-    >> blast_filtering_results/blast_output_with_taxonomy_and_bitscore_filter.txt
+    >> blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_filter.txt
   done
 
   # Now we run an LCA approach, but it technically only runs if a sequence has
   # several hits with the same best bit score:
-  touch blast_filtering_results/blast_output_with_taxonomy_and_bitscore_filter_and_LCA_noheader.txt
-  sort -u -k1,1 blast_filtering_results/blast_output_with_taxonomy_and_bitscore_filter.txt \
+  touch blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_filter_and_LCA_noheader.txt
+  sort -u -k1,1 blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_filter.txt \
   | cut -f 1 | while read hit ; do
-    taxonomy_hit=$(echo $hit)
     taxonomy=''
-    for i in {16..27}
+    for i in {15..27}
     do
-      rank_tax=$(grep $hit blast_filtering_results/blast_output_with_taxonomy_and_bitscore_filter.txt \
-      | cut -f $i | uniq)
-      if [[ $(echo "{$rank_tax}" | wc -l) == 1 ]] ; then
-        taxonomy=$(echo "${taxonomy}---${rank_tax}")
+      rank_tax=$(grep $hit blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_filter.txt \
+      | cut -f $i | cut -f 1-2 -d " " | uniq)
+      if [[ $(echo "${rank_tax}" | wc -l) == 1 ]] ; then
+        if [[ ${i} == 15 ]]; then
+          if [[ $(echo "${rank_tax}" | wc -w) != 2 ]] ; then
+            taxonomy=$(echo "${taxonomy}---NA")
+          else
+            taxonomy=$(echo "${taxonomy}---${rank_tax}")
+          fi
+        else
+          taxonomy=$(echo "${taxonomy}---${rank_tax}")
+        fi
       else
         taxonomy=$(echo "${taxonomy}---NA")
       fi
     done
-    echo "${taxonomy_hit}${taxonomy}" | sed 's/---/\t/g' \
-    >> blast_filtering_results/blast_output_with_taxonomy_and_bitscore_filter_and_LCA_noheader.txt
+    echo "${hit}${taxonomy}" | sed 's/---/\t/g' \
+    >> blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_filter_and_LCA_noheader.txt
   done
 
   # Adding header and rearranging columns:
   awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $2}' \
-  blast_filtering_results/blast_output_with_taxonomy_and_bitscore_filter_and_LCA_noheader.txt \
+  blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_filter_and_LCA_noheader.txt \
   > tmp
-  echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit" \
-  > blast_filtering_results/blast_output_with_taxonomy_and_best_hit.txt \
+  echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies" \
+  > blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_best_hit.txt \
   && cat tmp \
-  >> blast_filtering_results/blast_output_with_taxonomy_and_best_hit.txt
-  rm blast_filtering_results/blast_output_with_taxonomy_and_bitscore_filter_and_LCA_noheader.txt \
-  tmp
+  >> blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_best_hit.txt
+  rm tmp
 
   # Sort files:
   mkdir blast_filtering_results/intermediate_files/
-  mv blast_filtering_results/blast_output* blast_filtering_results/intermediate_files/
-  mv blast_filtering_results/intermediate_files/blast_output_with_taxonomy_and_best_hit.txt \
+  mv blast_filtering_results/${assign_taxonomy_input%.txt}* blast_filtering_results/intermediate_files/
+  mv blast_filtering_results/intermediate_files/${assign_taxonomy_input%.txt}_with_taxonomy_and_best_hit.txt \
   blast_filtering_results/
 fi
 
@@ -226,93 +232,99 @@ if [[ $filtering == 'strict' ]] ; then
   # Using a subscript:
   assign_taxonomy_to_NCBI_staxids.sh -b $assign_taxonomy_input -c 13 \
   -e $etetoolkit
-  mv blast_output_with_taxonomy.txt blast_filtering_results/
-  sed '1d' blast_filtering_results/blast_output_with_taxonomy.txt \
-  > blast_filtering_results/blast_output_bitscore_filtered_with_taxonomy_noheader.txt \
-  && mv blast_filtering_results/blast_output_bitscore_filtered_with_taxonomy_noheader.txt \
-  blast_filtering_results/blast_output_with_taxonomy.txt
+  mv ${assign_taxonomy_input%.txt}_with_taxonomy.txt blast_filtering_results/
+  sed '1d' blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy.txt \
+  > blast_filtering_results/${assign_taxonomy_input%.txt}_bitscore_filtered_with_taxonomy_noheader.txt \
+  && mv blast_filtering_results/${assign_taxonomy_input%.txt}_bitscore_filtered_with_taxonomy_noheader.txt \
+  blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy.txt
 
   echo -e "\n======== PERFORMING BITSCORE FILTER ========\n"
   # Remove all hits that are below alignment length 100 (based on BASTA) and set
   # bitscore (default 155 based on CREST):
   awk -v x=$bitscore '($4 >= 100 && $12 >= x)' \
-  blast_filtering_results/blast_output_with_taxonomy.txt \
-  > blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold.txt
+  blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy.txt \
+  > blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold.txt
 
   # Just keep hits within first set % of best bitscore for each sequence
-  touch blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter.txt
-  sort -u -k1,1 blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold.txt \
+  touch blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter.txt
+  sort -u -k1,1 blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold.txt \
   | cut -f 1 | while read hit; do
-    best_bitscore=$(grep "$(printf "^$hit\t")" blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold.txt \
+    best_bitscore=$(grep "$(printf "^$hit\t")" blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold.txt \
     | sort -k1,1 -k12,12nr | sort -u -k1,1 | cut -f 12)
     echo "Processing sequence $hit with bitscore $best_bitscore"
     bitscore_threshold=$(awk "BEGIN {print $best_bitscore - $best_bitscore * $percentage}")
-    grep $hit blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold.txt \
+    grep $hit blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold.txt \
     | awk -v x=$bitscore_threshold '($12 >= x)' \
-    >> blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter.txt
+    >> blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter.txt
   done
 
 
   echo -e "\n======== PERFORMING SIMILARITY CUTOFF ========\n"
   # Setting certain columns to "NA" if they're below set threshold
   set -- $cutoff
-  awk -v c1=$1 '($3 >= c1)' blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter.txt \
-  > blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt
-  awk -v c1=$1 -v c2=$2 '(($3 < c1) && ($3 >= c2))' blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter.txt \
+  awk -v c1=$1 '($3 >= c1)' blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter.txt \
+  > blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt
+  awk -v c1=$1 -v c2=$2 '(($3 < c1) && ($3 >= c2))' blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter.txt \
   | awk '{ FS="\t"; $0=$0; OFS="\t"; $16="NA"; print}'\
-  >> blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt
-  awk -v c2=$2 -v c3=$3 '(($3 < c2) && ($3 >= c3))' blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter.txt \
+  >> blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt
+  awk -v c2=$2 -v c3=$3 '(($3 < c2) && ($3 >= c3))' blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter.txt \
   | awk '{ FS="\t"; $0=$0; OFS="\t"; $16="NA"; $27="NA"; print}'\
-  >> blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt
-  awk -v c3=$3 -v c4=$4 '(($3 < c3) && ($3 >= c4))' blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter.txt \
+  >> blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt
+  awk -v c3=$3 -v c4=$4 '(($3 < c3) && ($3 >= c4))' blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter.txt \
   | awk '{ FS="\t"; $0=$0; OFS="\t"; $16="NA"; $27="NA"; $26="NA"; $25="NA"; $24="NA"; print}' \
-  >> blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt
-  awk -v c4=$4 -v c5=$5 '(($3 < c4) && ($3 >= c5))' blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter.txt \
+  >> blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt
+  awk -v c4=$4 -v c5=$5 '(($3 < c4) && ($3 >= c5))' blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter.txt \
   | awk '{ FS="\t"; $0=$0; OFS="\t"; $16="NA"; $27="NA"; $26="NA"; $25="NA"; $24="NA"; $23="NA"; $22="NA"; print}' \
-  >> blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt
-  awk -v c5=$5 -v c6=$6 '(($3 < c5) && ($3 >= c6))' blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter.txt \
+  >> blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt
+  awk -v c5=$5 -v c6=$6 '(($3 < c5) && ($3 >= c6))' blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter.txt \
   | awk '{ FS="\t"; $0=$0; OFS="\t"; $16="NA"; $27="NA"; $26="NA"; $25="NA"; $24="NA"; $23="NA"; $22="NA"; $21="NA"; $20="NA"; print}' \
-  >> blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt
-  awk -v c6=$6 '($3 < c6)' blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter.txt \
+  >> blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt
+  awk -v c6=$6 '($3 < c6)' blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter.txt \
   | awk '{ FS="\t"; $0=$0; OFS="\t"; $16="NA"; $27="NA"; $26="NA"; $25="NA"; $24="NA"; $23="NA"; $22="NA"; $21="NA"; $20="NA"; $19="NA"; $18="NA"; print}' \
-  >> blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt
+  >> blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt
 
   echo -e "\n======== PERFORMING LCA APPROACH ========\n"
   # Only keeping the taxonomy to the LCA, other ranks are set to "NA"
-  touch blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA_noheader.txt
-  sort -u -k1,1 blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt \
+  touch blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA_noheader.txt
+  sort -u -k1,1 blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt \
   | cut -f 1 | while read hit ; do
-    taxonomy_hit=$(echo $hit)
     taxonomy=''
-    for i in {16..27}
+    for i in {15..27}
     do
-      rank_tax=$(grep $hit blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt \
-      | cut -f $i | uniq)
-      if [[ $(echo "{$rank_tax}" | wc -l) == 1 ]] ; then
-        taxonomy=$(echo "${taxonomy}---${rank_tax}")
+      rank_tax=$(grep $hit blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt \
+      | cut -f $i | cut -f 1-2 -d " " | uniq)
+      if [[ $(echo "${rank_tax}" | wc -l) == 1 ]] ; then
+        if [[ ${i} == 15 ]]; then
+          if [[ $(echo "${rank_tax}" | wc -w) != 2 ]] ; then
+            taxonomy=$(echo "${taxonomy}---NA")
+          else
+            taxonomy=$(echo "${taxonomy}---${rank_tax}")
+          fi
+        else
+          taxonomy=$(echo "${taxonomy}---${rank_tax}")
+        fi
       else
         taxonomy=$(echo "${taxonomy}---NA")
       fi
     done
-    echo "${taxonomy_hit}${taxonomy}" | sed 's/---/\t/g' \
-    >> blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA_noheader.txt
+    echo "${hit}${taxonomy}" | sed 's/---/\t/g' \
+    >> blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA_noheader.txt
   done
 
   # Adding header and rearranging columns:
   awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $2}' \
-  blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA_noheader.txt \
+  blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA_noheader.txt \
   > tmp
-  echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit" \
-  > blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt \
+  echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies" \
+  > blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt \
   && cat tmp \
-  >> blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt
-  rm blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA_noheader.txt \
-  tmp
+  >> blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt
+  #rm tmp
 
   # Sort files:
   mkdir blast_filtering_results/intermediate_files/
-  mv blast_filtering_results/blast_output* blast_filtering_results/intermediate_files/
-  mv blast_filtering_results/intermediate_files/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt \
+  mv blast_filtering_results/${assign_taxonomy_input%.txt}* blast_filtering_results/intermediate_files/
+  mv blast_filtering_results/intermediate_files/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt \
   blast_filtering_results/
 fi
 
