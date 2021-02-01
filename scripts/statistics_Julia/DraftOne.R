@@ -49,8 +49,8 @@ names(expected) <- c("superkingdom", "phylum", "class", "order", "family", "genu
 Inputs <- read.table(paste(path,file1, sep="/"),header = T, sep ="\t")
 ## We only include the monophyletic ranks superkingdom, phylum, class, order, family, genus, and species, together with their counts
 Inputs <- select(Inputs, "superkingdom", "phylum", "class", "order", "family", "genus", "lowest_hit", "counts")
-Data <- list(Inputs)
-names(Data) <- file1
+Data <- list(Inputs, expected)
+names(Data[1]) <- file1 # Doesn't work
 names(Data)
 
 # Set up data frame 
