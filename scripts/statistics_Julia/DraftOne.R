@@ -49,17 +49,39 @@ names(expected) <- c("superkingdom", "phylum", "class", "order", "family", "genu
 Inputs <- read.table(paste(path,file1, sep="/"),header = T, sep ="\t")
 ## We only include the monophyletic ranks superkingdom, phylum, class, order, family, genus, and species, together with their counts
 Inputs <- select(Inputs, "superkingdom", "phylum", "class", "order", "family", "genus", "lowest_hit", "counts")
-Data <- list(Inputs, expected)
-names(Data[1]) <- file1 # Doesn't work
-names(Data)
 
 # Set up data frame 
 # Eventually may wish to switch to using datatable to speed up indexing, but will rewrite code then to deal with it
 
 # Because expected will always have to be calculated will use that as opening column and then append columns with files stored in data
-Master <- data.frame("Expected" = rep(NA, times = 12), 
-                     row.names = c("superkingdom", "phylum", "class", "order", "family", "genus", "lowest_hit", "counts"))
+
+#this is awful awful code right here, not optimal, will fix later
+taxanames <- c(NULL)
+colnames(Inputs)
+for (n in 1:(ncol(Inputs)-1)){
+  taxanames <- c(taxanames,unique(Inputs[,n]))
+}
+#Removed all NAs, we can come up with a more elegant way to address them later
+#This does exclude any none species lowest hit entries but I think that is fine for now
+taxanames <- unique(taxanames[!is.na(taxanames)])
+
+Master <- data.frame("Expected" = rep(0, times = length(taxanames)), 
+                     row.names = taxanames) 
 head(Master)
+
+for (n in 1:nrow(Master)){
+  print(n)
+#Which rows in expected contain taxaname of interest
+  hit <- which(expected == row.names(Master)[n], arr.ind = T)
+#Hit has a lenght of zero if taxa is not in expected table and thus a value of zero will be used in master table
+  if (length(hit) >=2) { 
+#For each of theses rows go to count and add it to the master table in the appropriate cell  
+    for (i in 1:nrow(hit)){
+      Master[n,1] <- Master[n,1] + as.numeric(expected[hit[i,1],ncol(expected)])
+    }
+  }
+}
+
 
 Master <- cbind(Master, matrix(NA, nrow = nrow(Master), ncol= length(Data)))
 names(Master)[2:ncol(Master)] <- names(Data)
