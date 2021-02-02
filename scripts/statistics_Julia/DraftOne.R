@@ -1,5 +1,6 @@
 #library(data.table)
 library(dplyr)
+library(stringr)
 
 # Set path
 path <- getwd()
@@ -50,12 +51,31 @@ Inputs <- read.table(paste(path,file1, sep="/"),header = T, sep ="\t")
 ## We only include the monophyletic ranks superkingdom, phylum, class, order, family, genus, and species, together with their counts
 Inputs <- select(Inputs, "superkingdom", "phylum", "class", "order", "family", "genus", "lowest_hit", "counts")
 
+# TO DO: collapse rows with identical taxonomy in Inputs and sum up their counts
+
+# Check for each entry in "lowest_hit" column if it is species (format "Genus species"), otherwise make it NA
+for (i in 1:nrow(Inputs)) {
+  if (is.na(Inputs$lowest_hit[i])) {
+    next
+  } else if (str_detect(Inputs$lowest_hit[i], "^[:upper:]")) {
+    if (sapply(strsplit(Inputs$lowest_hit[i], " "), length) > 1) {
+      Inputs$lowest_hit[i] <- word(Inputs$lowest_hit[i], 1,2, sep=" ")
+    } else {
+      Inputs$lowest_hit[i] <- NA
+    }
+  } else {
+    Inputs$lowest_hit[i] <- NA
+  }
+}
+
 # Set up data frame 
 # Eventually may wish to switch to using datatable to speed up indexing, but will rewrite code then to deal with it
 
 # Because expected will always have to be calculated will use that as opening column and then append columns with files stored in data
 
 #this is awful awful code right here, not optimal, will fix later
+# TO DO: vector taxanames needs to include all taxa popping up in all samples, including the expected community
+# (right now expected is not included, and some taxa that are in expected are not in Inputs so they don't pop up in the Master file, which is just based on taxa from Inputs)
 taxanames <- c(NULL)
 colnames(Inputs)
 for (n in 1:(ncol(Inputs)-1)){
@@ -82,6 +102,7 @@ for (n in 1:nrow(Master)){
   }
 }
 
+# TO DO: include Inputs (and all other samples that will come in the future)
 
 Master <- cbind(Master, matrix(NA, nrow = nrow(Master), ncol= length(Data)))
 names(Master)[2:ncol(Master)] <- names(Data)
