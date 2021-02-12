@@ -10,7 +10,9 @@ import os
 
 # @Julia, if you want to have a look at one master table, run the following line once you ran the rest of the code (commented out for now):
 #master_dfs["M4_RNA"]
-# Note that the first column is always the expected and is in float while all other columsn are in int (shouldn't make a difference for the chi square and variance calculation I guess)
+# The only thing you have to adjust is the full path to your folder containing the 3 dirs with files (full path from root)
+# Note that the first column in the master dfs is always the expected and is type float while all other columns are type int (shouldn't make a difference for the chi square and variance
+# calculation I guess)
 
 # FUTURE ADAPTATION: "lowest_hit" needs to be adapted to "species" once we rerun pipelines (can simply literatelly be find-replace'd)
 
@@ -18,8 +20,8 @@ import os
 
 
 # Parameters
-workdir = "/Users/christopherhempel/Desktop/mock_community_RNA/" # Full path to directory that contains samples NOT ENDING with "/"
-samples = ["M4_RNA", "M5_RNA", "M6_RNA"] # Samples to include in analysis (must equal names of directories in workdir that contain each sample's pipeline results)
+workdir = "/Users/christopherhempel/Desktop/mock_community_RNA/" # Full path to directory that contains samples, HAS TO END WITH "/"
+samples = ["M4_RNA", "M5_RNA", "M6_RNA"] # Samples to include into the analysis (must equal names of directories in workdir that contain each sample's pipeline results)
 groupby_rank = "lowest_hit" # Basis for rank to group rows on. Either based on genus (option "genus") or on species (option "lowest_hit" (NOTE later "species"))
 rel_abun_basis = "cell" # Basis for relative abundance calculation of expected mock community taxa abundance. Either based on genomic DNA (option "gen") or on cell number (option "cell")
 
@@ -71,7 +73,7 @@ for sample in samples:
     # 2. Read in all files and make dataframes for each
 
     ## Make list for all file names
-    sample_files = glob.glob("{workdir}/{sample}/*.txt".format(workdir=workdir, sample=sample))
+    sample_files = glob.glob("{workdir}{sample}/*.txt".format(workdir=workdir, sample=sample))
 
     ## Make dict and set first entry to expected community
     sample_dfs = {"expected": expected_df}
