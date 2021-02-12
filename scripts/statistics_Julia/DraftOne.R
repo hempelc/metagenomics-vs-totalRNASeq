@@ -76,6 +76,8 @@ for (i in 1:nrow(Inputs)) {
 #this is awful awful code right here, not optimal, will fix later
 # TO DO: vector taxanames needs to include all taxa popping up in all samples, including the expected community
 # (right now expected is not included, and some taxa that are in expected are not in Inputs so they don't pop up in the Master file, which is just based on taxa from Inputs)
+#Need to scan all possiblities 
+
 taxanames <- c(NULL)
 colnames(Inputs)
 for (n in 1:(ncol(Inputs)-1)){
