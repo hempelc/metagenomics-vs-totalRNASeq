@@ -32,7 +32,7 @@ rel_abun_basis = "cell" # Basis for relative abundance calculation of expected m
 num_reads_abs = {"M4_DNA": 310806, "M4_RNA": 211414, "M5_DNA": 146174, "M5_RNA": 322631, "M6_DNA": 114459, "M6_RNA": 269408} # dict with read numbers per sample for easy accessibility
 rel_abun_gen = [89.1, 8.9, 0.89, 0.89, 0.089, 0.089, 0.0089, 0.00089, 0.00089, 0.000089] # Relative abundances of mock community taxa in percent based on genomic DNA
 rel_abun_cell = [94.9, 4.2, 0.7, 0.12, 0.058, 0.059, 0.015, 0.001, 0.00007, 0.0001] # Relative abundances of mock community taxa in percent based on cell number
-master_dfs = {} # Empty dic that will eventually contain all sample's master tables
+master_dfs = {} # Empty dic that will eventually contain all samples' master tables
 
 # Run the code on every sample separately:
 for sample in samples:
@@ -52,30 +52,29 @@ for sample in samples:
     expected_dic["C_neoformans"] = ["Eukaryota", "Basidiomycota", "Tremellomycetes", "Tremellales", "Tremellaceae", "Cryptococcus", "Cryptococcus neoformans"]
     expected_dic["S_aureus"] = ["Bacteria", "Firmicutes", "Bacilli", "Bacillales", "Staphylococcaceae", "Staphylococcus", "Staphylococcus aureus"]
 
-
-    ## We also need absolute abundances per taxon. Therefore, we multiply the # of reads in sample with the relative abundance of each taxon in the mock community
-    ## We calculate the relative read number for each sample depending on the absoulte read number:
+    ## We also need absolute abundances per taxon. Therefore, we multiply the absoulte rread number in the sample with the relative abundance of each taxon in the mock community.
+    ## We calculate the absolute read number for each taxon based on the absoulte read number of the sample:
     if rel_abun_basis == "gen":
         num_reads_taxa = [rel_abun / 100 * num_reads_abs[sample] for rel_abun in rel_abun_gen]
     elif rel_abun_basis == "cell":
         num_reads_taxa = [rel_abun / 100 * num_reads_abs[sample] for rel_abun in rel_abun_cell]
 
-    ## We add each taxon's read count to its taxonomy list
+    ## We add each taxon's read count to its taxonomy list:
     rep=0
     for taxon in expected_dic:
         expected_dic[taxon].append(num_reads_taxa[rep])
         rep+=1
 
-    ## We finally read in the expected mock community df as pandas df
+    ## And finally read in the expected mock community dic as pandas df
     expected_df=pd.DataFrame.from_dict(expected_dic, orient="index", columns=["superkingdom", "phylum", "class", "order", "family", "genus", "lowest_hit", "counts"])
 
 
-    # 2. Read in all files and make dataframes for each
+    # 2. Read in all files from sample and make dataframes for each pipeline
 
-    ## Make list for all file names
+    ## Make list for all file names:
     sample_files = glob.glob("{workdir}{sample}/*.txt".format(workdir=workdir, sample=sample))
 
-    ## Make dict and set first entry to expected community
+    ## Make dic that will eventually contain all dfs and set first entry to expected community:
     sample_dfs = {"expected": expected_df}
     all_taxa = []
     ## For each file
@@ -89,7 +88,8 @@ for sample in samples:
                 df_small = df[["superkingdom", "phylum", "class", "order", "family", "genus", "lowest_hit", "counts"]]
             elif groupby_rank == "genus":
                 df_small = df[["superkingdom", "phylum", "class", "order", "family", "genus", "counts"]]
-            df_small["counts"] =  df_small["counts"].astype(int)
+            ### Transform all entries in counts to type int
+            #df_small["counts"] =  df_small["counts"].astype(int)
             ### Group similar taxonomy hits and sum counts
             df_agg = df_small.groupby(list(df_small.columns)[:-1]).sum().reset_index()
             ### Add all species to list
