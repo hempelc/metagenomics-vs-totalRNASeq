@@ -20,7 +20,8 @@ import os
 
 
 # Parameters
-workdir = "/Users/christopherhempel/Desktop/mock_community_RNA/" # Full path to directory that contains samples, HAS TO END WITH "/"
+#workdir = "/Users/christopherhempel/Desktop/mock_community_RNA/" # Full path to directory that contains samples, HAS TO END WITH "/"
+workdir = "/Users/julia/Documents/Projects/MicrobeCommunities/Abstract/mock_community_RNA/"
 samples = ["M4_RNA", "M5_RNA", "M6_RNA"] # Samples to include into the analysis (must equal names of directories in workdir that contain each sample's pipeline results)
 groupby_rank = "lowest_hit" # Basis for rank to group rows on. Either based on genus (option "genus") or on species (option "lowest_hit" (NOTE later "species"))
 rel_abun_basis = "cell" # Basis for relative abundance calculation of expected mock community taxa abundance. Either based on genomic DNA (option "gen") or on cell number (option "cell")
@@ -122,6 +123,28 @@ for sample in samples:
                 counts.append(0)
         ### Make a new column in  master table named after the pipeline and add taxon counts for that pipeline
         master_dfs[sample][pipeline]=counts
+
+
+##### Julia edit
+#As of right now each "sample", M4, M5 and M6 have different row numbers indicative of different taxa lists
+#This occurred because the taxa included in a data frame was only filtered within a sample, it was never check against the other samples to see if they differ
+#For down stream analysis we need all samples to have the same taxa so if a taxa appears in only one of the 3 samples that will be noticed 
+
+master_dfs['M4_RNA']
+all_taxa = pd.concat([master_dfs['M4_RNA'].loc[:,'expected'], + master_dfs['M4_RNA'].loc[:,'expected'], master_dfs['M4_RNA'].loc[:,'expected']])
+#Here is all pipeline options, now will only keep ones present in every
+print(len(all_taxa))
+all_taxa_unique = all_taxa.drop_duplicates()
+print(len(all_taxa_unique))
+print(all_taxa.iloc[:20])
+print(all_taxa_unique.iloc[:20])
+
+# master_dfs['M4_RNA'].to_csv('M4_RNA.csv')
+# master_dfs['M5_RNA'].to_csv('M5_RNA.csv')
+# master_dfs['M6_RNA'].to_csv('M6_RNA.csv')
+
+
+
 
 # TO DO (HIGHEST PRIORITY): CHISQUARE TEST
 
