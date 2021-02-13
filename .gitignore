@@ -43,3 +43,6 @@ vignettes/*.pdf
 
 # .DS_Store files from Mac
 .DS_Store
+
+# Opened files from Mac
+~$*
