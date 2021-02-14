@@ -38,9 +38,11 @@ cat SILVA_138.1_LSURef_NR99_tax_silva_trunc.fasta \
 # going to use all accession IDs from the SSU file, check which additional ones
 # are in the LSU file (about 23,000 are not in the SSU file) and just take these
 # extra ones from the LSU taxmap file to not overwrite SSU taxids with LSU taxids:
-cat taxmap_slv_ssu_ref_nr_138.1.txt > taxmap_slv_ssu_lsu_ref_nr_138.1.txt
+cat taxmap_slv_ssu_ref_nr_138.1.txt > taxmap_slv_ssu_lsu_ref_nr_138.1.duplicates.txt
 tail -n +2 taxmap_slv_ssu_ref_nr_138.1.txt | cut -f1 > grep_list.txt
 tail -n +2 taxmap_slv_lsu_ref_nr_138.1.txt | grep -v -f grep_list.txt >> taxmap_slv_ssu_lsu_ref_nr_138.1.txt
+#tail -n +2 taxmap_slv_lsu_ref_nr_138.1.txt | grep -v -f grep_list.txt >> taxmap_slv_ssu_lsu_ref_nr_138.1.duplicates.txt
+#awk '!a[$1]++' taxmap_slv_ssu_lsu_ref_nr_138.1.duplicates.txt > taxmap_slv_ssu_lsu_ref_nr_138.1.txt 
 tail -n +2 taxmap_slv_ssu_lsu_ref_nr_138.1.txt | cut -f1,6  > accids_taxids.txt
 
 # Turn fasta into tab delimited file and edit so that accession numbers can be merged

@@ -187,21 +187,27 @@ if [[ $filtering == 'soft' ]] ; then
   sort -u -k1,1 blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_filter.txt \
   | cut -f 1 | while read hit ; do
     taxonomy=''
-    for i in {15..27}
+    for i in {15..27} # over all taxonomic ranks
     do
       rank_tax=$(grep $hit blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_filter.txt \
-      | cut -f $i | cut -f 1-2 -d " " | uniq)
-      if [[ $(echo "${rank_tax}" | wc -l) == 1 ]] ; then
-        if [[ ${i} == 15 ]]; then
-          if [[ $(echo "${rank_tax}" | wc -w) != 2 ]] ; then
+      | cut -f $i | cut -f 1-2 -d " " | uniq) # Extract taxonomy and cut down to first two words (essentially just relevant for rank "species", if more than two, e.g. subspecies info, we just want genus and species)
+      if [[ $(echo "${rank_tax}" | wc -l) == 1 ]] ; then # If all taxonomy hits are the same
+        if [[ ${i} == 15 ]]; then # if we look at species
+          if [[ $(echo "${rank_tax}" | wc -w) == 1 ]]; then
             taxonomy=$(echo "${taxonomy}---NA")
-          else
-            taxonomy=$(echo "${taxonomy}---${rank_tax}")
+          elif [[ "${rank_tax:0:1}" =~ [A-Z] ]]; then # if first letter is capitalized (indicates format "Genus species")
+            if [[ "${$(echo $rank_tax | cut -f 2 -d ' '):0:1}" =~ [a-] ]]; then
+              taxonomy=$(echo "${taxonomy}---${rank_tax}") # if first letter is non-capitalized (indicates format "Genus species")
+            else
+              taxonomy=$(echo "${taxonomy}---NA")
+            fi
+          else # if first letter not capitalized (indicates stuff like "uncultured bacterium" etc.)
+            taxonomy=$(echo "${taxonomy}---NA")
           fi
-        else
+        else # if not species rank and all taxonomy hits are the same
           taxonomy=$(echo "${taxonomy}---${rank_tax}")
         fi
-      else
+      else # if taxonomy hits are not all the same
         taxonomy=$(echo "${taxonomy}---NA")
       fi
     done
@@ -292,18 +298,18 @@ if [[ $filtering == 'strict' ]] ; then
     for i in {15..27}
     do
       rank_tax=$(grep $hit blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff.txt \
-      | cut -f $i | cut -f 1-2 -d " " | uniq)
-      if [[ $(echo "${rank_tax}" | wc -l) == 1 ]] ; then
-        if [[ ${i} == 15 ]]; then
-          if [[ $(echo "${rank_tax}" | wc -w) != 2 ]] ; then
-            taxonomy=$(echo "${taxonomy}---NA")
-          else
+      | cut -f $i | cut -f 1-2 -d " " | uniq) # Extract taxonomy and cut down to first two words (essentially just relevant for rank "species", if more than two, e.g. subspecies info, we just want genus and species)
+      if [[ $(echo "${rank_tax}" | wc -l) == 1 ]] ; then # If all taxonomy hits are the same
+        if [[ ${i} == 15 ]]; then # if we look at species
+          if [[ "${rank_tax:0:1}" =~ [A-Z] ]]; then # if first letter is capitalized (indicates format "Genus species")
             taxonomy=$(echo "${taxonomy}---${rank_tax}")
+          else # if first letter not capitalized (indicates stuff like "uncultured bacterium" etc.)
+            taxonomy=$(echo "${taxonomy}---NA")
           fi
-        else
+        else # if not species rank and all taxonomy hits are the same
           taxonomy=$(echo "${taxonomy}---${rank_tax}")
         fi
-      else
+      else # if taxonomy hits are not all the same
         taxonomy=$(echo "${taxonomy}---NA")
       fi
     done
@@ -319,7 +325,7 @@ if [[ $filtering == 'strict' ]] ; then
   > blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt \
   && cat tmp \
   >> blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt
-  #rm tmp
+  rm tmp
 
   # Sort files:
   mkdir blast_filtering_results/intermediate_files/
