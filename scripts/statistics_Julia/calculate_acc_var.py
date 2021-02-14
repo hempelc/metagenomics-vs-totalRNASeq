@@ -150,7 +150,7 @@ res = stats.fisher_test(np_array)
 # b=[3,3,3]
 # chisquare(test_pip_chi,test_exc_chi)
 # chisquare(test_pip_chi,test_exc_chi)
-# 
+#
 #
 #
 # decreases by 0.5 if 1 added
