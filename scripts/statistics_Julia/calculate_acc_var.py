@@ -2,10 +2,11 @@
 
 import pandas as pd
 import numpy as np # Not needed for Chris' code portion
+import matplotlib.pyplot as plt
 import glob
 import os
 from scipy.stats import chisquare
-
+from scipy.stats import f_oneway
 # NOTE: When running the code, ignore the warning - stems from a function that I had to implement because some of the files were wrong ("NA" in counts column), but I fixed that in the pipeline,
 # so after I rerun the pipelines, we can take out that portion of code and the warning will disappear
 
@@ -23,7 +24,8 @@ from scipy.stats import chisquare
 # Parameters
 workdir = "/Users/christopherhempel/Desktop/mock_community_RNA/" # Full path to directory that contains samples, HAS TO END WITH "/"
 #workdir = "/Users/julia/Documents/Projects/MicrobeCommunities/Abstract/mock_community_RNA/"
-samples = ["M4_RNA", "M5_RNA", "M6_RNA"] # Samples to include into the analysis (must equal names of directories in workdir that contain each sample's pipeline results)
+savedir = "/Users/christopherhempel/Desktop/" # Full path to directory where plots should be saved, HAS TO END WITH "/"
+samples = ["M4_RNA", "M5_RNA", "M6_RNA"] # 3 replicate samples to include into the analysis (must equal names of directories in workdir that contain each sample's pipeline results)
 groupby_rank = "lowest_hit" # Basis for taxa rank to group rows on. Either based on genus (option "genus") or on species (option "lowest_hit" (NOTE later "species"))
 rel_abun_basis = "cell" # Basis for relative abundance calculation of expected mock community taxa abundance. Either based on genomic DNA (option "gen") or on cell number (option "cell")
 
@@ -36,6 +38,7 @@ rel_abun_gen = [89.1, 8.9, 0.89, 0.89, 0.089, 0.089, 0.0089, 0.00089, 0.00089, 0
 rel_abun_cell = [94.9, 4.2, 0.7, 0.12, 0.058, 0.059, 0.015, 0.001, 0.00007, 0.0001] # Relative abundances of mock community taxa in percent based on cell number
 master_dfs = {} # Empty dic that will eventually contain all samples' master dfs
 all_taxa = [] # Empty list that will eventually contain all taxa that appear in all samples
+chi2_var = {} # Empty dic that will eventually contain all chi-squares statistics and ANOVA variance F-statistics for all pipelines
 
 # 1 Read in all pipeline results for every sample and the expected mock communty as df;
 #   add all taxa from all dfs to "all_taxa" list, needed to generate master dfs that contain counts of all taxa from all samples and mock community:
@@ -98,7 +101,7 @@ for sample in samples:
             #### Add all taxa to list "all taxa"
             all_taxa.extend(df_agg[groupby_rank].tolist())
             #### Make dict key with keys = filename (without full path and extension) and value = edited df
-            sample_dfs["{file}".format(file=file).split("/")[-1].split(".")[-2]] = df_agg
+            sample_dfs["{file}".format(file=file).split("/")[-1].split(".")[-2].split("trimmed_at_phred_")[1].split("_pipeline_final")[0]] = df_agg
         else:                                                                                                                                            ### TO BE DELETED
             continue                                                                                                                                     ### TO BE DELETED
 
@@ -128,39 +131,79 @@ for sample in samples:
         #### Make a new column in  master df named after the pipeline and add taxon counts for that pipeline
         master_dfs[sample][pipeline]=counts
 
+
+# 3 Peform tests to determine accuracy and precision
+
+## 3.1 Chi-Squared test (accuracy)
+### 3.1.1 To perform a Chi-Squared test on replicates, we summarize columns across the replicates:
+master_df_summarized = pd.DataFrame()
+### For all columns (note: all samples contain the same column names, so we manually pick one (the first in "samples" list))
+for col in master_dfs[samples[0]].columns.tolist():
+    #### Make list per column in every sample and save in dir:
+    col_dic_chi2 = {}
+    for sample in samples:
+        col_dic_chi2[sample] = master_dfs[sample][col].tolist()
+    #### Summarize the three columns in the three replicates:
+    master_df_summarized[col] = [a + b + c for a, b, c in zip(col_dic_chi2[samples[0]], col_dic_chi2[samples[1]], col_dic_chi2[samples[2]])]
+
+### 3.1.2 Now we perform a Chi-Squared test on the summarized master df, for each pipeline against the expected composition
+###     (note, this is the DIRTY version where we add the same amount (1) to each value to get rid of zeros in the expected columns, because otherwise the Chi-Squared test is not possible):
+for pipeline in master_summarized_df.columns.tolist()[1:]:
+    chi2_var[pipeline] = [(chisquare([abun + 1 for abun in master_summarized_df[pipeline].tolist()],[abun + 1 for abun in master_summarized_df['expected'].tolist()])[0])]
+
+## 3.2 One-way ANOVA (precision)
+## Finally, we calculate a one-way ANOVA for all pipelines across the three replicates and add their F-statistics to the pipelines in the "chi2_var" dic
+for col in master_dfs[samples[0]].columns.tolist()[1:]: # all samples contain the name column names, so we manually pick one (the first in "samples" list)
+    col_dic_anova = {}
+    for sample in samples:
+        col_dic_anova[sample] = master_dfs[sample][col].tolist()
+    chi2_var[col].append(f_oneway(col_dic_anova[samples[0]], col_dic_anova[samples[1]], col_dic_anova[samples[2]])[0])
+
+
+# 4 Plot accuracy vs. precision
+
+## 4.1 Make plot data out of "chi2_var" dic that contains coordinates and pipeline names
+plot_data = {"x":[], "y":[], "pipeline":[]}
+for pipeline, coord in chi2_var.items():
+    plot_data["x"].append(coord[0])
+    plot_data["y"].append(coord[1])
+    plot_data["pipeline"].append(pipeline)
+
+## 4.2 Display the plot
+plt.figure(figsize=(10,8))
+plt.title('Scatter Plot', fontsize=20)
+plt.xlabel('Chi-Square', fontsize=15)
+plt.ylabel('ANOVA', fontsize=15)
+#plt.xlim(0, 0.1e12)
+#plt.ylim(min(range), max(range))
+#plt.ylim(-0.2e-30, 0.2e-30)
+plt.axis([0, 4e10, -1e-31, 1e-31])
+plt.scatter(plot_data["x"], plot_data["y"], marker = 'o')
+### Add labels
+for pipeline, x, y in zip(plot_data["pipeline"], plot_data["x"], plot_data["y"]):
+    plt.annotate(pipeline, xy = (x, y), size="xx-small", va="bottom", ha="center", stretch="condensed")
+### Save plot as png
+plt.savefig("{savedir}chi2_var.png".format(savedir=savedir), dpi=600)
+
+
+
+##### test area for fisher test
+
 import numpy as np
 import rpy2.robjects.numpy2ri
 from rpy2.robjects.packages import importr
 rpy2.robjects.numpy2ri.activate()
+test_pip = master_dfs[sample]['trimmed_at_phred_5_UNSORTED_SPADES_BWA_SILVA_KRAKEN2_pipeline_final'].tolist()
+test_exp = master_dfs[sample]['expected'].tolist()
 np_array = np.column_stack([test_exp, test_pip])
 
 stats = importr('stats')
-m = np.array([[4,4],[4,5],[10,6]])
-res = stats.fisher_test(np_array)
+res = stats.fisher_test(np_array, simulate_p_value="TRUE")
+print(res)
 
 
-# test_pip = master_dfs[sample]['trimmed_at_phred_5_UNSORTED_SPADES_BWA_SILVA_KRAKEN2_pipeline_final'].tolist()
-# test_exp = master_dfs[sample]['expected'].tolist()
-# test_pip_chi = [abun + 0.00001 for abun in test_pip]
-# test_exc_chi = [abun + 0.00001 for abun in test_exp]
-# a=[8,10,20,17,9,8]
-# b=[11,11,11,11,11,11]
-#
-# a=[2,2,2]
-# b=[3,3,3]
-# chisquare(test_pip_chi,test_exc_chi)
-# chisquare(test_pip_chi,test_exc_chi)
-#
-#
-#
-# decreases by 0.5 if 1 added
-# c=[4.000001,4.000001,4.000001]
-# d=[5.000001,5.000001,5.000001]
-# chisquare(c,d)
-
-
-# TO DO (HIGHEST PRIORITY): CHISQUARE TEST
-
-# TO DO (HIGHEST PRIORITY): VARIATION (note to delete expected column out of master table)
-
-# TO DO: PLOT ACCURACY (FOR NOW AVERAGE BETWEEN REPLICATES) VS. VARIATION FOR ALL PIPELINES
+# Fisher test loop
+for i in master_dfs[sample].columns.tolist()[1:]:
+    np_array = np.column_stack([master_dfs[sample]['expected'].tolist(), master_dfs[sample][i].tolist()])
+    res = stats.fisher_test(np_array, simulate_p_value="TRUE")
+    print(res[0][0])
