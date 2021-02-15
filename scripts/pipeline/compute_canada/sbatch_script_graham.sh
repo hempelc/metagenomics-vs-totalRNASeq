@@ -5,7 +5,7 @@
 #SBATCH --ntasks-per-node=32
 #SBATCH --mem=0
 #SBATCH --array=1-64
-#SBATCH --time=05:00:00
+#SBATCH --time=10:00:00
 
 # A script to run Chris Hempel's METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE in
 # parallel on graham
@@ -24,7 +24,7 @@ leveldb/1.22 trans-abyss/2.0.1 megahit/1.2.9 bedtools/2.29.2
 # Set some general variables
 memory="$((${SLURM_MEM_PER_NODE} / 1024))G" # $SLURM_MEM_PER_NODE is in Megabyte
 threads=${SLURM_NTASKS_PER_NODE}
-BASE="/home/hempelc/scratch/chris_pilot_project"
+BASE="/home/hempelc/projects/def-dsteinke/hempelc/pilot_project"
 start=$(date +%s)
 
 # Echo array ID
