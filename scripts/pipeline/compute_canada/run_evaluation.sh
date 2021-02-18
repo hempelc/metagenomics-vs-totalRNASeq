@@ -7,7 +7,7 @@ echo "Number of directories: $num_dir"
 
 if [[ $num_dir != 512 ]]; then
   echo "Generate file containing missing pipelines: missing.txt"
-  cp /home/hempelc/scratch/chris_pilot_project/programs/chrisnatjulia/scripts/pipeline/compute_canada/combinations_metagenomics_metatranscriptomics_pipeline_${cluster}.txt .
+  cp /home/hempelc/chrisnatjulia/scripts/pipeline/compute_canada/combinations_metagenomics_metatranscriptomics_pipeline_${cluster}.txt .
   mv combinations_metagenomics_metatranscriptomics_pipeline_${cluster}.txt all.txt
   touch done.txt
   for i in */; do
