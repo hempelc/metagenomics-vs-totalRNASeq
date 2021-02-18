@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 import pandas as pd
-import numpy as np # Not needed for Chris' code portion
-import matplotlib.pyplot as plt
 import glob
 import os
+import csv
+import math
 from scipy.stats import chisquare
 from scipy.stats import f_oneway
 # NOTE: When running the code, ignore the warning - stems from a function that I had to implement because some of the files were wrong ("NA" in counts column), but I fixed that in the pipeline,
@@ -13,23 +13,32 @@ from scipy.stats import f_oneway
 # @Julia, if you want to have a look at one master df, run the following line once you ran the rest of the code (commented out for now):
 #master_dfs["M4_RNA"]
 # The only thing you have to adjust is the full path to your folder containing the 3 dirs with files (full path from root)
-# Note that the first column in the master dfs is always the expected and is type float while all other columns are type int (shouldn't make a difference for the chi square and variance
-# calculation I guess)
 
 # FUTURE ADAPTATION: "lowest_hit" needs to be adapted to "species" once we rerun pipelines (can simply literatelly be find-replace'd)
 
 # TO DO (LONG-TERM): making "mega master df" that aggregates on all ranks for each sample, with one column indicating on which rank the row has been aggregated
 
+# Functions
+## To calculate the distance between two points:
+def point_dist (p1, p2):
+    dist = math.sqrt( ((p1[0]-p2[0])**2)+((p1[1]-p2[1])**2) )
+    return dist
+
+## To normalize value list[x] to range 0-1 based on min/max of list:
+def normalize (x,min_x,max_x):
+    normalized = (x-min_x)/(max_x-min_x)
+    return normalized
 
 # Parameters
 workdir = "/Users/christopherhempel/Desktop/mock_community_RNA/" # Full path to directory that contains samples, HAS TO END WITH "/"
 #workdir = "/Users/julia/Documents/Projects/MicrobeCommunities/Abstract/mock_community_RNA/"
-savedir = "/Users/christopherhempel/Desktop/" # Full path to directory where plots should be saved, HAS TO END WITH "/"
+savedir = "/Users/christopherhempel/Desktop/jupyter_notebook_plots/" # Full path to directory where plots should be saved, HAS TO END WITH "/"
 samples = ["M4_RNA", "M5_RNA", "M6_RNA"] # 3 replicate samples to include into the analysis (must equal names of directories in workdir that contain each sample's pipeline results)
 groupby_rank = "lowest_hit" # Basis for taxa rank to group rows on. Either based on genus (option "genus") or on species (option "lowest_hit" (NOTE later "species"))
 rel_abun_basis = "cell" # Basis for relative abundance calculation of expected mock community taxa abundance. Either based on genomic DNA (option "gen") or on cell number (option "cell")
 
-# TO DO: parameter check to make sure that parameters are one of the allowed options and that variable samples is not empty
+# MAYBE TO DO: implement that script can be run form commadn line and insert parameter check to make sure that
+# parameters are one of the allowed options and that variable "samples" is not empty
 
 
 # Hardcoded variables
@@ -135,6 +144,7 @@ for sample in samples:
 # 3 Peform tests to determine accuracy and precision
 
 ## 3.1 Chi-Squared test (accuracy)
+
 ### 3.1.1 To perform a Chi-Squared test on replicates, we summarize columns across the replicates:
 master_df_summarized = pd.DataFrame()
 ### For all columns (note: all samples contain the same column names, so we manually pick one (the first in "samples" list))
@@ -148,62 +158,88 @@ for col in master_dfs[samples[0]].columns.tolist():
 
 ### 3.1.2 Now we perform a Chi-Squared test on the summarized master df, for each pipeline against the expected composition
 ###     (note, this is the DIRTY version where we add the same amount (1) to each value to get rid of zeros in the expected columns, because otherwise the Chi-Squared test is not possible):
-for pipeline in master_summarized_df.columns.tolist()[1:]:
-    chi2_var[pipeline] = [(chisquare([abun + 1 for abun in master_summarized_df[pipeline].tolist()],[abun + 1 for abun in master_summarized_df['expected'].tolist()])[0])]
+for pipeline in master_df_summarized.columns.tolist()[1:]:
+    chi2_var[pipeline] = [(chisquare([abun + 1 for abun in master_df_summarized[pipeline].tolist()],[abun + 1 for abun in master_df_summarized['expected'].tolist()])[0])]
 
 ## 3.2 One-way ANOVA (precision)
-## Finally, we calculate a one-way ANOVA for all pipelines across the three replicates and add their F-statistics to the pipelines in the "chi2_var" dic
+##     Finally, we calculate a one-way ANOVA for all pipelines across the three replicates and add their F-statistics to the pipelines in the "chi2_var" dic
 for col in master_dfs[samples[0]].columns.tolist()[1:]: # all samples contain the name column names, so we manually pick one (the first in "samples" list)
     col_dic_anova = {}
     for sample in samples:
         col_dic_anova[sample] = master_dfs[sample][col].tolist()
     chi2_var[col].append(f_oneway(col_dic_anova[samples[0]], col_dic_anova[samples[1]], col_dic_anova[samples[2]])[0])
 
+## 3.3 Assign which tools have been used each step in the pipeline, with one column per step,
+##     as well as column for coordinates (Chi-Square statistics and ANOVA F-statistics) normalized to range 0-1,
+##     and add a column to find the distance between (0|0) (origin) and each normalized pipeline coordinate
 
-# 4 Plot accuracy vs. precision
+### 3.3.1 Calculate min and max for Chi-Square statistics and ANOVA F-statistics and calculate what coordinates the original origin (0|0) would have on the normalized scale
+chi2_min = chi2_var[min(chi2_var.keys(), key=(lambda k: chi2_var[k][0]))][0]
+chi2_max = chi2_var[max(chi2_var.keys(), key=(lambda k: chi2_var[k][0]))][0]
+var_min = chi2_var[min(chi2_var.keys(), key=(lambda k: chi2_var[k][1]))][1]
+var_max = chi2_var[max(chi2_var.keys(), key=(lambda k: chi2_var[k][1]))][1]
+origin_norm = [normalize(0, chi2_min, chi2_max), normalize(0, var_min, var_max)]
 
-## 4.1 Make plot data out of "chi2_var" dic that contains coordinates and pipeline names
-plot_data = {"x":[], "y":[], "pipeline":[]}
-for pipeline, coord in chi2_var.items():
-    plot_data["x"].append(coord[0])
-    plot_data["y"].append(coord[1])
-    plot_data["pipeline"].append(pipeline)
-
-## 4.2 Display the plot
-plt.figure(figsize=(10,8))
-plt.title('Scatter Plot', fontsize=20)
-plt.xlabel('Chi-Square', fontsize=15)
-plt.ylabel('ANOVA', fontsize=15)
-#plt.xlim(0, 0.1e12)
-#plt.ylim(min(range), max(range))
-#plt.ylim(-0.2e-30, 0.2e-30)
-plt.axis([0, 4e10, -1e-31, 1e-31])
-plt.scatter(plot_data["x"], plot_data["y"], marker = 'o')
-### Add labels
-for pipeline, x, y in zip(plot_data["pipeline"], plot_data["x"], plot_data["y"]):
-    plt.annotate(pipeline, xy = (x, y), size="xx-small", va="bottom", ha="center", stretch="condensed")
-### Save plot as png
-plt.savefig("{savedir}chi2_var.png".format(savedir=savedir), dpi=600)
+### 3.3.2 Add columns for tools, normalized coordinates, and distance
+for pipeline in chi2_var:
+    #### Add normalized Chi-Square statistics and ANOVA F-statistics coordinates
+    chi2_var[pipeline].extend([normalize(chi2_var[pipeline][0], chi2_min, chi2_max), normalize(chi2_var[pipeline][1], var_min, var_max)])
+    #### Add distance from normalized coordinates to normalized origin
+    chi2_var[pipeline].append(point_dist([chi2_var[pipeline][2], chi2_var[pipeline][3]], origin_norm))
+    #### Add tool names
+    pipeline_replace = pipeline.replace("IDBA_", "IDBA-").replace("NCBI_NT", "NCBI-NT").replace("BLAST_FIRST_HIT", "BLAST-FIRST-HIT").replace("BLAST_FILTERED", "BLAST-FILTERED")
+    chi2_var[pipeline].extend(pipeline_replace.split("_"))
 
 
-
-##### test area for fisher test
-
-import numpy as np
-import rpy2.robjects.numpy2ri
-from rpy2.robjects.packages import importr
-rpy2.robjects.numpy2ri.activate()
-test_pip = master_dfs[sample]['trimmed_at_phred_5_UNSORTED_SPADES_BWA_SILVA_KRAKEN2_pipeline_final'].tolist()
-test_exp = master_dfs[sample]['expected'].tolist()
-np_array = np.column_stack([test_exp, test_pip])
-
-stats = importr('stats')
-res = stats.fisher_test(np_array, simulate_p_value="TRUE")
-print(res)
+## 3.4 Save "chi2_var" dic as csv so that it can be plotted using R:
+df_save = pd.DataFrame.from_dict(chi2_var, orient="index", columns=["chi-square statistics", "ANOVA F-statistics", "normalized chi-square statistics", "normalized ANOVA F-statistics", "distance from origin", "trimmed PHRED", "rRNA filter", "assembler", "mapper", "DB", "classification"])
+df_save.to_csv("{savedir}chi2_var.csv".format(savedir=savedir), index_label="pipeline")
 
 
-# Fisher test loop
-for i in master_dfs[sample].columns.tolist()[1:]:
-    np_array = np.column_stack([master_dfs[sample]['expected'].tolist(), master_dfs[sample][i].tolist()])
-    res = stats.fisher_test(np_array, simulate_p_value="TRUE")
-    print(res[0][0])
+# # 4 Plot accuracy vs. precision (NOTE: switched to R for that part)
+#
+# ## 4.1 Make plot data out of "chi2_var" dic that contains coordinates and pipeline names
+# plot_data = {"x":[], "y":[], "pipeline":[]}
+# for pipeline, coord in chi2_var.items():
+#     plot_data["x"].append(coord[0])
+#     plot_data["y"].append(coord[1])
+#     plot_data["pipeline"].append(pipeline)
+#
+# ## 4.2 Display the plot
+# plt.figure(figsize=(10,8))
+# plt.title('Scatter Plot', fontsize=20)
+# plt.xlabel('Chi-Square', fontsize=15)
+# plt.ylabel('ANOVA', fontsize=15)
+# #plt.xlim(0, 0.1e12)
+# #plt.ylim(min(range), max(range))
+# #plt.ylim(-0.2e-30, 0.2e-30)
+# plt.axis([0, 4e10, -1e-31, 1e-31])
+# plt.scatter(plot_data["x"], plot_data["y"], marker = 'o')
+# ### Add labels
+# for pipeline, x, y in zip(plot_data["pipeline"], plot_data["x"], plot_data["y"]):
+#     plt.annotate(pipeline, xy = (x, y), size="xx-small", va="bottom", ha="center", stretch="condensed")
+# ### Save plot as png
+# plt.savefig("{savedir}chi2_var.png".format(savedir=savedir), dpi=600)
+#
+#
+#
+# ##### test area for fisher test
+#
+# import numpy as np
+# import rpy2.robjects.numpy2ri
+# from rpy2.robjects.packages import importr
+# rpy2.robjects.numpy2ri.activate()
+# test_pip = master_dfs[sample]['trimmed_at_phred_5_UNSORTED_SPADES_BWA_SILVA_KRAKEN2_pipeline_final'].tolist()
+# test_exp = master_dfs[sample]['expected'].tolist()
+# np_array = np.column_stack([test_exp, test_pip])
+#
+# stats = importr('stats')
+# res = stats.fisher_test(np_array, simulate_p_value="TRUE")
+# print(res)
+#
+#
+# # Fisher test loop
+# for i in master_dfs[sample].columns.tolist()[1:]:
+#     np_array = np.column_stack([master_dfs[sample]['expected'].tolist(), master_dfs[sample][i].tolist()])
+#     res = stats.fisher_test(np_array, simulate_p_value="TRUE")
+#     print(res[0][0])
