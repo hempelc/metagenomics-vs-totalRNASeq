@@ -282,7 +282,7 @@ elif [[ ${sorting} == "barrnap" ]]; then
 	mkdir BARRNAP/
 	for kingdom in euk bac arc; do # barrnap needs to be run on kingdoms separately
 		step_description_and_time_first "RUNNING BARRNAP ON KINGDOM $kingdom AND R1 READS"
-		barrnap \
+		~/scratch/chris_pilot_project/programs/barrnap/bin/barrnap \
 		--quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
 		--threads $threads --outseq BARRNAP/${kingdom}_reads1.fa \
 		reads_in_fasta_format/R1.fa
@@ -543,8 +543,8 @@ elif [[ $classification == "kraken2" ]]; then
 		# Modify translated output format to match SILVA taxonomy paths we have the NCBI staxid for:
 		cut -f 3 -d , kraken2_translate_result.txt \
 		| sed 's/^[A-Za-z0-9]*__root|[A-Za-z0-9]*__//g' | sed 's/|[A-Za-z0-9]*__/;/g' \
-		| sed 's/$/;/g' | sed 's/unclassified/No hits/g' | sed '1d' \
-		> kraken2_translate_result_edited.txt
+		| sed 's/$/;/g' | sed 's/unclassified/No hits/g' | sed 's/R__root/No hits/g' \
+		| sed '1d' > kraken2_translate_result_edited.txt
 		# Access the SILVA taxonomy file and remove rows with duplicate paths (relict from merging SSU and LSU databases):
 		awk '!a[$1]++' $silva_path_taxid > tmp && mv tmp SILVA_paths_and_taxids.txt && rm tmp
 		# Merge your kraken2 taxids with the SILVA path file to assign a SILVA

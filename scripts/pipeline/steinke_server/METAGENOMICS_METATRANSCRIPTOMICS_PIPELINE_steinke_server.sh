@@ -482,7 +482,8 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 					# Modify translated output format to match SILVA taxonomy paths we have the NCBI staxid for:
 					cut -f 3 -d , kraken2_translate_result.txt \
 					| sed 's/^[A-Za-z0-9]*__root|[A-Za-z0-9]*__//g' | sed 's/|[A-Za-z0-9]*__/;/g' \
-					| sed 's/$/;/g' | sed 's/unclassified/No hits/g' | sed '1d' \
+					| sed 's/$/;/g' | sed 's/unclassified/No hits/g' \
+					| sed 's/R__root/No hits/g' | sed '1d' \
 					> kraken2_translate_result_edited.txt
 					# Access the SILVA taxonomy file (downloaded taxmap files as in
 					# subscript SILVA_SSU_LSU_kraken2_preparation and concatenated them)
