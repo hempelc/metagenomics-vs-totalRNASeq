@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 
 import pandas as pd
+import numpy as np
 import glob
 import os
 import csv
 import math
+import statistics
 from scipy.stats import chisquare
-from scipy.stats import f_oneway
 # NOTE: When running the code, ignore the warning - stems from a function that I had to implement because some of the files were wrong ("NA" in counts column), but I fixed that in the pipeline,
 # so after I rerun the pipelines, we can take out that portion of code and the warning will disappear
 
 # @Julia, if you want to have a look at one master df, run the following line once you ran the rest of the code (commented out for now):
-#master_dfs["M4_RNA"]
+#master_dfs_uniq["M4_RNA"]
 # The only thing you have to adjust is the full path to your folder containing the 3 dirs with files (full path from root)
 
 # FUTURE ADAPTATION: "lowest_hit" needs to be adapted to "species" once we rerun pipelines (can simply literatelly be find-replace'd)
@@ -45,7 +46,8 @@ rel_abun_basis = "cell" # Basis for relative abundance calculation of expected m
 num_reads_abs = {"M4_DNA": 310806, "M4_RNA": 211414, "M5_DNA": 146174, "M5_RNA": 322631, "M6_DNA": 114459, "M6_RNA": 269408} # dict with read numbers per sample for easy accessibility
 rel_abun_gen = [89.1, 8.9, 0.89, 0.89, 0.089, 0.089, 0.0089, 0.00089, 0.00089, 0.000089] # Relative abundances of mock community taxa in percent based on genomic DNA
 rel_abun_cell = [94.9, 4.2, 0.7, 0.12, 0.058, 0.059, 0.015, 0.001, 0.00007, 0.0001] # Relative abundances of mock community taxa in percent based on cell number
-master_dfs = {} # Empty dic that will eventually contain all samples' master dfs
+master_dfs_raw = {} # Empty dic that will eventually contain all samples' raw pipelines output
+master_dfs_uniq = {} # Empty dic that will eventually contain all samples' master dfs (dfs with rows = all unique taxa)
 all_taxa = [] # Empty list that will eventually contain all taxa that appear in all samples
 chi2_var = {} # Empty dic that will eventually contain all chi-squares statistics and ANOVA variance F-statistics for all pipelines
 
@@ -113,6 +115,9 @@ for sample in samples:
             sample_dfs["{file}".format(file=file).split("/")[-1].split(".")[-2].split("trimmed_at_phred_")[1].split("_pipeline_final")[0]] = df_agg
         else:                                                                                                                                            ### TO BE DELETED
             continue                                                                                                                                     ### TO BE DELETED
+    ### Save sample_df in dic "master_dfs_raw":
+    master_dfs_raw[sample] = sample_dfs
+
 
 # 2 Make a "unique_taxa" list that contains all taxa that appear in all samples;
 #   generate a "master_df" df from each sample that contains counts for all taxa in all samples and mock community:
@@ -120,70 +125,104 @@ for sample in samples:
 ## 2.1 Drop duplicates of "all_taxa" list
 unique_taxa = list(set(all_taxa))
 
-## 2.2 Generate master df for every sample and save in dic "master_dfs":
-for sample in samples:
+
+## 2.2 Generate master df for every sample and save in dic "master_dfs_uniq":
+for sample, pipeline_dfs in master_dfs_raw.items():
     ### Make master df with taxa from "unique_taxa" list as row names
-    master_dfs[sample] = pd.DataFrame(index=pd.Index(unique_taxa))
+    master_dfs_uniq[sample] = pd.DataFrame(index=pd.Index(unique_taxa))
 
     ### For each df in dict with key=pipeline
-    for pipeline, df in sample_dfs.items():
+    for pipeline, data in pipeline_dfs.items():
         counts=[]
         #### For each taxon in unique taxa list
         for taxon in unique_taxa:
             ##### If taxon is in df groupby_rank column
-            if (df[groupby_rank] == taxon).any():
+            if (data[groupby_rank] == taxon).any():
                 ###### Sum up all counts of that taxon and add it to list "counts"
-                counts.append(df.loc[df[groupby_rank] == taxon, 'counts'].sum())
+                counts.append(data.loc[data[groupby_rank] == taxon, 'counts'].sum())
             ##### If taxon not in df groupby_rank column, add 0 to list "counts"
             else:
                 counts.append(0)
         #### Make a new column in  master df named after the pipeline and add taxon counts for that pipeline
-        master_dfs[sample][pipeline]=counts
+        master_dfs_uniq[sample][pipeline]=counts
 
-
-# 3 Peform tests to determine accuracy and precision
+# 3 Perform tests to determine accuracy and precision
 
 ## 3.1 Chi-Squared test (accuracy)
 
 ### 3.1.1 To perform a Chi-Squared test on replicates, we summarize columns across the replicates:
 master_df_summarized = pd.DataFrame()
 ### For all columns (note: all samples contain the same column names, so we manually pick one (the first in "samples" list))
-for col in master_dfs[samples[0]].columns.tolist():
+
+### NOTE: For now, some pipelines didn't work, so we have to make a list of shared pipelines                                                            ### TO BE DELETED
+shared_pipelines = []                                                                                                                                   ### TO BE DELETED
+for sample in samples:                                                                                                                                  ### TO BE DELETED
+    shared_pipelines.extend(master_dfs_uniq[sample].columns.tolist()[1:])                                                                               ### TO BE DELETED
+shared_pipelines = list(set(i for i in shared_pipelines if shared_pipelines.count(i) > 2))                                                              ### TO BE DELETED
+
+#for col in master_dfs_uniq[samples[0]].columns.tolist():
+shared_pipelines_exp = shared_pipelines[:]                                                                                                              ### TO BE DELETED
+shared_pipelines_exp.append("expected")                                                                                                                 ### TO BE DELETED
+for pipeline in shared_pipelines_exp:                                                                                                                   ### TO BE DELETED
     #### Make list per column in every sample and save in dir:
-    col_dic_chi2 = {}
+    pipeline_dic_chi2 = {}
     for sample in samples:
-        col_dic_chi2[sample] = master_dfs[sample][col].tolist()
+        pipeline_dic_chi2[sample] = master_dfs_uniq[sample][pipeline].tolist()
     #### Summarize the three columns in the three replicates:
-    master_df_summarized[col] = [a + b + c for a, b, c in zip(col_dic_chi2[samples[0]], col_dic_chi2[samples[1]], col_dic_chi2[samples[2]])]
+    master_df_summarized[pipeline] = [a + b + c for a, b, c in zip(pipeline_dic_chi2[samples[0]], pipeline_dic_chi2[samples[1]], pipeline_dic_chi2[samples[2]])]
 
 ### 3.1.2 Now we perform a Chi-Squared test on the summarized master df, for each pipeline against the expected composition
-###     (note, this is the DIRTY version where we add the same amount (1) to each value to get rid of zeros in the expected columns, because otherwise the Chi-Squared test is not possible):
-for pipeline in master_df_summarized.columns.tolist()[1:]:
+###       (note, this is the DIRTY version where we add the same amount (1) to each value to get rid of zeros in the expected columns, because otherwise the Chi-Squared test is not possible):
+
+#for pipeline in master_df_summarized.columns.tolist()[1:]:
+for pipeline in shared_pipelines:                                                                                                                       ### TO BE DELETED
     chi2_var[pipeline] = [(chisquare([abun + 1 for abun in master_df_summarized[pipeline].tolist()],[abun + 1 for abun in master_df_summarized['expected'].tolist()])[0])]
 
-## 3.2 One-way ANOVA (precision)
-##     Finally, we calculate a one-way ANOVA for all pipelines across the three replicates and add their F-statistics to the pipelines in the "chi2_var" dic
-for col in master_dfs[samples[0]].columns.tolist()[1:]: # all samples contain the name column names, so we manually pick one (the first in "samples" list)
-    col_dic_anova = {}
-    for sample in samples:
-        col_dic_anova[sample] = master_dfs[sample][col].tolist()
-    chi2_var[col].append(f_oneway(col_dic_anova[samples[0]], col_dic_anova[samples[1]], col_dic_anova[samples[2]])[0])
+
+## 3.2 Sum of variance for each taxon (precision)
+##     Finally, we calculate the variance for all pipelines across the three replicates by summing up the variance of each taxa across the
+##     replicates for every pipeline and add the returned summed variance to the pipelines in the "chi2_var" dic
+
+#for pipeline in master_dfs_uniq[samples[0]].columns.tolist()[1:]:
+for pipeline in shared_pipelines:                                                                                                                       ### TO BE DELETED
+    ### Turn pipelines into indexes
+    col = master_dfs_uniq[samples[0]].columns.tolist()[1:].index(pipeline)
+    ### Each pipeline gets a variance sum variable
+    var_sum = 0
+    ### For each row in the pipelines across replicates, calculate the variance and sum them up:
+    for row in range(0,master_dfs_uniq[samples[0]].shape[0]):
+        var_sum += statistics.variance([int(master_dfs_uniq[samples[0]].iloc[row,col]), int(master_dfs_uniq[samples[1]].iloc[row,col]), int(master_dfs_uniq[samples[2]].iloc[row,col])])
+    ### Add var_sum to chi2_var dic for respective pipeline
+    chi2_var[pipeline].append(var_sum)
+
+
+# We don't do an ANOVA anymore, so next part is commented out
+# ## 3.2 One-way ANOVA (precision)
+# ##     Finally, we calculate a one-way ANOVA for all pipelines across the three replicates and add their F-statistics to the pipelines in the "chi2_var" dic
+# for col in master_dfs_uniq[samples[0]].columns.tolist()[1:]: # all samples contain the name column names, so we manually pick one (the first in "samples" list)
+#     col_dic_anova = {}
+#     for sample in samples:
+#         col_dic_anova[sample] = master_dfs_uniq[sample][col].tolist()
+#     chi2_var[col].append(f_oneway(col_dic_anova[samples[0]], col_dic_anova[samples[1]], col_dic_anova[samples[2]])[0])
+
+
+
 
 ## 3.3 Assign which tools have been used each step in the pipeline, with one column per step,
-##     as well as column for coordinates (Chi-Square statistics and ANOVA F-statistics) normalized to range 0-1,
-##     and add a column to find the distance between (0|0) (origin) and each normalized pipeline coordinate
+##     as well as column for coordinates (Chi-Square statistics and summed variance) normalized to range 0-1,
+##     and add a column to find the distance between (1|1) (reverted normalized origin = best case) and each normalized pipeline coordinate
 
-### 3.3.1 Calculate min and max for Chi-Square statistics and ANOVA F-statistics and calculate what coordinates the original origin (0|0) would have on the normalized scale
+### 3.3.1 Calculate min and max for Chi-Square statistics and summed variance and calculate what coordinates the original origin (0|0) would have on the normalized scale;
 chi2_min = chi2_var[min(chi2_var.keys(), key=(lambda k: chi2_var[k][0]))][0]
 chi2_max = chi2_var[max(chi2_var.keys(), key=(lambda k: chi2_var[k][0]))][0]
 var_min = chi2_var[min(chi2_var.keys(), key=(lambda k: chi2_var[k][1]))][1]
 var_max = chi2_var[max(chi2_var.keys(), key=(lambda k: chi2_var[k][1]))][1]
-origin_norm = [normalize(0, chi2_min, chi2_max), normalize(0, var_min, var_max)]
+origin_norm = [normalize(1, chi2_min, chi2_max), normalize(1, var_min, var_max)]
 
 ### 3.3.2 Add columns for tools, normalized coordinates, and distance
 for pipeline in chi2_var:
-    #### Add normalized Chi-Square statistics and ANOVA F-statistics coordinates
-    chi2_var[pipeline].extend([normalize(chi2_var[pipeline][0], chi2_min, chi2_max), normalize(chi2_var[pipeline][1], var_min, var_max)])
+    #### Add normalized Chi-Square statistics and summed variance coordinates (reversed for accuracy so that 1 is best and 0 is worst)
+    chi2_var[pipeline].extend([1-normalize(chi2_var[pipeline][0], chi2_min, chi2_max), 1-normalize(chi2_var[pipeline][1], var_min, var_max)])
     #### Add distance from normalized coordinates to normalized origin
     chi2_var[pipeline].append(point_dist([chi2_var[pipeline][2], chi2_var[pipeline][3]], origin_norm))
     #### Add tool names
@@ -192,7 +231,7 @@ for pipeline in chi2_var:
 
 
 ## 3.4 Save "chi2_var" dic as csv so that it can be plotted using R:
-df_save = pd.DataFrame.from_dict(chi2_var, orient="index", columns=["chi-square statistics", "ANOVA F-statistics", "normalized chi-square statistics", "normalized ANOVA F-statistics", "distance from origin", "trimmed PHRED", "rRNA filter", "assembler", "mapper", "DB", "classification"])
+df_save = pd.DataFrame.from_dict(chi2_var, orient="index", columns=["chi-square statistics", "summed variance", "normalized chi-square statistics", "normalized summed variance", "distance from origin", "trimmed PHRED", "rRNA filter", "assembler", "mapper", "DB", "classification"])
 df_save.to_csv("{savedir}chi2_var.csv".format(savedir=savedir), index_label="pipeline")
 
 
@@ -229,8 +268,8 @@ df_save.to_csv("{savedir}chi2_var.csv".format(savedir=savedir), index_label="pip
 # import rpy2.robjects.numpy2ri
 # from rpy2.robjects.packages import importr
 # rpy2.robjects.numpy2ri.activate()
-# test_pip = master_dfs[sample]['trimmed_at_phred_5_UNSORTED_SPADES_BWA_SILVA_KRAKEN2_pipeline_final'].tolist()
-# test_exp = master_dfs[sample]['expected'].tolist()
+# test_pip = master_dfs_uniq[sample]['trimmed_at_phred_5_UNSORTED_SPADES_BWA_SILVA_KRAKEN2_pipeline_final'].tolist()
+# test_exp = master_dfs_uniq[sample]['expected'].tolist()
 # np_array = np.column_stack([test_exp, test_pip])
 #
 # stats = importr('stats')
@@ -239,7 +278,7 @@ df_save.to_csv("{savedir}chi2_var.csv".format(savedir=savedir), index_label="pip
 #
 #
 # # Fisher test loop
-# for i in master_dfs[sample].columns.tolist()[1:]:
-#     np_array = np.column_stack([master_dfs[sample]['expected'].tolist(), master_dfs[sample][i].tolist()])
+# for i in master_dfs_uniq[sample].columns.tolist()[1:]:
+#     np_array = np.column_stack([master_dfs_uniq[sample]['expected'].tolist(), master_dfs_uniq[sample][i].tolist()])
 #     res = stats.fisher_test(np_array, simulate_p_value="TRUE")
 #     print(res[0][0])
