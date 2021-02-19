@@ -7,7 +7,7 @@ echo "Number of directories: $num_dir"
 
 if [[ $num_dir != 512 ]]; then
   echo "Generate file containing missing pipelines: missing.txt"
-  cp /home/hempelc/scratch/chris_pilot_project/programs/chrisnatjulia/scripts/pipeline/compute_canada/combinations_metagenomics_metatranscriptomics_pipeline_${cluster}.txt .
+  cp /home/hempelc/chrisnatjulia/scripts/pipeline/compute_canada/combinations_metagenomics_metatranscriptomics_pipeline_${cluster}.txt .
   mv combinations_metagenomics_metatranscriptomics_pipeline_${cluster}.txt all.txt
   touch done.txt
   for i in */; do
@@ -18,15 +18,18 @@ if [[ $num_dir != 512 ]]; then
   rm all.txt done.txt
 fi
 
-failed_started=$(du */ | grep -P "^4\t" | wc -l)
-failed_finished=$(du */*final.txt | grep -P "^4\t" | wc -l)
-failed=$(($failed_started + $failed_finished))
+failed_started1=$(du */ | grep -P "^4\t" | wc -l)
+failed_finished1=$(du */*final.txt | grep -P "^4\t" | wc -l)
+failed_started2=$(du */ | grep -P "^36\t" | wc -l)
+failed_finished2=$(du */*final.txt | grep -P "^36\t" | wc -l)
+failed=$(($failed_started1 + $failed_finished1 + $failed_started2 + $failed_finished2))
 echo "Number of failed pipelines: $failed"
 
 if [[ $failed != 0 ]]; then
   echo "Generate file containing failed pipelines: failed.txt"
-  du */ | grep -P "^4\t" | cut -f 2 | sed 's/^.*\///g' > failed.txt
+  du */ | grep -P "^\t" | cut -f 2 | sed 's/^.*\///g' > failed.txt
   du */*final.txt | grep -P "^4\t" | cut -f 2 | sed 's/\/.*$//g' >> failed.txt
+  du */*final.txt | grep -P "^36\t" | cut -f 2 | sed 's/\/.*$//g' >> failed.txt
 else
   touch time.txt
   for i in slurm-*; do grep "Bundled pipelines ended" $i | sed 's/\[.*\] Bundled pipelines ended in //g' >> time.txt; done
