@@ -196,35 +196,22 @@ for pipeline in shared_pipelines:                                               
     chi2_var[pipeline].append(var_sum)
 
 
-# We don't do an ANOVA anymore, so next part is commented out
-# ## 3.2 One-way ANOVA (precision)
-# ##     Finally, we calculate a one-way ANOVA for all pipelines across the three replicates and add their F-statistics to the pipelines in the "chi2_var" dic
-# for col in master_dfs_uniq[samples[0]].columns.tolist()[1:]: # all samples contain the name column names, so we manually pick one (the first in "samples" list)
-#     col_dic_anova = {}
-#     for sample in samples:
-#         col_dic_anova[sample] = master_dfs_uniq[sample][col].tolist()
-#     chi2_var[col].append(f_oneway(col_dic_anova[samples[0]], col_dic_anova[samples[1]], col_dic_anova[samples[2]])[0])
-
-
-
-
 ## 3.3 Assign which tools have been used each step in the pipeline, with one column per step,
 ##     as well as column for coordinates (Chi-Square statistics and summed variance) normalized to range 0-1,
 ##     and add a column to find the distance between (1|1) (reverted normalized origin = best case) and each normalized pipeline coordinate
 
-### 3.3.1 Calculate min and max for Chi-Square statistics and summed variance and calculate what coordinates the original origin (0|0) would have on the normalized scale;
+### 3.3.1 Calculate min and max for Chi-Square statistics and summed variance;
 chi2_min = chi2_var[min(chi2_var.keys(), key=(lambda k: chi2_var[k][0]))][0]
 chi2_max = chi2_var[max(chi2_var.keys(), key=(lambda k: chi2_var[k][0]))][0]
 var_min = chi2_var[min(chi2_var.keys(), key=(lambda k: chi2_var[k][1]))][1]
 var_max = chi2_var[max(chi2_var.keys(), key=(lambda k: chi2_var[k][1]))][1]
-origin_norm = [normalize(1, chi2_min, chi2_max), normalize(1, var_min, var_max)]
 
 ### 3.3.2 Add columns for tools, normalized coordinates, and distance
 for pipeline in chi2_var:
     #### Add normalized Chi-Square statistics and summed variance coordinates (reversed for accuracy so that 1 is best and 0 is worst)
     chi2_var[pipeline].extend([1-normalize(chi2_var[pipeline][0], chi2_min, chi2_max), 1-normalize(chi2_var[pipeline][1], var_min, var_max)])
     #### Add distance from normalized coordinates to normalized origin
-    chi2_var[pipeline].append(point_dist([chi2_var[pipeline][2], chi2_var[pipeline][3]], origin_norm))
+    chi2_var[pipeline].append(point_dist([chi2_var[pipeline][2], chi2_var[pipeline][3]], [1,1]))
     #### Add tool names
     pipeline_replace = pipeline.replace("IDBA_", "IDBA-").replace("NCBI_NT", "NCBI-NT").replace("BLAST_FIRST_HIT", "BLAST-FIRST-HIT").replace("BLAST_FILTERED", "BLAST-FILTERED")
     chi2_var[pipeline].extend(pipeline_replace.split("_"))
@@ -235,50 +222,11 @@ df_save = pd.DataFrame.from_dict(chi2_var, orient="index", columns=["chi-square 
 df_save.to_csv("{savedir}chi2_var.csv".format(savedir=savedir), index_label="pipeline")
 
 
-# # 4 Plot accuracy vs. precision (NOTE: switched to R for that part)
-#
-# ## 4.1 Make plot data out of "chi2_var" dic that contains coordinates and pipeline names
-# plot_data = {"x":[], "y":[], "pipeline":[]}
-# for pipeline, coord in chi2_var.items():
-#     plot_data["x"].append(coord[0])
-#     plot_data["y"].append(coord[1])
-#     plot_data["pipeline"].append(pipeline)
-#
-# ## 4.2 Display the plot
-# plt.figure(figsize=(10,8))
-# plt.title('Scatter Plot', fontsize=20)
-# plt.xlabel('Chi-Square', fontsize=15)
-# plt.ylabel('ANOVA', fontsize=15)
-# #plt.xlim(0, 0.1e12)
-# #plt.ylim(min(range), max(range))
-# #plt.ylim(-0.2e-30, 0.2e-30)
-# plt.axis([0, 4e10, -1e-31, 1e-31])
-# plt.scatter(plot_data["x"], plot_data["y"], marker = 'o')
-# ### Add labels
-# for pipeline, x, y in zip(plot_data["pipeline"], plot_data["x"], plot_data["y"]):
-#     plt.annotate(pipeline, xy = (x, y), size="xx-small", va="bottom", ha="center", stretch="condensed")
-# ### Save plot as png
-# plt.savefig("{savedir}chi2_var.png".format(savedir=savedir), dpi=600)
-#
-#
-#
-# ##### test area for fisher test
-#
-# import numpy as np
-# import rpy2.robjects.numpy2ri
-# from rpy2.robjects.packages import importr
-# rpy2.robjects.numpy2ri.activate()
-# test_pip = master_dfs_uniq[sample]['trimmed_at_phred_5_UNSORTED_SPADES_BWA_SILVA_KRAKEN2_pipeline_final'].tolist()
-# test_exp = master_dfs_uniq[sample]['expected'].tolist()
-# np_array = np.column_stack([test_exp, test_pip])
-#
-# stats = importr('stats')
-# res = stats.fisher_test(np_array, simulate_p_value="TRUE")
-# print(res)
-#
-#
-# # Fisher test loop
-# for i in master_dfs_uniq[sample].columns.tolist()[1:]:
-#     np_array = np.column_stack([master_dfs_uniq[sample]['expected'].tolist(), master_dfs_uniq[sample][i].tolist()])
-#     res = stats.fisher_test(np_array, simulate_p_value="TRUE")
-#     print(res[0][0])
+# 4. Get abundance for mock community members from "best" pipeline (NOTE: only for talk since we change the approach later)
+dic_abun_obs = {"abun": [abun / 3 for abun in master_df_summarized["10_BARRNAP_IDBA_TRAN_BOWTIE2_NCBI_NT_KRAKEN2"]], "taxa": unique_taxa}
+df_abun_obs = pd.DataFrame.from_dict(dic_abun_obs)
+df_abun_obs.to_csv("{savedir}df_abun_obs.csv".format(savedir=savedir))
+
+dic_abun_exp = {"abun": [abun / 3 for abun in master_df_summarized["expected"]], "taxa": unique_taxa}
+df_abun_exp = pd.DataFrame.from_dict(dic_abun_exp)
+df_abun_exp.to_csv("{savedir}df_abun_exp.csv".format(savedir=savedir))
