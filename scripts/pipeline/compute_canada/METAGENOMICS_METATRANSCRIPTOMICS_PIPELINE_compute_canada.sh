@@ -282,12 +282,12 @@ elif [[ ${sorting} == "barrnap" ]]; then
 	mkdir BARRNAP/
 	for kingdom in euk bac arc; do # barrnap needs to be run on kingdoms separately
 		step_description_and_time_first "RUNNING BARRNAP ON KINGDOM $kingdom AND R1 READS"
-		~/scratch/chris_pilot_project/programs/barrnap/bin/barrnap \
+		barrnap \
 		--quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
 		--threads $threads --outseq BARRNAP/${kingdom}_reads1.fa \
 		reads_in_fasta_format/R1.fa
 		step_description_and_time_first "RUNNING BARRNAP ON KINGDOM $kingdom AND R2 READS"
-		~/scratch/chris_pilot_project/programs/barrnap/bin/barrnap \
+		barrnap \
 		--quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
 		--threads $threads --outseq BARRNAP/${kingdom}_reads2.fa \
 		reads_in_fasta_format/R2.fa
