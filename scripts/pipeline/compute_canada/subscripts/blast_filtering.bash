@@ -196,7 +196,7 @@ if [[ $filtering == 'soft' ]] ; then
           if [[ $(echo "${rank_tax}" | wc -w) == 1 ]]; then
             taxonomy=$(echo "${taxonomy}---NA")
           elif [[ "${rank_tax:0:1}" =~ [A-Z] ]]; then # if first letter is capitalized (indicates format "Genus species")
-            if [[ "${$(echo $rank_tax | cut -f 2 -d ' '):0:1}" =~ [a-] ]]; then
+            if [[ $(echo $rank_tax | cut -f 2 -d ' ' | cut -c 1) =~ [a-z] ]]; then
               taxonomy=$(echo "${taxonomy}---${rank_tax}") # if first letter is non-capitalized (indicates format "Genus species")
             else
               taxonomy=$(echo "${taxonomy}---NA")
