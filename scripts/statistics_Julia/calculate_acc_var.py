@@ -7,12 +7,13 @@ import os
 import csv
 import math
 import statistics
+import copy
 from scipy.stats import chisquare
 # NOTE: When running the code, ignore the warning - stems from a function that I had to implement because some of the files were wrong ("NA" in counts column), but I fixed that in the pipeline,
 # so after I rerun the pipelines, we can take out that portion of code and the warning will disappear
 
 # @Julia, if you want to have a look at one master df, run the following line once you ran the rest of the code (commented out for now):
-#master_dfs_uniq["M4_RNA"]
+#master_dfs_uniq_abs["M4_RNA"]
 # The only thing you have to adjust is the full path to your folder containing the 3 dirs with files (full path from root)
 
 # FUTURE ADAPTATION: "lowest_hit" needs to be adapted to "species" once we rerun pipelines (can simply literatelly be find-replace'd)
@@ -47,7 +48,8 @@ num_reads_abs = {"M4_DNA": 310806, "M4_RNA": 211414, "M5_DNA": 146174, "M5_RNA":
 rel_abun_gen = [89.1, 8.9, 0.89, 0.89, 0.089, 0.089, 0.0089, 0.00089, 0.00089, 0.000089] # Relative abundances of mock community taxa in percent based on genomic DNA
 rel_abun_cell = [94.9, 4.2, 0.7, 0.12, 0.058, 0.059, 0.015, 0.001, 0.00007, 0.0001] # Relative abundances of mock community taxa in percent based on cell number
 master_dfs_raw = {} # Empty dic that will eventually contain all samples' raw pipelines output
-master_dfs_uniq = {} # Empty dic that will eventually contain all samples' master dfs (dfs with rows = all unique taxa)
+master_dfs_uniq_abs = {} # Empty dic that will eventually contain all samples' master dfs with absolute counts (dfs with rows = all unique taxa)
+master_dfs_uniq_rel = {} # Empty dic that will eventually contain all samples' master dfs with relative counts (dfs with rows = all unique taxa)
 all_taxa = [] # Empty list that will eventually contain all taxa that appear in all samples
 chi2_var = {} # Empty dic that will eventually contain all chi-squares statistics and ANOVA variance F-statistics for all pipelines
 
@@ -126,10 +128,10 @@ for sample in samples:
 unique_taxa = list(set(all_taxa))
 
 
-## 2.2 Generate master df for every sample and save in dic "master_dfs_uniq":
+## 2.2 Generate master df with absolute read counts for every sample and save in dic "master_dfs_uniq_abs":
 for sample, pipeline_dfs in master_dfs_raw.items():
     ### Make master df with taxa from "unique_taxa" list as row names
-    master_dfs_uniq[sample] = pd.DataFrame(index=pd.Index(unique_taxa))
+    master_dfs_uniq_abs[sample] = pd.DataFrame(index=pd.Index(unique_taxa))
 
     ### For each df in dict with key=pipeline
     for pipeline, data in pipeline_dfs.items():
@@ -144,9 +146,28 @@ for sample, pipeline_dfs in master_dfs_raw.items():
             else:
                 counts.append(0)
         #### Make a new column in  master df named after the pipeline and add taxon counts for that pipeline
-        master_dfs_uniq[sample][pipeline]=counts
+        master_dfs_uniq_abs[sample][pipeline]=counts
+
+## 2.3 Generate master df with relative read counts for every sample and save in dic "master_dfs_uniq_rel":
+### Based on absolute counts, divide every column entry by the column sum for all columns
+for key, value in master_dfs_uniq_abs.items():
+    master_dfs_uniq_rel[key] = master_dfs_uniq_abs[key]/master_dfs_uniq_abs[key][master_dfs_uniq_abs[key].columns].sum()
+
+## 2.3 Generate master df with presence/absence for every sample and save in dic "master_dfs_uniq_pa":
+### Deepcopy one of the master dfs
+master_dfs_uniq_pa = copy.deepcopy(master_dfs_uniq_abs)
+### Replace all non-zero values with 1
+for key, value in master_dfs_uniq_pa.items():
+    value[value != 0] = 1
+
 
 # 3 Perform tests to determine accuracy and precision
+
+
+
+
+
+
 
 ## 3.1 Chi-Squared test (accuracy)
 
@@ -157,17 +178,17 @@ master_df_summarized = pd.DataFrame()
 ### NOTE: For now, some pipelines didn't work, so we have to make a list of shared pipelines                                                            ### TO BE DELETED
 shared_pipelines = []                                                                                                                                   ### TO BE DELETED
 for sample in samples:                                                                                                                                  ### TO BE DELETED
-    shared_pipelines.extend(master_dfs_uniq[sample].columns.tolist()[1:])                                                                               ### TO BE DELETED
+    shared_pipelines.extend(master_dfs_uniq_abs[sample].columns.tolist()[1:])                                                                               ### TO BE DELETED
 shared_pipelines = list(set(i for i in shared_pipelines if shared_pipelines.count(i) > 2))                                                              ### TO BE DELETED
 
-#for col in master_dfs_uniq[samples[0]].columns.tolist():
+#for col in master_dfs_uniq_abs[samples[0]].columns.tolist():
 shared_pipelines_exp = shared_pipelines[:]                                                                                                              ### TO BE DELETED
 shared_pipelines_exp.append("expected")                                                                                                                 ### TO BE DELETED
 for pipeline in shared_pipelines_exp:                                                                                                                   ### TO BE DELETED
     #### Make list per column in every sample and save in dir:
     pipeline_dic_chi2 = {}
     for sample in samples:
-        pipeline_dic_chi2[sample] = master_dfs_uniq[sample][pipeline].tolist()
+        pipeline_dic_chi2[sample] = master_dfs_uniq_abs[sample][pipeline].tolist()
     #### Summarize the three columns in the three replicates:
     master_df_summarized[pipeline] = [a + b + c for a, b, c in zip(pipeline_dic_chi2[samples[0]], pipeline_dic_chi2[samples[1]], pipeline_dic_chi2[samples[2]])]
 
@@ -183,15 +204,15 @@ for pipeline in shared_pipelines:                                               
 ##     Finally, we calculate the variance for all pipelines across the three replicates by summing up the variance of each taxa across the
 ##     replicates for every pipeline and add the returned summed variance to the pipelines in the "chi2_var" dic
 
-#for pipeline in master_dfs_uniq[samples[0]].columns.tolist()[1:]:
+#for pipeline in master_dfs_uniq_abs[samples[0]].columns.tolist()[1:]:
 for pipeline in shared_pipelines:                                                                                                                       ### TO BE DELETED
     ### Turn pipelines into indexes
-    col = master_dfs_uniq[samples[0]].columns.tolist()[1:].index(pipeline)
+    col = master_dfs_uniq_abs[samples[0]].columns.tolist()[1:].index(pipeline)
     ### Each pipeline gets a variance sum variable
     var_sum = 0
     ### For each row in the pipelines across replicates, calculate the variance and sum them up:
-    for row in range(0,master_dfs_uniq[samples[0]].shape[0]):
-        var_sum += statistics.variance([int(master_dfs_uniq[samples[0]].iloc[row,col]), int(master_dfs_uniq[samples[1]].iloc[row,col]), int(master_dfs_uniq[samples[2]].iloc[row,col])])
+    for row in range(0,master_dfs_uniq_abs[samples[0]].shape[0]):
+        var_sum += statistics.variance([int(master_dfs_uniq_abs[samples[0]].iloc[row,col]), int(master_dfs_uniq_abs[samples[1]].iloc[row,col]), int(master_dfs_uniq_abs[samples[2]].iloc[row,col])])
     ### Add var_sum to chi2_var dic for respective pipeline
     chi2_var[pipeline].append(var_sum)
 
@@ -217,16 +238,19 @@ for pipeline in chi2_var:
     chi2_var[pipeline].extend(pipeline_replace.split("_"))
 
 
+
+
+
 ## 3.4 Save "chi2_var" dic as csv so that it can be plotted using R:
-df_save = pd.DataFrame.from_dict(chi2_var, orient="index", columns=["chi-square statistics", "summed variance", "normalized chi-square statistics", "normalized summed variance", "distance from origin", "trimmed PHRED", "rRNA filter", "assembler", "mapper", "DB", "classification"])
-df_save.to_csv("{savedir}chi2_var.csv".format(savedir=savedir), index_label="pipeline")
-
-
-# 4. Get abundance for mock community members from "best" pipeline (NOTE: only for talk since we change the approach later)
-dic_abun_obs = {"abun": [abun / 3 for abun in master_df_summarized["10_BARRNAP_IDBA_TRAN_BOWTIE2_NCBI_NT_KRAKEN2"]], "taxa": unique_taxa}
-df_abun_obs = pd.DataFrame.from_dict(dic_abun_obs)
-df_abun_obs.to_csv("{savedir}df_abun_obs.csv".format(savedir=savedir))
-
-dic_abun_exp = {"abun": [abun / 3 for abun in master_df_summarized["expected"]], "taxa": unique_taxa}
-df_abun_exp = pd.DataFrame.from_dict(dic_abun_exp)
-df_abun_exp.to_csv("{savedir}df_abun_exp.csv".format(savedir=savedir))
+# df_save = pd.DataFrame.from_dict(chi2_var, orient="index", columns=["chi-square statistics", "summed variance", "normalized chi-square statistics", "normalized summed variance", "distance from origin", "trimmed PHRED", "rRNA filter", "assembler", "mapper", "DB", "classification"])
+# df_save.to_csv("{savedir}chi2_var.csv".format(savedir=savedir), index_label="pipeline")
+#
+#
+# # 4. Get abundance for mock community members from "best" pipeline (NOTE: only for talk since we change the approach later)
+# dic_abun_obs = {"abun": [abun / 3 for abun in master_df_summarized["10_BARRNAP_IDBA_TRAN_BOWTIE2_NCBI_NT_KRAKEN2"]], "taxa": unique_taxa}
+# df_abun_obs = pd.DataFrame.from_dict(dic_abun_obs)
+# df_abun_obs.to_csv("{savedir}df_abun_obs.csv".format(savedir=savedir))
+#
+# dic_abun_exp = {"abun": [abun / 3 for abun in master_df_summarized["expected"]], "taxa": unique_taxa}
+# df_abun_exp = pd.DataFrame.from_dict(dic_abun_exp)
+# df_abun_exp.to_csv("{savedir}df_abun_exp.csv".format(savedir=savedir))
