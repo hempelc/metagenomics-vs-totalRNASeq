@@ -8,14 +8,25 @@
 # Script to BLAST .fasta files using blastn, add taxonomy to the hits,
 # and filter the hits so that each sequence gets assigned to one taxonomy
 
-# Need to have scripts assign_taxonomy_to_NCBI_staxids.sh and LookupTaxonDetails3.py
-# in your PATH, and ete3 and justblast installed (https://pypi.org/project/justblast/)
+# Need to have script LookupTaxonDetails3.py in your PATH, and ete3 and blastn
+# installed
 
-# In order for "assign_taxonomy_to_NCBI_staxids.sh" to work - you MUST have
-# .etetoolkit/taxa.sqlite in your HOME directory - check the ete3 toolkit
-# to see how that's set up (http://etetoolkit.org/)
+# In order for this script to work - you MUST have .etetoolkit/taxa.sqlite in
+# your HOME directory. If folder is not present in home directory, you need
+# to run ONLY the ete3 command once first, delete the output, and then set the
+# third parameter to the .etetoolit/taxa.sqlite folder that has now been
+# generated in your folder
 
-cmd="$0 $@" # Make variable containing full used command to print command in logfile
+# Setting variables and importing modules
+SCRIPT=$(realpath "${0}")
+SCRIPTPATH=$(dirname "${SCRIPT}")
+# shellcheck source=/dev/null
+source "${SCRIPTPATH}"/utils.sh
+cmd="${SCRIPT} $*" # Make variable containing full used command to print command in logfile
+
+# CHRIS: Sergio wanted to remove option -e but I think it should be kept here,
+# resason: this script can be run independently by itself so the option to
+# change -e should be kept
 usage="$(basename "$0") -i <input.fa> -f <fasta|blast> -t <soft|strict> -e <PATH/TO/.etetoolkit/taxa.sqlite> [-d <DB> -b <bitscore> -p <percentage> -c <n n n n n n> -T <threads>]
 
 Usage:
@@ -107,6 +118,7 @@ if [[ $filtering != 'soft' && $filtering != 'strict' ]]; then
   exit
 fi
 
+# CHRIS: Sergio threw this control step out but I don't know why
 if [[ $format != 'fasta' && $format != 'blast' ]]; then
   echo -e "Invalid option for -f, must be set to either 'fasta' or 'blast'\n"
   echo -e "$usage\n\n"
@@ -121,49 +133,86 @@ if [[ $format == 'fasta' && $db == '' ]]; then
   exit
 fi
 
+# Functions
+# SERGIO: I think that the assign_taxonomy_to_NCBI_staxids.sh as subscript is
+# an overkill. I will put it in a function here for now
+tax2ncbi() {
+  blast_file="${1}"
+  column="${2}"
+  etetoolkit="${3}"
+  if [[ -z "$blast_file" || -z "$column" || -z "$etetoolkit" ]]
+    then
+      echo -e "-b, -c, and -e must be set.\n"
+      echo -e "$usage\n\n"
+      echo -e "Exiting script.\n"
+      exit
+  fi
+  # Making name for output variable:
+  blast_file_out_tmp=${blast_file%.*}_with_taxonomy.txt
+  blast_file_out=$(echo ${blast_file_out_tmp##*/})
+
+  # CHRIS: not entire content of assign_taxonomy_to_NCBI_staxids.sh script inserted here, so I'll insert the rest
+
+  # The ete3 command doesn't work on large files so we're splitting it up into
+  # chunks of 10000 lines:
+  touch matching_lineages.tsv
+  cut -f $column $blast_file > tmp
+  split -l 100000 --numeric-suffixes tmp tmp_chunk_
+  for id in tmp_chunk_*; do
+    ete3 ncbiquery --info --search $(cat $id) >> matching_lineages.tsv
+  done
+  sed -i '1!{/^#/d;}' matching_lineages.tsv
+  # Running subscript:
+  LookupTaxonDetails3.py -b $blast_file -l matching_lineages.tsv \
+  -o $blast_file_out -t $column -e $etetoolkit
+  echo 'qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxid lowest_rank lowest_hit superkingdom kingdom phylum subphylum class subclass order suborder infraorder family genus' \
+  | sed -e 's/ /\t/g' | cat - $blast_file_out > temp2 && mv temp2 $blast_file_out
+
+  rm matching_lineages.tsv tmp*
+}
+
 ##################### Write time, options etc. to output ######################
 
 # Make open bracket to later tell script to write everything that follows into a logfile
 (
 
-# Define starting time of script for total runtime calculation
-start=$(date +%s)
-echo -e "\n\nSTART RUNNING SCRIPT AT $(date)\n"
-echo -e "=================================================================\n\n"
+  # Define starting time of script for total runtime calculation
+  start=$(date +%s)
+  echo -e "\n\nSTART RUNNING SCRIPT AT $(date)\n"
+  echo -e "=================================================================\n\n"
 
+  # Output specified options
+  echo_subsection OPTIONS
 
-# Output specified options
-echo -e "======== OPTIONS ========\n"
+  echo "Input (-i) was defined as $input"
+  echo "Database (-d) was defined as $db"
+  echo "Type (-t) was set to $filtering"
+  echo "Bitscore threshold (-b) is $bitscore"
+  echo "Percentage threshold (-p) is $percentage"
+  echo "Cutoff (-c) is $cutoff"
+  echo "$threads threads were used"
+  echo -e "Script started with full command: $cmd\n"
 
-echo "Input (-i) was defined as $input"
-echo "Database (-d) was defined as $db"
-echo "Type (-t) was set to $filtering"
-echo "Bitscore threshold (-b) is $bitscore"
-echo "Percentage threshold (-p) is $percentage"
-echo "Cutoff (-c) is $cutoff"
-echo "$threads threads were used"
-echo -e "Script started with full command: $cmd\n"
-
-mkdir blast_filtering_results/
+  mkdir blast_filtering_results/
 
 
 if [[ $format == 'fasta' ]] ; then
-  echo -e "\n======== RUNNING JUSTBLAST AGAINST DB ========\n"
+  echo_subsection RUNNING JUSTBLAST AGAINST DB
   blastn -query $input -db $db -out blast_filtering_results/blast_output.txt \
   -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
   -evalue 1e-05 -num_threads $threads
   assign_taxonomy_input="blast_filtering_results/blast_output.txt"
-  echo -e "\n======== JUSTBLAST DONE ========\n"
+  echo_subsection JUSTBLAST DONE
 else
-  assign_taxonomy_input=$input
+  assign_taxonomy_input="${input}"
 fi
 
 if [[ $filtering == 'soft' ]] ; then
   # Keeping only the best hit of each sequence:
-  echo -e "\n======== ASSIGNING TAXONOMY ========\n"
+  echo_subsection ASSIGNING TAXONOMY
   # Using a subscript:
-  assign_taxonomy_to_NCBI_staxids.sh -b $assign_taxonomy_input -c 13 \
-  -e $etetoolkit
+  tax2ncbi $assign_taxonomy_input 13 $etetoolkit
+  ## I think Sergio stopped here
   mv ${assign_taxonomy_input%.txt}_with_taxonomy.txt blast_filtering_results/
   sed -i '1d' blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy.txt
 
