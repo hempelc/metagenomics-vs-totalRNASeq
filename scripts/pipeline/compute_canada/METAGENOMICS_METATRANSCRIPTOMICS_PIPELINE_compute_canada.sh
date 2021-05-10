@@ -146,7 +146,7 @@ SECONDS=0
 SCRIPT=$(realpath "${0}")
 SCRIPTPATH=$(dirname "${SCRIPT}")
 # shellcheck source=/dev/null
-source "${SCRIPTPATH}"/utils.sh
+source "${SCRIPTPATH}"/subscripts/utils.sh
 
 ##################### Write start time and options to output ######################
 
