@@ -9,6 +9,7 @@ import math
 import statistics
 import copy
 from scipy.stats import chisquare
+from scipy.stats import combine_pvalues
 # NOTE: When running the code, ignore the warning - stems from a function that I had to implement because some of the files were wrong ("NA" in counts column), but I fixed that in the pipeline,
 # so after I rerun the pipelines, we can take out that portion of code and the warning will disappear
 
@@ -39,7 +40,7 @@ samples = ["M4_RNA", "M5_RNA", "M6_RNA"] # 3 replicate samples to include into t
 groupby_rank = "lowest_hit" # Basis for taxa rank to group rows on. Either based on genus (option "genus") or on species (option "lowest_hit" (NOTE later "species"))
 rel_abun_basis = "cell" # Basis for relative abundance calculation of expected mock community taxa abundance. Either based on genomic DNA (option "gen") or on cell number (option "cell")
 
-# MAYBE TO DO: implement that script can be run form commadn line and insert parameter check to make sure that
+# MAYBE TO DO: implement that script can be run form command line and insert parameter check to make sure that
 # parameters are one of the allowed options and that variable "samples" is not empty
 
 
@@ -161,12 +162,49 @@ for key, value in master_dfs_uniq_pa.items():
     value[value != 0] = 1
 
 
-# 3 Perform tests to determine accuracy and precision
+# 3 Calculate chisquares
+
+## 3.1 Cut down master_dfs to only expected taxa
+def cutdown (master_df):
+    cutdown_dic = {}
+    for sample, pipelines in master_df.items():
+        cutdown_dic[sample] = pipelines.loc[pipelines['expected'] != 0]
+    return cutdown_dic
+
+abs_cutdown = cutdown(master_dfs_uniq_abs)
+rel_cutdown = cutdown(master_dfs_uniq_rel)
+pa_cutdown = cutdown(master_dfs_uniq_pa)
+
+
+# for master_df in [master_dfs_uniq_abs, master_dfs_uniq_rel, master_dfs_uniq_pa]:
+#     for sample, pipelines in master_df.items():
+#         if master_df == master_dfs_uniq_abs:
+#             abs_chi2[sample] = pipelines.loc[pipelines['expected'] != 0]
+#         elif master_df == master_dfs_uniq_rel:
+#             rel_chi2[sample] = pipelines.loc[pipelines['expected'] != 0]
+#         elif master_df == master_dfs_uniq_pa:
+#             pa_chi2[sample] = pipelines.loc[pipelines['expected'] != 0]
+
+## 3.2 Make dictionaries with chi2 values for all samples for all 3 master_dfs
+def chi2_calc (cutdown_dic):
+    chi2_dic={}
+    for sample, pipelines in cutdown_dic.items():
+        chi2_val = []
+        for pipeline, abundances in pipelines.iloc[:, 1:].iteritems():
+            #chi2_val.append(chisquare(abundances.tolist(), pipelines['expected'].tolist()))
+            chi2_val.append(chisquare(abundances.tolist(), pipelines['expected'].tolist()[0]) # Only chi statistics
+            #chi2_val.append(chisquare(abundances.tolist(), pipelines['expected'].tolist())[1]) # Only p values
+            chi2_dic[sample] = chi2_val
+    return chi2_dic
+
+abs_chi2 = chi2_calc(abs_cutdown)
+rel_chi2 = chi2_calc(rel_cutdown)
+pa_chi2 = chi2_calc(pa_cutdown)
 
 
 
 
-
+combine_pvalues
 
 
 ## 3.1 Chi-Squared test (accuracy)
