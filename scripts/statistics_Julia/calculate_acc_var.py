@@ -165,12 +165,14 @@ for key, value in master_dfs_uniq_pa.items():
 # 3 Calculate chisquares
 
 ## 3.1 Cut down master_dfs to only expected taxa
+### Make function to cut down master_dfs to only expected taxa:
 def cutdown (master_df):
     cutdown_dic = {}
     for sample, pipelines in master_df.items():
         cutdown_dic[sample] = pipelines.loc[pipelines['expected'] != 0]
     return cutdown_dic
 
+### Apply cutdown function on absolute, relative, and pa master_dfs
 abs_cutdown = cutdown(master_dfs_uniq_abs)
 rel_cutdown = cutdown(master_dfs_uniq_rel)
 pa_cutdown = cutdown(master_dfs_uniq_pa)
@@ -185,26 +187,65 @@ pa_cutdown = cutdown(master_dfs_uniq_pa)
 #         elif master_df == master_dfs_uniq_pa:
 #             pa_chi2[sample] = pipelines.loc[pipelines['expected'] != 0]
 
-## 3.2 Make dictionaries with chi2 values for all samples for all 3 master_dfs
-def chi2_calc (cutdown_dic):
-    chi2_dic={}
+
+## 3.2 Make confusion matrices for all samples for all 3 master_dfs
+def confusion_calc (cutdown_dic, type):
+    confusion_master={}
     for sample, pipelines in cutdown_dic.items():
-        chi2_val = []
+        expected_list=pipelines['expected'].tolist()
+        confusion_dic = {}
         for pipeline, abundances in pipelines.iloc[:, 1:].iteritems():
-            #chi2_val.append(chisquare(abundances.tolist(), pipelines['expected'].tolist()))
-            chi2_val.append(chisquare(abundances.tolist(), pipelines['expected'].tolist()[0]) # Only chi statistics
-            #chi2_val.append(chisquare(abundances.tolist(), pipelines['expected'].tolist())[1]) # Only p values
-            chi2_dic[sample] = chi2_val
-    return chi2_dic
+            FN=0
+            FP=0
+            TP=0
+            for i in range(len(abundances.tolist())):
+                if abundances.tolist()[i] - expected_list[i] < 0:
+                    FN += (abundances.tolist()[i] - expected_list[i])*-1
+                if abundances.tolist()[i] - expected_list[i] > 0:
+                    FP += (abundances.tolist()[i] - expected_list[i])
+                if abundances.tolist()[i] >= expected_list[i]:
+                    TP += expected_list[i]
+                if abundances.tolist()[i] < expected_list[i]:
+                    TP += abundances.tolist()[i]
+            if type == "abs" or type == "rel":
+                confusion_values = {"subseed": FN, "exceed": FP, "true":TP}
+            elif type == "pa":
+                confusion_values = {"FN": FN, "TP":TP}
+            confusion_dic[pipeline] = confusion_values
+        confusion_master[sample] = confusion_dic
+    return confusion_master
 
-abs_chi2 = chi2_calc(abs_cutdown)
-rel_chi2 = chi2_calc(rel_cutdown)
-pa_chi2 = chi2_calc(pa_cutdown)
+### Apply confusion_calc function on absolute, relative, and pa cutdown master_dfs
+abs_confusion = confusion_calc(abs_cutdown, "abs")
+rel_confusion = confusion_calc(rel_cutdown, "rel")
+pa_confusion = confusion_calc(pa_cutdown, "pa")
+
+
+# for sample, con_ma in rel_confusion.items():
+#     max=[]
+#     for pipeline, con_dic in con_ma.items():
+#         max.append(con_dic["true"])
+
+
+## 3.3 Make dictionaries with chi2 values for all samples for all 3 master_dfs
+# def chi2_calc (cutdown_dic):
+#     chi2_dic={}
+#     for sample, pipelines in cutdown_dic.items():
+#         chi2_val = []
+#         for pipeline, abundances in pipelines.iloc[:, 1:].iteritems():
+#             #chi2_val.append(chisquare(abundances.tolist(), pipelines['expected'].tolist()))
+#             chi2_val.append(chisquare(abundances.tolist(), pipelines['expected'].tolist()[0]) # Only chi statistics
+#             #chi2_val.append(chisquare(abundances.tolist(), pipelines['expected'].tolist())[1]) # Only p values
+#             chi2_dic[sample] = chi2_val
+#     return chi2_dic
+#
+# abs_chi2 = chi2_calc(abs_cutdown)
+# rel_chi2 = chi2_calc(rel_cutdown)
+# pa_chi2 = chi2_calc(pa_cutdown)
 
 
 
 
-combine_pvalues
 
 
 ## 3.1 Chi-Squared test (accuracy)
