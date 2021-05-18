@@ -162,36 +162,32 @@ for key, value in master_dfs_uniq_pa.items():
     value[value != 0] = 1
 
 
-# 3 Calculate chisquares
+# 3 Calculate confusion matrix
 
 ## 3.1 Cut down master_dfs to only expected taxa
 ### Make function to cut down master_dfs to only expected taxa:
-def cutdown (master_df):
+def cutdown (master_df, type):
     cutdown_dic = {}
     for sample, pipelines in master_df.items():
-        cutdown_dic[sample] = pipelines.loc[pipelines['expected'] != 0]
+        if type == "above_zero":
+            cutdown_dic[sample] = pipelines.loc[pipelines['expected'] != 0]
+        elif type == "equal_zero":
+            cutdown_dic[sample] = pipelines.loc[pipelines['expected'] == 0]
     return cutdown_dic
 
 ### Apply cutdown function on absolute, relative, and pa master_dfs
-abs_cutdown = cutdown(master_dfs_uniq_abs)
-rel_cutdown = cutdown(master_dfs_uniq_rel)
-pa_cutdown = cutdown(master_dfs_uniq_pa)
+abs_cutdown_expected = cutdown(master_dfs_uniq_abs, "above_zero")
+rel_cutdown_expected = cutdown(master_dfs_uniq_rel, "above_zero")
+pa_cutdown_expected = cutdown(master_dfs_uniq_pa, "above_zero")
 
-
-# for master_df in [master_dfs_uniq_abs, master_dfs_uniq_rel, master_dfs_uniq_pa]:
-#     for sample, pipelines in master_df.items():
-#         if master_df == master_dfs_uniq_abs:
-#             abs_chi2[sample] = pipelines.loc[pipelines['expected'] != 0]
-#         elif master_df == master_dfs_uniq_rel:
-#             rel_chi2[sample] = pipelines.loc[pipelines['expected'] != 0]
-#         elif master_df == master_dfs_uniq_pa:
-#             pa_chi2[sample] = pipelines.loc[pipelines['expected'] != 0]
-
+abs_cutdown_FP = cutdown(master_dfs_uniq_abs, "equal_zero")
+rel_cutdown_FP = cutdown(master_dfs_uniq_rel, "equal_zero")
+pa_cutdown_FP = cutdown(master_dfs_uniq_pa, "equal_zero")
 
 ## 3.2 Make confusion matrices for all samples for all 3 master_dfs
-def confusion_calc (cutdown_dic, type):
+def confusion_calc (cutdown_dic_expected, cutdown_dic_FP, type):
     confusion_master={}
-    for sample, pipelines in cutdown_dic.items():
+    for sample, pipelines in cutdown_dic_expected.items():
         expected_list=pipelines['expected'].tolist()
         confusion_dic = {}
         for pipeline, abundances in pipelines.iloc[:, 1:].iteritems():
@@ -211,14 +207,64 @@ def confusion_calc (cutdown_dic, type):
                 confusion_values = {"subseed": FN, "exceed": FP, "true":TP}
             elif type == "pa":
                 confusion_values = {"FN": FN, "TP":TP}
+            confusion_values["FP"]=cutdown_dic_FP[sample][pipeline].sum()
             confusion_dic[pipeline] = confusion_values
         confusion_master[sample] = confusion_dic
     return confusion_master
 
 ### Apply confusion_calc function on absolute, relative, and pa cutdown master_dfs
-abs_confusion = confusion_calc(abs_cutdown, "abs")
-rel_confusion = confusion_calc(rel_cutdown, "rel")
-pa_confusion = confusion_calc(pa_cutdown, "pa")
+abs_params = confusion_calc(abs_cutdown_expected, abs_cutdown_FP, "abs")
+rel_params = confusion_calc(rel_cutdown_expected, rel_cutdown_FP, "rel")
+pa_params = confusion_calc(pa_cutdown_expected, pa_cutdown_FP, "pa")
+
+
+## 3.3 Calculate the average between replicates:
+### Make dics containing each pipeline as key with one list per parameter for each pipeline:
+pip_dic_abs={}
+pip_dic_rel={}
+pip_dic_pa={}
+
+for pip_dic in [pip_dic_abs, pip_dic_rel, pip_dic_pa]:
+    for sample in ["M4_RNA", "M5_RNA", "M6_RNA"]:                                                                                                      ### TO BE DELETED since all samples will contain the same pipelines eventually
+        for pipeline in abs_params[sample].keys():
+            if pip_dic==pip_dic_abs or pip_dic==pip_dic_rel:
+                pip_dic[pipeline]={"subseed": [], "exceed": [], "true": [], "FP": []}
+            elif pip_dic==pip_dic_pa:
+                pip_dic[pipeline]={"FN": [], "FP": [], "TP": []}
+
+### Fill in dics created above so that every pipeline contains a dic with
+### parameters as keys and each parameter lists its three values across the
+### three replicates:
+for param_dict in [abs_params, rel_params, pa_params]:
+    for sample, pipelines in param_dict.items():
+        for pipeline, params in pipelines.items():
+            for param, value in params.items():
+                if param_dict==abs_params:
+                    pip_dic_abs[pipeline][param].append(value)
+                elif param_dict==rel_params:
+                    pip_dic_rel[pipeline][param].append(value)
+                elif param_dict==pa_params:
+                    pip_dic_pa[pipeline][param].append(value)
+
+### Calculate the average across the three replicates:
+for pip_dic in [pip_dic_abs, pip_dic_rel, pip_dic_pa]:
+    for pipeline, params in pip_dic.items():
+        for param, list in params.items():
+            pip_dic[pipeline][param]=sum(list)/len(list)
+
+
+# 4 Calculate variance
+
+for pipeline in shared_pipelines:                                                                                                                       ### TO BE DELETED
+    ### Turn pipelines into indexes
+    col = master_dfs_uniq_abs[samples[0]].columns.tolist()[1:].index(pipeline)
+    ### Each pipeline gets a variance sum variable
+    var_sum = 0
+    ### For each row in the pipelines across replicates, calculate the variance and sum them up:
+    for row in range(0,master_dfs_uniq_abs[samples[0]].shape[0]):
+        var_sum += statistics.variance([int(master_dfs_uniq_abs[samples[0]].iloc[row,col]), int(master_dfs_uniq_abs[samples[1]].iloc[row,col]), int(master_dfs_uniq_abs[samples[2]].iloc[row,col])])
+    ### Add var_sum to chi2_var dic for respective pipeline
+    chi2_var[pipeline].append(var_sum)
 
 
 # for sample, con_ma in rel_confusion.items():
