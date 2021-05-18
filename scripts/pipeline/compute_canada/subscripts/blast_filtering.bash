@@ -9,7 +9,7 @@
 # and filter the hits so that each sequence gets assigned to one taxonomy
 
 # Need to have scripts assign_taxonomy_to_NCBI_staxids.sh and LookupTaxonDetails3.py
-# in your PATH, and ete3 and justblast installed (https://pypi.org/project/justblast/)
+# in your PATH, and ete3 and blastn installed
 
 # In order for "assign_taxonomy_to_NCBI_staxids.sh" to work - you MUST have
 # .etetoolkit/taxa.sqlite in your HOME directory - check the ete3 toolkit
@@ -22,10 +22,10 @@ Usage:
   -i       Input file.
   -f       Format of input file:
            fasta:
-              If input is a fasta file, justblast is performed first, then
+              If input is a fasta file, blastn is performed first, then
               results are filtered based on option -t. Requires option -d.
            blast:
-              Input is already blast output, then justblast is skipped and input
+              Input is already blast output, then blastn is skipped and input
               is just filtered based on option -t. Requires blast input to be in
               the following outformat: '6 qseqid sseqid pident length mismatch
               gapopen qstart qend sstart send evalue bitscore staxids'
@@ -148,12 +148,12 @@ mkdir blast_filtering_results/
 
 
 if [[ $format == 'fasta' ]] ; then
-  echo -e "\n======== RUNNING JUSTBLAST AGAINST DB ========\n"
+  echo -e "\n======== RUNNING BLASTN AGAINST DB ========\n"
   blastn -query $input -db $db -out blast_filtering_results/blast_output.txt \
   -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
   -evalue 1e-05 -num_threads $threads
   assign_taxonomy_input="blast_filtering_results/blast_output.txt"
-  echo -e "\n======== JUSTBLAST DONE ========\n"
+  echo -e "\n======== BLASTN DONE ========\n"
 else
   assign_taxonomy_input=$input
 fi
