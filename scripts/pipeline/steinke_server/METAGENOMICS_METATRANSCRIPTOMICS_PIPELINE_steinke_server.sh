@@ -24,10 +24,11 @@
 
 # The pipeline requires the following programs/python packages (versions we used
 # when writing this script are indicated in brackets):
-	# FastQC (0.11.9), Trimmomatic (0.39), sortmeRNA (4.0.0), barrnap (0.9),
-	# rRNAFILTER (1.1), SPADES (3.14.1), METASPADES (3.14.1), RNASPADES (3.14.1),
-	# MEGAHIT (1.2.9), IDBA-UD (1.1.1), IDBA-TRAN (1.1.1), Trinity (2.10.0),
-	# bowtie2 (2.3.3.1), bwa (0.7.17), blast+ (2.11.0+), kraken2 (2.1.1), seqtk (1.3-r106),
+	# FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
+	# rRNAFILTER (1.1), SPADES (3.14.0)[note: runs with the --meta and --rna
+	# options for METASPADES and RNASPADES], MEGAHIT (1.2.9), IDBA-UD (1.1.1),
+	# IDBA_tran (1.1.1), Trinity (2.10.0),	Trans-ABySS (2.0.1), bowtie2 (2.3.3.1),
+	# bwa (0.7.17), blast+ (2.10.0+), kraken2 (2.1.1), seqtk (1.2-r94),
 	# samtools (1.10), python module ete3 (3.1.2)
 
 	# Note 1: we had to edit IDBA prior to compiling it because it didn't work
@@ -77,8 +78,18 @@ then
    exit
 fi
 
+# Define functions to print steps with time
+start=$(date +%s)
+
+step_description_and_time_first () {
+	echo -e "\n++++++++ [$(date +%H:%M:%S)] ${1} [Runtime: $((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+}
+step_description_and_time_second () {
+	echo -e "\n======== [$(date +%H:%M:%S)] ${1} [Runtime: $((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n" #" adding outcommented quote here to fix bug in colouring scheme of personal text editor
+}
 
 ##################### Write start time and options to output ######################
+
 
 # Make open bracket to later tell script to write everything that follows into a logfile:
 (
@@ -90,7 +101,7 @@ echo -e "=================================================================\n\n"
 
 
 # Output specified options:
-echo -e "======== [$(date +%H:%M:%S)] OPTIONS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+step_description_and_time_second "OPTIONS"
 
 echo -e "Forward reads were defined as $forward_reads.\n"
 echo -e "Reverse reads were defined as $reverse_reads.\n"
@@ -100,7 +111,7 @@ echo -e "Script started with full command: $cmd\n"
 
 
 ######################### Start of the actual script ################################
-echo -e "++++++++ [$(date +%H:%M:%S)] START RUNNING SCRIPT [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+step_description_and_time_first "START RUNNING SCRIPT"
 
 # Activate the conda ete3 environment within this script to be able to run ete3.
 # I found this solution # to activate conda environments in scripts here:
@@ -118,7 +129,7 @@ cd METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
 base_directory=$(pwd)
 
 ######################### Step 1: trimming ################################
-echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 1: TRIMMING AND ERROR CORRECTION [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+step_description_and_time_first "START STEP 1: TRIMMING AND ERROR CORRECTION"
 
 # Trimming is done with a separate subscript:
 fastqc_on_R1_R2_and_optional_trimming.sh \
@@ -128,7 +139,8 @@ mv fastqc_on_R1_R2_and_optional_trimming_output step_1_trimming/
 
 # Running error correction module of SPAdes on all trimmed reads
 for trimming_results in step_1_trimming/trimmomatic/*; do
-	echo -e "\n======== [$(date +%H:%M:%S)] ERROR-CORRECTING READS IN FOLDER $trimming_results [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	trim_phred=$(echo ${trimming_results##*/} | sed 's/trimmed_at_phred_//g' | sed 's/_.*$//g')
+	step_description_and_time_second "ERROR-CORRECTING READS IN FOLDER $trimming_results"
 	spades.py -1 $trimming_results/*1P.fastq -2 $trimming_results/*2P.fastq \
 	--only-error-correction --disable-gzip-output -o $trimming_results/error_correction \
 	-t $threads
@@ -142,10 +154,10 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
   && mv $trimming_results/*2P.00.0_0.cor.fastq ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
   sed -r -i 's/ BH:.{2,6}//g' ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
 	rm -r $trimming_results/error_correction/
-	echo -e "\n======== [$(date +%H:%M:%S)] FINISHED ERROR-CORRECTING READS IN FOLDER $trimming_results [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_second "FINISHED ERROR-CORRECTING READS IN FOLDER $trimming_results"
 done
 
-echo -e "++++++++ [$(date +%H:%M:%S)] FINISHED STEP 1: TRIMMING AND ERROR CORRECTION [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+step_description_and_time_first "FINISHED STEP 1: TRIMMING AND ERROR CORRECTION"
 
 
 ######################### Step 2: rRNA sorting ################################
@@ -158,26 +170,27 @@ echo -e "++++++++ [$(date +%H:%M:%S)] FINISHED STEP 1: TRIMMING AND ERROR CORREC
 for trimming_results in step_1_trimming/trimmomatic/*; do
 	mkdir $trimming_results/step_2_rrna_sorting/
 	cd $trimming_results/step_2_rrna_sorting/
+	trim_phred=$(echo ${trimming_results##*/} | sed 's/trimmed_at_phred_//g' | sed 's/_.*$//g')
 
-	echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER $trimming_results [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+	step_description_and_time_first "START STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER $trimming_results"
 
-	echo -e "\n======== [$(date +%H:%M:%S)] CONVERT READS IN FASTA FORMAT FOR rRNAFILTER AND BARRNAP [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_second "CONVERT READS IN FASTA FORMAT FOR rRNAFILTER AND BARRNAP"
 	mkdir reads_in_fasta_format/
 	fq2fa ../*1P_error_corrected.fastq reads_in_fasta_format/R1.fa
 	fq2fa ../*2P_error_corrected.fastq reads_in_fasta_format/R2.fa
-	echo -e "\n======== [$(date +%H:%M:%S)] READS TO FASTA CONVERSION DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_second "READS TO FASTA CONVERSION DONE"
 
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING SORTMERNA [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_second "RUNNING SORTMERNA"
 	mkdir SORTMERNA/
-	sortmerna --ref /hdd1/databases/sortmerna_silva_databases/silva-bac-16s-id90.fasta \
-	--ref /hdd1/databases/sortmerna_silva_databases/silva-arc-16s-id95.fasta \
-	--ref /hdd1/databases/sortmerna_silva_databases/silva-euk-18s-id95.fasta \
+	sortmerna --ref /hdd2/databases/sortmerna_silva_databases/silva-bac-16s-id90.fasta \
+	--ref /hdd2/databases/sortmerna_silva_databases/silva-arc-16s-id95.fasta \
+	--ref /hdd2/databases/sortmerna_silva_databases/silva-euk-18s-id95.fasta \
 	--reads ../*1P_error_corrected.fastq --reads ../*2P_error_corrected.fastq \
 	--paired_in --out2 -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA/ \
 	--threads 1:1:$threads
-	echo -e "\n======== [$(date +%H:%M:%S)] SORTMERNA DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_second "SORTMERNA DONE"
 
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING rRNAFILTER [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_second "RUNNING rRNAFILTER"
 	mkdir rRNAFILTER/
 	cd rRNAFILTER/
 	# rRNAFilter only worked for us when we started it within the directory
@@ -207,16 +220,16 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	> rRNAFilter_paired_R2.fa
 	rm names_sorted.txt names.txt
 	cd ..
-	echo -e "\n======== [$(date +%H:%M:%S)] rRNAFILTER DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_second "rRNAFILTER DONE"
 
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BARRNAP [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_second "RUNNING BARRNAP"
 	mkdir BARRNAP/
 	for kingdom in euk bac arc; do # barrnap needs to be run on kingdoms separately
-		echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BARRNAP ON KINGDOM $kingdom AND R1 READS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		step_description_and_time_second "RUNNING BARRNAP ON KINGDOM $kingdom AND R1 READS"
 		barrnap --quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
 		--threads $threads --outseq BARRNAP/${kingdom}_reads1.fa \
 		reads_in_fasta_format/R1.fa
-		echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BARRNAP ON KINGDOM $kingdom AND R2 READS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		step_description_and_time_second "RUNNING BARRNAP ON KINGDOM $kingdom AND R2 READS"
 		barrnap --quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
 		--threads $threads --outseq BARRNAP/${kingdom}_reads2.fa \
 		reads_in_fasta_format/R2.fa
@@ -239,13 +252,13 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	seqtk subseq reads_in_fasta_format/R2.fa BARRNAP/names_sorted.txt \
 	> BARRNAP/barrnap_paired_R2.fa
 	rm BARRNAP/names_sorted.txt
-	echo -e "\n======== [$(date +%H:%M:%S)] BARRNAP DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_second "BARRNAP DONE"
 
-	echo -e "\n======== [$(date +%H:%M:%S)] MAKING FOLDER UNSORTED/ AND COPYING UNSORTED READS IN THERE TO KEEP THE FOLDER STRUCTURE CONSTANT [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_second "MAKING FOLDER UNSORTED/ AND COPYING UNSORTED READS IN THERE TO KEEP THE FOLDER STRUCTURE CONSTANT"
 	mkdir UNSORTED/
 	cp ../*1P_error_corrected.fastq ../*2P_error_corrected.fastq UNSORTED/
 
-	echo -e "\n++++++++ [$(date +%H:%M:%S)] FINISHED STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER $trimming_results [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+	step_description_and_time_first "FINISHED STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER $trimming_results"
 
 
 	######################### Step 3: Assembly ################################
@@ -266,28 +279,28 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 			R2_sorted='UNSORTED/*2P_error_corrected.fastq'
 		fi
 
-		echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+		step_description_and_time_first "START STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/"
 		mkdir $rrna_filter_results/step_3_assembly/
 		cd $rrna_filter_results/step_3_assembly/
 
-		echo -e "\n======== [$(date +%H:%M:%S)] RUNNING SPADES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		step_description_and_time_second "RUNNING SPADES"
 		mkdir SPADES/
 		spades.py -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler \
 		-o SPADES/ -t $threads
-		echo -e "\n======== [$(date +%H:%M:%S)] SPADES DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		step_description_and_time_second "SPADES DONE"
 
-		echo -e "\n======== [$(date +%H:%M:%S)] RUNNING METASPADES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		step_description_and_time_second "RUNNING METASPADES"
 		mkdir METASPADES/
 		spades.py --meta -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler \
 		-o METASPADES/ -t $threads
-		echo -e "\n======== [$(date +%H:%M:%S)] METASPADES DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		step_description_and_time_second "METASPADES DONE"
 
-		echo -e "\n======== [$(date +%H:%M:%S)] RUNNING MEGAHIT [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		step_description_and_time_second "RUNNING MEGAHIT"
 		megahit --presets meta-large -t $threads -1 ../../$R1_sorted \
 		-2 ../../$R2_sorted -o MEGAHIT/
-		echo -e "\n======== [$(date +%H:%M:%S)] MEGAHIT DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		step_description_and_time_second "MEGAHIT DONE"
 
-		echo -e "\n======== [$(date +%H:%M:%S)] RUNNING IDBA_UD [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		step_description_and_time_second "RUNNING IDBA_UD"
 		# Note: we had to edit IDBA prior to compiling it because it didn't work
 		# using long reads and the -l option. This seems to be a common problem and
 		# can be circumvented following for example the instructions in
@@ -295,26 +308,24 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 		# https://github.com/loneknightpy/idba/issues/26
 		# IDBA_UD only takes interleaved fasta files
 		fq2fa --merge --filter ../../$R1_sorted ../../$R2_sorted idba_ud_input.fa
-		idba_ud --num_threads $threads --pre_correction -r idba_ud_input.fa \
-    -o IDBA_UD/
+		idba_ud --num_threads $threads -r idba_ud_input.fa -o IDBA_UD/
 		mv idba_ud_input.fa IDBA_UD/
-		echo -e "\n======== [$(date +%H:%M:%S)] IDBA_UD DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		step_description_and_time_second "IDBA_UD DONE"
 
-		echo -e "\n======== [$(date +%H:%M:%S)] RUNNING RNASPADES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		step_description_and_time_second "RUNNING RNASPADES"
 		mkdir RNASPADES/
 		spades.py --rna -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler \
 		-o RNASPADES/ -t $threads
-		echo -e "\n======== [$(date +%H:%M:%S)] RNASPADES DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		step_description_and_time_second "RNASPADES DONE"
 
-		echo -e "\n======== [$(date +%H:%M:%S)] RUNNING IDBA_TRAN [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		step_description_and_time_second "RUNNING IDBA_TRAN"
 		# IDBA_TRAN only takes interleaved fasta files
 		fq2fa --merge ../../$R1_sorted ../../$R2_sorted idba_tran_input.fa
-		idba_tran --num_threads $threads --pre_correction -l idba_tran_input.fa \
-    -o IDBA_TRAN/
+		idba_tran --num_threads $threads -l idba_tran_input.fa -o IDBA_TRAN/
 		mv idba_tran_input.fa IDBA_TRAN/
-		echo -e "\n======== [$(date +%H:%M:%S)] IDBA_TRAN DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		step_description_and_time_second "IDBA_TRAN DONE"
 
-		echo -e "\n======== [$(date +%H:%M:%S)] RUNNING TRINITY [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		step_description_and_time_second "RUNNING TRINITY"
 		# Barrnap and rRNAFilter output fasta files which has to be indicated to Trinity:
     if [[ $rrna_filter_results == "rRNAFILTER" \
 		|| $rrna_filter_results == "BARRNAP" ]]; then
@@ -326,16 +337,16 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
     fi
     cat TRINITY/Trinity.fasta | sed 's/ len/_len/g' \
 		> TRINITY/Trinity_with_length.fasta  # Edit for universal format
-		echo -e "\n======== [$(date +%H:%M:%S)] TRINITY DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		step_description_and_time_second "TRINITY DONE"
 
-		echo -e "\n======== [$(date +%H:%M:%S)] RUNNING TRANSABYSS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		step_description_and_time_second "RUNNING TRANSABYSS"
     transabyss --pe ../../$R1_sorted ../../$R2_sorted --threads $threads \
     --outdir TRANSABYSS/
     sed 's/ /_/g' TRANSABYSS/transabyss-final.fa \
 		> TRANSABYSS/transabyss-final_edited.fa # Edit for universal format
-		echo -e "\n======== [$(date +%H:%M:%S)] TRANSABYSS DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		step_description_and_time_second "TRANSABYSS DONE"
 
-		echo -e "\n++++++++ [$(date +%H:%M:%S)] FINISHED STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+		step_description_and_time_first "FINISHED STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/"
 
 
 		######################### Step 4: Mapping ################################
@@ -360,7 +371,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				scaffolds='TRANSABYSS/transabyss-final_edited.fa'
 			fi
 
-			echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 4: MAPPING OF TRIMMED READS IN FOLDER $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+			step_description_and_time_first "START STEP 4: MAPPING OF TRIMMED READS IN FOLDER $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/"
 			mkdir $assembly_results/step_4_mapping/
 			cd $assembly_results/step_4_mapping/
 
@@ -372,22 +383,22 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
         cd $mapper
 
         if [[ $mapper == 'BWA' ]]; then
-          echo -e "\n======== [$(date +%H:%M:%S)] Starting bwa index [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+          step_description_and_time_second "Starting bwa index"
           bwa index -p bwa_index ../../../$scaffolds
-          echo -e "\n======== [$(date +%H:%M:%S)] bwa index complete. Starting bwa mem [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+          step_description_and_time_second "bwa index complete. Starting bwa mem"
           bwa mem -t $threads bwa_index ../../../../../../*1P_error_corrected.fastq \
 					../../../../../../*2P_error_corrected.fastq > ${mapper}_output.sam
           rm bwa_index*
-					echo -e "\n======== [$(date +%H:%M:%S)] bwa mem complete [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+					step_description_and_time_second "bwa mem complete"
   			else
-          echo -e "\n======== [$(date +%H:%M:%S)] Starting bowtie2 index [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+          step_description_and_time_second "Starting bowtie2 index"
     			bowtie2-build -f ../../../$scaffolds bowtie_index
-    			echo -e "\n======== [$(date +%H:%M:%S)] bowtie2 index complete. Starting bowtie2 [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+    			step_description_and_time_second "bowtie2 index complete. Starting bowtie2"
     			bowtie2 -q -x bowtie_index -1 ../../../../../../*1P_error_corrected.fastq \
 					-2 ../../../../../../*2P_error_corrected.fastq -S ${mapper}_output.sam \
 					-p $threads
     			rm bowtie_index*
-          echo -e "\n======== [$(date +%H:%M:%S)] bowtie2 complete [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+          step_description_and_time_second "bowtie2 complete"
         fi
 
   			# Editing the mapper outputs:
@@ -411,7 +422,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 			# variables we generated during the script:
       cd $(realpath --relative-to=$(pwd) ${base_directory}/${trimming_results}/step_2_rrna_sorting/${rrna_filter_results}/step_3_assembly/)
 
-			echo -e "++++++++ [$(date +%H:%M:%S)] FINISHED STEP 4: MAPPING FOR TRIMMED READS IN FOLDER $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+			step_description_and_time_first "FINISHED STEP 4: MAPPING FOR TRIMMED READS IN FOLDER $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/"
 
 
 			######################### Steps 5 and 6.1: Picking a referencd DB and taxonomic classification ################################
@@ -421,72 +432,80 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 			# For loop 4: loop over the reference DBs for taxonomic classification:
 			for DB in SILVA NCBI_NT; do
 				if [[ $DB == "SILVA" ]]; then
-					krakenDB="/hdd1/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Sep_2020/"
-					blastDB="/hdd1/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta"
+					krakenDB="/hdd2/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Sep_2020/"
+					blastDB="/hdd2/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta"
 				else # NCBI_NT
-					krakenDB="/hdd1/databases/kraken2_nt_DB"
-					blastDB="/hdd1/databases/nt_database_feb_2020_indexed/nt"
+					krakenDB="/hdd2/databases/kraken2_nt_DB"
+					blastDB="/hdd2/databases/nt_database_feb_2020_indexed/nt"
 				fi
 
-				echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 5 AND 6.1: CLASSIFICATION OF ASSEMBLED SCAFFOLDS FROM TRIMMED READS IN FOLDER $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ USING DATABASE ${DB} +++++++\n"
+				step_description_and_time_first "START STEP 5 AND 6.1: CLASSIFICATION OF ASSEMBLED SCAFFOLDS FROM TRIMMED READS IN FOLDER $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ USING DATABASE ${DB}"
 				mkdir $assembly_results/step_5_reference_DB/${DB}/
 				mkdir $assembly_results/step_5_reference_DB/${DB}/step_6_classification/
 				cd $assembly_results/step_5_reference_DB/${DB}/step_6_classification/
 
-				echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BLAST WITH DATABASE $DB [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+				step_description_and_time_second "RUNNING BLAST WITH DATABASE $DB"
 				# Run BLAST via blastn
 				blastn -query ../../../../$scaffolds -db $blastDB -out blast_output.txt \
 				-outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
 				-evalue 1e-05 -num_threads $threads
-				echo -e "\n======== [$(date +%H:%M:%S)] BLAST WITH DATABASE $DB DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+				step_description_and_time_second "BLAST WITH DATABASE $DB DONE"
 
-				echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BLAST FIRST HIT [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+				step_description_and_time_second "RUNNING BLAST FIRST HIT"
 				# We run a separate script to filter the BLAST results:
 				blast_filtering.bash -i blast_output.txt -f blast -t soft -e ~/.etetoolkit/taxa.sqlite -T $threads
 				cp blast_output.txt blast_filtering_results/
 				mv blast_filtering_results/ BLAST_FIRST_HIT/
-        echo -e "\n======== [$(date +%H:%M:%S)] BLAST FIRST HIT DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+        step_description_and_time_second "BLAST FIRST HIT DONE"
 
-				echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BLAST FILTERED [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+				step_description_and_time_second "RUNNING BLAST FILTERED"
 				# We run a separate script to filter the BLAST results:
 				blast_filtering.bash -i blast_output.txt -f blast -t strict -e ~/.etetoolkit/taxa.sqlite -T $threads
 				mv blast_output.txt blast_filtering_results/
 				mv blast_filtering_results/ BLAST_FILTERED/
-        echo -e "\n======== [$(date +%H:%M:%S)] BLAST FILTERED DONE========\n"
+        step_description_and_time_second "BLAST FILTERED DONE"
 
-				echo -e "\n======== [$(date +%H:%M:%S)] RUNNING KRAKEN2 WITH DATABASE $DB [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+				step_description_and_time_second "RUNNING KRAKEN2 WITH DATABASE $DB"
 				mkdir KRAKEN2/
 				cd KRAKEN2/
 	     	# Run kraken2
-				kraken2 --db $krakenDB --threads $threads ../../../../../$scaffolds \
+				kraken2 --db $krakenDB --threads $threads ../../../../../$scaffolds --report kraken2_report.txt \
 				> kraken2_output.txt
 
 				if [[ $DB == 'SILVA' ]]; then
 		      # Now we're gonna edit the output so that is has the same format as
 					# CREST output, since we already have a script to deal with
 					# SILVA CREST output/taxonomy
-		      # Extract the taxids column of the standard kraken output:
-					cut -f3 kraken2_output.txt > kraken2_taxids.txt
-		      # Access the SILVA taxonomy file (downloaded taxmap files as in
+					# Translate kraken2 output into full taxonomy path:
+					kraken2_translate.py  --classification kraken2_output.txt \
+					--report kraken2_report.txt --output kraken2_translate_result.txt
+					# Modify translated output format to match SILVA taxonomy paths we have the NCBI staxid for:
+					cut -f 3 -d , kraken2_translate_result.txt \
+					| sed 's/^[A-Za-z0-9]*__root|[A-Za-z0-9]*__//g' | sed 's/|[A-Za-z0-9]*__/;/g' \
+					| sed 's/$/;/g' | sed 's/unclassified/No hits/g' \
+					| sed 's/R__root/No hits/g' | sed '1d' \
+					> kraken2_translate_result_edited.txt
+					# Access the SILVA taxonomy file (downloaded taxmap files as in
 					# subscript SILVA_SSU_LSU_kraken2_preparation and concatenated them)
 					# and generate a file containing one column for each SILVA taxid and
-					# one column for the respective SILVA taxonomy path:
-		     	tail -n +2 /hdd1/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Sep_2020/taxmap_slv_ssu_lsu_ref_nr_138.1.txt \
-		      | cut -f 4,6 | sort -u > SILVA_paths_and_taxids.txt
+					# one column for the respective SILVA taxonomy path, while removing
+					# rows with identical taxonomy paths but different staxids
+					#(relict from merging SILVA SSU and LSU):
+		     	tail -n +2 /hdd2/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Sep_2020/taxmap_slv_ssu_lsu_ref_nr_138.1.txt \
+		      | cut -f 4,6 | sort -u | awk '!a[$1]++' > SILVA_paths_and_taxids.txt
 		      # Kraken2 spits out the taxid 0 when no hit is found, but 0 doesn't
 					# exist in the SILVA taxonomy, so manually add taxid 0 with path
 					# “No hits” to the SILVA path file:
 		      echo -e "No hits;\t0" > tmp && cat SILVA_paths_and_taxids.txt >> tmp \
 		      && mv tmp SILVA_paths_and_taxids.txt
-		      # Merge your kraken2 taxids with the SILVA path file to assign a SILVA
-					# taxonomy path to every kraken2 hit:
-		      mergeFilesOnColumn.pl SILVA_paths_and_taxids.txt kraken2_taxids.txt 2 1 > merged.txt
-		      cut -f -2 merged.txt | sed 's/;\t/\t/g' > merged_edit.txt # Edit the output
+		      # Merge your kraken2 translated paths with the SILVA path file to assign
+					# a SILVA taxonomy path to every kraken2 hit:
+					mergeFilesOnColumn.pl SILVA_paths_and_taxids.txt kraken2_translate_result_edited.txt 1 1 \
+					| cut -f 2- | sed 's/;$//g' > merged.txt
 		      # Extract the sequence names from the kraken2 output and generate a
 					# final file with sequence name, taxid, and SILVA path:
 		     	cut -f 3 kraken2_output.txt > names.txt
-		      paste names.txt merged_edit.txt | awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $3, $2}' \
-				 	> kraken2_SILVA_formatted.txt
+		      paste names.txt merged.txt > kraken2_SILVA_formatted.txt
 		      # This file has now the same format as the output of CREST and can be
 					# translated into NCBI taxonomy the same way as CREST output
 
@@ -495,8 +514,8 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 					# into NCBI taxids, and use that script on the formatted kraken2 output.
 					# The files NCBI_staxids_(non_)scientific were generated by the script
 					# SILVA_SSU_LSU_makeblastdb_preparation:
-		      assign_NCBI_staxids_to_CREST_v4.py /hdd1/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020/NCBI_staxids_scientific.txt \
-		      /hdd1/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020/NCBI_staxids_non_scientific.txt \
+		      assign_NCBI_staxids_to_CREST_v4.py /hdd2/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020/NCBI_staxids_scientific.txt \
+		      /hdd2/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020/NCBI_staxids_non_scientific.txt \
 		      kraken2_SILVA_formatted.txt kraken2_SILVA_formatted_with_NCBI_taxids.txt
 		      mergeFilesOnColumn.pl kraken2_SILVA_formatted_with_NCBI_taxids.txt \
 		      kraken2_SILVA_formatted.txt 1 1 | cut -f3 > NCBItaxids.txt # Merge SILVA output with taxids and extract taxids
@@ -505,13 +524,25 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 					-e ~/.etetoolkit/taxa.sqlite
 		      sed -i '1d' NCBItaxids_with_taxonomy.txt # Remove header
 		      cut -f2 kraken2_output.txt > contig_names.txt # Get contig names from original kraken2 output
-	       	paste contig_names.txt NCBItaxids_with_taxonomy.txt \
+					paste contig_names.txt NCBItaxids_with_taxonomy.txt | sed 's/Unknown/NA/g' \
 				 	> contigs_with_NCBItaxids_and_taxonomy.txt # Add contig names to taxonomy file
-		     	echo -e "sequence_name\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
-		     	> kraken2_final.txt && cat contigs_with_NCBItaxids_and_taxonomy.txt | sed 's/Unknown/NA/g' \
-		    	>> kraken2_final.txt # Add header
 
-		      # Sort files
+			  	# Turn lowest_hit into species
+					echo -e "sequence_name\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
+			   	> kraken2_final.txt
+					while read line; do
+						pre=$(cut -f 1-3 <<< $line)
+						spec=$(cut -f 4 <<< $line | cut -f 1-2 -d ' ') # Cut down to first two words
+						post=$(cut -f 5- <<< $line)
+						if [[ "${spec:0:1}" =~ [a-z] ]]; then # if first letter is not capitalized (not in format "Genus species")
+							spec="NA"
+						elif [[ $(wc -w <<< "${spec}") != 2 ]]; then # if only one word (not in format "Genus species")
+							spec="NA"
+						fi
+						echo -e "${pre}\t${spec}\t${post}" >> kraken2_final.txt
+					done <contigs_with_NCBItaxids_and_taxonomy.txt
+
+			    # Sort files
 			   	mkdir intermediate_files
 		      mv kraken2_output.txt kraken2_taxids.txt SILVA_paths_and_taxids.txt merged* \
 		      names.txt kraken2_SILVA_formatted* NCBItaxids* contig* intermediate_files/
@@ -522,9 +553,22 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	        assign_taxonomy_to_NCBI_staxids.sh -b kraken2_output_contig_taxid.txt \
 					-c 2 -e ~/.etetoolkit/taxa.sqlite
 	        sed -i '1d' kraken2_output_contig_taxid_with_taxonomy.txt # Remove header
-	        echo -e "sequence_name\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
-	        > kraken2_final.txt && cat kraken2_output_contig_taxid_with_taxonomy.txt | sed 's/Unknown/NA/g' \
-	        >> kraken2_final.txt # Add header
+					sed -i 's/Unknown/NA/g' kraken2_output_contig_taxid_with_taxonomy.txt # Change unknown to NA
+
+					# Turn lowest_hit into species
+					echo -e "sequence_name\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
+					> kraken2_final.txt
+					while read line; do
+						pre=$(cut -f 1-3 <<< $line)
+						spec=$(cut -f 4 <<< $line | cut -f 1-2 -d ' ') # Cut down to first two words
+						post=$(cut -f 5- <<< $line)
+						if [[ "${spec:0:1}" =~ [a-z] ]]; then # if first letter is not capitalized (not in format "Genus species")
+							spec="NA"
+						elif [[ $(wc -w <<< "${spec}") != 2 ]]; then # if only one word (not in format "Genus species")
+							spec="NA"
+						fi
+						echo -e "${pre}\t${spec}\t${post}" >> kraken2_final.txt
+					done <kraken2_output_contig_taxid_with_taxonomy.txt
 
 	       	# Sort files
 	        mkdir intermediate_files
@@ -532,7 +576,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	      fi
 
 				cd ..
-	      echo -e "\n======== [$(date +%H:%M:%S)] KRAKEN2 WITH DATABASE $DB DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	      step_description_and_time_second "KRAKEN2 WITH DATABASE $DB DONE"
 
 				######################### Step 6.2: Generating final putput files ################################
 				# Each assembler/classification tool output has a different format. We
@@ -541,8 +585,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				# For loop 5: loop over the classification tools for universal edits:
 				for classification_tool in KRAKEN2 BLAST_FILTERED BLAST_FIRST_HIT; do
 
-					echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 6.2: GENERATING FINAL OUTPUT FILES OF READS IN $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ AND CLASSIFICATION IN FOLDER $classification_tool/ [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
-
+					step_description_and_time_first "START STEP 6.2: GENERATING FINAL OUTPUT FILES OF READS IN $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ AND CLASSIFICATION IN FOLDER $classification_tool/"
 					mkdir ${classification_tool}/FINAL_FILES/
 					mkdir ${classification_tool}/FINAL_FILES/intermediate_files/
 
@@ -626,28 +669,28 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								| sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' \
 								| sed 's/length_//g' | sed 's/cov_//g' > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
-								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
+								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
 
 							elif [[ $assembly_results == 'IDBA_UD' ]]; then
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								| sed 's/scaffold_//g' > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
-								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
+								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
 
 							elif [[ $assembly_results == 'MEGAHIT' ]]; then
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								| sed 's/_/\t/1' | cut -f2-17 > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tsequence_length\tassembly_sequence" \
+								echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tsequence_length\tassembly_sequence" \
 								> tmp \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $15, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $16}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							elif [[ $assembly_results == 'RNASPADES' ]]; then
@@ -655,42 +698,42 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								| sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' \
 								| sed 's/length_//g' | sed 's/cov_//g' | sed 's/_/\t/1' \
 								| cut -f1,2,3,5-21 > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
-								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
+								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
 
 							elif [[ $assembly_results == 'IDBA_TRAN' ]]; then
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								|	sed 's/contig-[0-9]*_//g' > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
+								echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
 								> tmp \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $15, $16, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $17}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							elif [[ $assembly_results == 'TRINITY' ]]; then
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								| sed 's/_/\t/5' | sed 's/len=//g' | sed 's/TRINITY_//g' \
 								> ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tsequence_length\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								echo -e "sequence_name\tsequence_length\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
-								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
+								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
 
 							else #TRANSABYSS
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								| sed 's/_/\t/1' | sed 's/_/\t/1' | sed -r 's/_[0-9,.+-]*\t/\t/g' > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
-								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
+								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
 
 							fi
 
-							echo -e "\n======== [$(date +%H:%M:%S)] DONE FINALIZING BLAST_FILTERED FILES FOR MAPPER $mapper =======\n"
+							step_description_and_time_second "DONE FINALIZING BLAST_FILTERED FILES FOR MAPPER $mapper"
 
 						elif [[ $classification_tool == 'BLAST_FIRST_HIT' ]]; then
 
@@ -704,29 +747,29 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								| sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' \
 								| sed 's/length_//g' | sed 's/cov_//g' > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
+								echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
 								> tmp \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
-								cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
+								cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
 
 							elif [[ $assembly_results == 'IDBA_UD' ]]; then
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								| sed 's/scaffold_//g' > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
-								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
+								>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
 
 							elif [[ $assembly_results == 'MEGAHIT' ]]; then
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								| sed 's/_/\t/1' | cut -f2-17 > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tsequence_length\tassembly_sequence" \
+								echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tsequence_length\tassembly_sequence" \
 								> tmp \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $15, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $16}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							elif [[ $assembly_results == 'RNASPADES' ]]; then
@@ -734,44 +777,44 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								| sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' \
 								| sed 's/length_//g' | sed 's/cov_//g' | sed 's/_/\t/1' \
 								| cut -f1,2,3,5-20 > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
+								echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
 								> tmp \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
-								cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
+								cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
 
 							elif [[ $assembly_results == 'IDBA_TRAN' ]]; then
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								|	sed 's/contig-[0-9]*_//g' > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
+								echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
 								> tmp \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $15, $16, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $17}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							elif [[ $assembly_results == 'TRINITY' ]]; then
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								| sed 's/_/\t/5' | sed 's/len=//g' | sed 's/TRINITY_//g' > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tsequence_length\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
+								echo -e "sequence_name\tsequence_length\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
 								> tmp \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
-								cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
+								cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
 
 							else #TRANSABYSS
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								| sed 's/_/\t/1' | sed 's/_/\t/1' | sed -r 's/_[0-9,.+-]*\t/\t/g' > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
+								echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
 								> tmp \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
-								cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
+								cat tmp > ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt
 
 							fi
 
-							echo -e "\n======== [$(date +%H:%M:%S)] DONE FINALIZING BLAST_FIRST_HIT FILES FOR MAPPER $mapper [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+							step_description_and_time_second "DONE FINALIZING BLAST_FIRST_HIT FILES FOR MAPPER $mapper"
 
 						else # kraken2
 
@@ -785,34 +828,34 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								| sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' \
 								| sed 's/length_//g' | sed 's/cov_//g' > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tsequence_length\tcontig_coverage\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
+								echo -e "sequence_name\tsequence_length\tcontig_coverage\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
 								> tmp \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $2, $3, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $6, $4, $18, $19}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							elif [[ $assembly_results == 'IDBA_UD' ]]; then
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								| sed 's/_/\t/1' | cut -f2-20 > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
+								echo -e "sequence_name\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
 								> tmp \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $4, $2, $16, $17}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							elif [[ $assembly_results == 'MEGAHIT' ]]; then
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								| sed 's/_/\t/1' | cut -f2-19 > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tsequence_length\tassembly_sequence" \
+								echo -e "sequence_name\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tsequence_length\tassembly_sequence" \
 								> tmp \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
-								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $16, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $4, $2, $17, $18}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $17, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $4, $2, $16, $18}' tmp \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							elif [[ $assembly_results == 'RNASPADES' ]]; then
@@ -820,54 +863,54 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 								| sed 's/_/\t/2' |sed 's/_/\t/3' | sed 's/NODE_//g' \
 								| sed 's/length_//g' | sed 's/cov_//g' | sed 's/_/\t/1' \
 								| cut -f1,2,3,5-20 > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tsequence_length\tcontig_coverage\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
+								echo -e "sequence_name\tsequence_length\tcontig_coverage\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
 								> tmp \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $2, $3, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $6, $4, $18, $19}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							elif [[ $assembly_results == 'IDBA_TRAN' ]]; then
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								| sed 's/_/\t/1' | cut -f2-20 > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
+								echo -e "sequence_name\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
 								> tmp \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $17, $18, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $4, $2, $16, $19}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							elif [[ $assembly_results == 'TRINITY' ]]; then
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								| sed 's/_/\t/5' | sed 's/len=//g' | sed 's/TRINITY_//g' > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tsequence_length\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
+								echo -e "sequence_name\tsequence_length\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
 								> tmp \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $2, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $5, $4, $17, $18}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							else #TRANSABYSS
 								sed '1d' ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt \
 								| sed 's/_/\t/1' | sed 's/_/\t/1' | sed -r 's/_[0-9,.+-]*\t/\t/g' > ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt
-								echo -e "sequence_name\tcontig_length\tcontig_coverage\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \								> tmp \
+								echo -e "sequence_name\tcontig_length\tcontig_coverage\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \								> tmp \
 								&& cat ${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_no_header.txt \
 								>> tmp
 								awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $2, $3, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $6, $4, $18, $19}' tmp \
-								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
+								> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trim_phred}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_pipeline_final.txt \
 								&& rm tmp
 
 							fi
 
-							echo "PWD: $(pwd)"
-
-							echo -e "\n======== [$(date +%H:%M:%S)] DONE FINALIZING KRAKEN2 FILES FOR MAPPER $mapper [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+							step_description_and_time_second "DONE FINALIZING KRAKEN2 FILES FOR MAPPER $mapper"
 						fi
 					done
 				done
+				step_description_and_time_first "FINISHED STEPS 5 AND 6: GENERATING FINAL OUTPUT FILES OF READS IN $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ AND CLASSIFICATION IN FOLDER $classification_tool/"
+
 				# After each loop, we have to go back to the directory we started the
 				# loop in, and we're using realtive paths for that, making use of the
 				# variables generated in the previous loops
@@ -879,12 +922,6 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	done
 	cd $(realpath --relative-to=$(pwd) $base_directory)
 done
-
-# We make a final directory and extract all final files into that directory to
-# have everything in one place
-#mkdir METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/
-#find . -type f -name "*_pipeline_final.txt" -print0 | xargs -0 -Ifile cp file \
-#METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/
 
 # Display runtime
 echo -e "=================================================================\n"

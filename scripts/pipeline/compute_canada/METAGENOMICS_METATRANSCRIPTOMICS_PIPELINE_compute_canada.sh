@@ -11,21 +11,22 @@
 # that contains tab-separated, taxonomically annotated scaffolds and read counts
 # for the specified pipeline.
 
-# To run every possible combination of tools, the pipeline requires the following subscripts, which are all located in the
-# subscripts/ directory:
+# To run every possible combination of tools, the pipeline requires the following
+# subscripts, which are all located in the subscripts/ directory:
 	# assign_NCBI_staxids_to_CREST_v4.py, fasta_to_tab, mergeFilesOnColumn.pl,
 	# assign_taxonomy_to_NCBI_staxids.sh  fastqc_on_R1_R2_and_optional_trimming.sh,
 	# merge_on_outer.py, blast_filtering.bash, filter-fasta.awk,
 	# deinterleave_fastq_reads.sh, LookupTaxonDetails3.py
 
-# To run every possible combination of tools, the pipeline requires the following programs/python packages (versions we used
-# when writing this script are indicated in brackets):
+# To run every possible combination of tools, the pipeline requires the following
+# programs/python packages (versions we used when writing this script are
+# indicated in brackets):
 	# FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
 	# rRNAFILTER (1.1), SPADES (3.14.0)[note: runs with the --meta and --rna
 	# options for METASPADES and RNASPADES], MEGAHIT (1.2.9), IDBA-UD (1.1.1),
-	# IDBA_tran (1.1.1), Trinity (2.10.0),	bowtie2 (2.3.3.1), bwa (0.7.17),
-	# blast+ [$(date +%H:%M:%S)] (2.10.0+), seqtk (1.2-r94),  samtools (1.10),
-	# python module justblast (2020.0.3), python module ete3 (3.1.2)
+	# IDBA_tran (1.1.1), Trinity (2.10.0),	Trans-ABySS (2.0.1), bowtie2 (2.3.3.1),
+	# bwa (0.7.17), blast+ (2.10.0+), kraken2 (2.1.1), seqtk (1.2-r94),
+	# samtools (1.10), python module ete3 (3.1.2)
 
 	# Note: we had to edit IDBA prior to compiling it because it didn't work
 	# using long reads and the -l option. This seems to be a common problem and
@@ -133,16 +134,26 @@ mapping=$(echo $pipeline | cut -f4 -d-)
 db=$(echo $pipeline | cut -f5 -d-)
 classification=$(echo $pipeline | cut -f6 -d-)
 
+# Define functions to print steps with time
+start=$(date +%s)
+
+step_description_and_time_first () {
+	echo -e "\n++++++++ [$(date +%H:%M:%S)] ${1} [Runtime: $((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+}
+
+step_description_and_time_second () {
+	echo -e "\n======== [$(date +%H:%M:%S)] ${1} [Runtime: $((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n" #" adding outcommented quote here to fix bug in colouring scheme of personal text editor
+}
+
 ##################### Write start time and options to output ######################
 
 # Define starting time of script for total runtime calculation:
-start=$(date +%s)
 echo -e "\n\nSTART RUNNING SCRIPT AT $(date)\n"
 echo -e "=================================================================\n\n"
 
 
 # Output specified options:
-echo -e "======== [$(date +%H:%M:%S)] OPTIONS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+step_description_and_time_first "OPTIONS"
 
 echo -e "Forward reads were defined as $forward_reads.\n"
 echo -e "Reverse reads were defined as $reverse_reads.\n"
@@ -153,7 +164,7 @@ echo -e "Script started with full command: $cmd\n"
 
 
 ######################### Start of the actual script ################################
-echo -e "++++++++ [$(date +%H:%M:%S)] START RUNNING SCRIPT [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+step_description_and_time_first "START RUNNING SCRIPT"
 
 # Activate the conda ete3 environment within this script to be able to run ete3.
 # I found this solution # to activate conda environments in scripts here:
@@ -173,7 +184,7 @@ base_directory=$(pwd)
 
 ######################### Step 1: trimming ################################
 
-echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 1: TRIMMING AND ERROR CORRECTION [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+step_description_and_time_first "START STEP 1: TRIMMING AND ERROR CORRECTION"
 # Trimming is done with a separate subscript:
 fastqc_on_R1_R2_and_optional_trimming.sh \
 -T $trimmomatic -1 $forward_reads -2 $reverse_reads -t yes -p $threads -P $trimming
@@ -185,7 +196,7 @@ baseout=${forward_reads%_*} # Make basename
 cd step_1_trimming/trimmomatic/trimmed_at_phred_${trimming}_${baseout##*/}
 
 # Running error correction module of SPAdes on all trimmed reads
-echo -e "\n======== [$(date +%H:%M:%S)] ERROR-CORRECTING READS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+step_description_and_time_first "ERROR-CORRECTING READS"
 spades.py -1 *1P.fastq -2 *2P.fastq \
 --only-error-correction --disable-gzip-output -o error_correction \
 -t $threads
@@ -199,27 +210,27 @@ R2=$(echo *2P.00.0_0.cor.fastq) \
 && mv *2P.00.0_0.cor.fastq ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
 sed -r -i 's/ BH:.{2,6}//g' ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
 rm -r error_correction/
-echo -e "\n======== [$(date +%H:%M:%S)] FINISHED ERROR-CORRECTING READS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+step_description_and_time_first "FINISHED ERROR-CORRECTING READS"
 
-echo -e "++++++++ [$(date +%H:%M:%S)] FINISHED STEP 1: TRIMMING AND ERROR CORRECTION [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+step_description_and_time_first "FINISHED STEP 1: TRIMMING AND ERROR CORRECTION"
 
 ######################### Step 2: rRNA sorting ################################
 
-echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 2: rRNA SORTING OF TRIMMED READS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+step_description_and_time_first "START STEP 2: rRNA SORTING OF TRIMMED READS"
 
 mkdir step_2_rrna_sorting/
 cd step_2_rrna_sorting/
 
 if [[ ${sorting} == "barrnap" || ${sorting} == "rrnafilter" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] CONVERT READS IN FASTA FORMAT [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "CONVERT READS IN FASTA FORMAT"
 	mkdir reads_in_fasta_format/
 	fq2fa ../*1P_error_corrected.fastq reads_in_fasta_format/R1.fa
 	fq2fa ../*2P_error_corrected.fastq reads_in_fasta_format/R2.fa
-	echo -e "\n======== [$(date +%H:%M:%S)] READS TO FASTA CONVERSION DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "READS TO FASTA CONVERSION DONE"
 fi
 
 if [[ ${sorting} == "sortmerna" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING SORTMERNA [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "RUNNING SORTMERNA"
 	mkdir SORTMERNA/
 	sortmerna --ref $silva_sortmerna_bac_lsu \
 	--ref $silva_sortmerna_bac_ssu \
@@ -230,22 +241,19 @@ if [[ ${sorting} == "sortmerna" ]]; then
 	--ref $silva_sortmerna_rfam_5 \
 	--ref $silva_sortmerna_rfam_5_8 \
   --reads ../*1P_error_corrected.fastq --reads ../*2P_error_corrected.fastq \
-	--paired_in -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA/ \
+	--paired_in	--out2 -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA/ \
 	--threads 1:1:$threads
-	# SortMeRNA interleaves reads, which we don't want, so we deinterleave them:
-	deinterleave_fastq_reads.sh < SORTMERNA/out/aligned.fastq \
-	SORTMERNA/out/aligned_R1.fq SORTMERNA/out/aligned_R2.fq
 	cd SORTMERNA/
-	echo -e "\n======== [$(date +%H:%M:%S)] SORTMERNA DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "SORTMERNA DONE"
 
 elif [[ ${sorting} == "rrnafilter" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING rRNAFILTER [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "RUNNING rRNAFILTER"
 	mkdir rRNAFILTER/
 	cd rRNAFILTER/
 	# rRNAFilter only worked for us when we started it within the directory
 	# containing the .jar file. To simplify switching to that directory, we copy
 	# it from its location to the pwd:
-	cp -r ~/scratch/chris_pilot_project/programs/rRNAFilter .
+	cp -r ~/projects/def-dsteinke/hempelc/pilot_project/programs/rRNAFilter .
 	cd rRNAFilter/
 	# We use 7GB for the rRNAFilter .jar, as shown in the rRNAFilter manual:
 	java -jar -Xmx7g rRNAFilter_commandline.jar \
@@ -267,19 +275,19 @@ elif [[ ${sorting} == "rrnafilter" ]]; then
 	seqtk subseq ../reads_in_fasta_format/R2.fa names_sorted.txt \
 	> rRNAFilter_paired_R2.fa
 	rm names_sorted.txt names.txt
-	echo -e "\n======== [$(date +%H:%M:%S)] rRNAFILTER DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "rRNAFILTER DONE"
 
 elif [[ ${sorting} == "barrnap" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BARRNAP [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "RUNNING BARRNAP"
 	mkdir BARRNAP/
 	for kingdom in euk bac arc; do # barrnap needs to be run on kingdoms separately
-		echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BARRNAP ON KINGDOM $kingdom AND R1 READS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
-		~/scratch/chris_pilot_project/programs/barrnap/bin/barrnap \
+		step_description_and_time_first "RUNNING BARRNAP ON KINGDOM $kingdom AND R1 READS"
+		barrnap \
 		--quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
 		--threads $threads --outseq BARRNAP/${kingdom}_reads1.fa \
 		reads_in_fasta_format/R1.fa
-		echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BARRNAP ON KINGDOM $kingdom AND R2 READS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
-		~/scratch/chris_pilot_project/programs/barrnap/bin/barrnap \
+		step_description_and_time_first "RUNNING BARRNAP ON KINGDOM $kingdom AND R2 READS"
+		barrnap \
 		--quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
 		--threads $threads --outseq BARRNAP/${kingdom}_reads2.fa \
 		reads_in_fasta_format/R2.fa
@@ -303,20 +311,20 @@ elif [[ ${sorting} == "barrnap" ]]; then
 	> BARRNAP/barrnap_paired_R2.fa
 	rm BARRNAP/names_sorted.txt
 	cd BARRNAP/
-	echo -e "\n======== [$(date +%H:%M:%S)] BARRNAP DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "BARRNAP DONE"
 
 elif [[ ${sorting} == "unsorted" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] MAKING FOLDER UNSORTED/ AND COPYING UNSORTED READS IN THERE TO KEEP THE FOLDER STRUCTURE CONSTANT [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "MAKING FOLDER UNSORTED/ AND COPYING UNSORTED READS IN THERE TO KEEP THE FOLDER STRUCTURE CONSTANT"
 	mkdir UNSORTED/
 	cp ../*1P_error_corrected.fastq ../*2P_error_corrected.fastq UNSORTED/
 	cd UNSORTED/
 fi
 
-echo -e "\n++++++++ [$(date +%H:%M:%S)] FINISHED STEP 2: rRNA SORTING [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+step_description_and_time_first "FINISHED STEP 2: rRNA SORTING"
 
 ######################### Step 3: Assembly ################################
 
-echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 3: ASSEMBLY [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+step_description_and_time_first "START STEP 3: ASSEMBLY"
 
 mkdir step_3_assembly/
 cd step_3_assembly/
@@ -325,8 +333,8 @@ if [[ $sorting == 'rrnafilter' ]]; then
 	R1_sorted='rRNAFilter_paired_R1.fa'
 	R2_sorted='rRNAFilter_paired_R2.fa'
 elif [[ $sorting == 'sortmerna' ]]; then
-	R1_sorted='out/aligned_R1.fq'
-	R2_sorted='out/aligned_R2.fq'
+	R1_sorted='out/aligned_fwd.fastq'
+	R2_sorted='out/aligned_rev.fastq'
 elif [[ $sorting == 'barrnap' ]]; then
 	R1_sorted='barrnap_paired_R1.fa'
 	R2_sorted='barrnap_paired_R2.fa'
@@ -336,30 +344,30 @@ elif [[ $sorting == 'unsorted' ]]; then
 fi
 
 if [[ $assembly == "spades" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING SPADES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "RUNNING SPADES"
 	mkdir SPADES/
 	spades.py -1 ../$R1_sorted -2 ../$R2_sorted --only-assembler \
 	-o SPADES/ -t $threads
 	cd SPADES/
-	echo -e "\n======== [$(date +%H:%M:%S)] SPADES DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "SPADES DONE"
 
 elif [[ $assembly == "metaspades" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING METASPADES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "RUNNING METASPADES"
 	mkdir METASPADES/
 	spades.py --meta -1 ../$R1_sorted -2 ../$R2_sorted --only-assembler \
 	-o METASPADES/ -t $threads
 	cd METASPADES/
-	echo -e "\n======== [$(date +%H:%M:%S)] METASPADES DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "METASPADES DONE"
 
 elif [[ $assembly == "megahit" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING MEGAHIT [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "RUNNING MEGAHIT"
 	megahit --presets meta-large -t $threads -1 ../$R1_sorted \
 	-2 ../$R2_sorted -o MEGAHIT/
 	cd MEGAHIT/
-	echo -e "\n======== [$(date +%H:%M:%S)] MEGAHIT DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "MEGAHIT DONE"
 
 elif [[ $assembly == "idba_ud" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING IDBA_UD [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "RUNNING IDBA_UD"
 	# Note: we had to edit IDBA prior to compiling it because it didn't work
 	# using long reads and the -l option. This seems to be a common problem and
 	# can be circumvented following for example the instructions in
@@ -367,34 +375,30 @@ elif [[ $assembly == "idba_ud" ]]; then
 	# https://github.com/loneknightpy/idba/issues/26
 	# IDBA_UD only takes interleaved fasta files
 	fq2fa --merge --filter ../$R1_sorted ../$R2_sorted idba_ud_input.fa
-	~/scratch/chris_pilot_project/programs/idba/bin/idba_ud \
-	--num_threads $threads --pre_correction -r idba_ud_input.fa \
-  -o IDBA_UD/
+	idba_ud --num_threads $threads -r idba_ud_input.fa -o IDBA_UD/
 	mv idba_ud_input.fa IDBA_UD/
 	cd IDBA_UD/
-	echo -e "\n======== [$(date +%H:%M:%S)] IDBA_UD DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "IDBA_UD DONE"
 
 elif [[ $assembly == "rnaspades" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING RNASPADES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "RUNNING RNASPADES"
 	mkdir RNASPADES/
 	spades.py --rna -1 ../$R1_sorted -2 ../$R2_sorted --only-assembler \
 	-o RNASPADES/ -t $threads
 	cd RNASPADES/
-	echo -e "\n======== [$(date +%H:%M:%S)] RNASPADES DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "RNASPADES DONE"
 
 elif [[ $assembly == "idba_tran" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING IDBA_TRAN [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "RUNNING IDBA_TRAN"
 	# IDBA_TRAN only takes interleaved fasta files
 	fq2fa --merge ../$R1_sorted ../$R2_sorted idba_tran_input.fa
-	~/scratch/chris_pilot_project/programs/idba/bin/idba_tran \
-	--num_threads $threads --pre_correction -l idba_tran_input.fa \
-  -o IDBA_TRAN/
+	idba_tran --num_threads $threads -l idba_tran_input.fa -o IDBA_TRAN/
 	mv idba_tran_input.fa IDBA_TRAN/
 	cd IDBA_TRAN
-	echo -e "\n======== [$(date +%H:%M:%S)] IDBA_TRAN DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "IDBA_TRAN DONE"
 
 elif [[ $assembly == "trinity" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING TRINITY [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "RUNNING TRINITY"
 	# Barrnap and rRNAFilter output fasta files which has to be indicated to Trinity:
   if [[ $sorting == "rrnafilter" || $sorting == "barrnap" ]]; then
 		Trinity --seqType fa --max_memory $memory --left ../$R1_sorted --right \
@@ -406,23 +410,23 @@ elif [[ $assembly == "trinity" ]]; then
   cat TRINITY/Trinity.fasta | sed 's/ len/_len/g' \
 	> TRINITY/Trinity_with_length.fasta  # Edit for universal format
 	cd TRINITY/
-	echo -e "\n======== [$(date +%H:%M:%S)] TRINITY DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "TRINITY DONE"
 
 elif [[ $assembly == "transabyss" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING TRANSABYSS [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "RUNNING TRANSABYSS"
   transabyss --pe ../$R1_sorted ../$R2_sorted --threads $threads \
   --outdir TRANSABYSS/
   sed 's/ /_/g' TRANSABYSS/transabyss-final.fa \
 	> TRANSABYSS/transabyss-final_edited.fa # Edit for universal format
 	cd TRANSABYSS/
-	echo -e "\n======== [$(date +%H:%M:%S)] TRANSABYSS DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "TRANSABYSS DONE"
 fi
 
-echo -e "\n++++++++ [$(date +%H:%M:%S)] FINISHED STEP 3: ASSEMBLY [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+step_description_and_time_first "FINISHED STEP 3: ASSEMBLY"
 
 ######################## Step 4: Mapping ################################
 
-echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 4: MAPPING [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+step_description_and_time_first "START STEP 4: MAPPING"
 
 mkdir step_4_mapping/
 mkdir step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/
@@ -447,22 +451,22 @@ elif [[ $assembly == 'transabyss' ]]; then
 fi
 
 if [[ $mapping == 'bwa' ]]; then
-  echo -e "\n======== [$(date +%H:%M:%S)] Starting bwa index [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+  step_description_and_time_first "Starting bwa index"
   bwa index -p bwa_index ../../$scaffolds
-  echo -e "\n======== [$(date +%H:%M:%S)] bwa index complete. Starting bwa mem [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+  step_description_and_time_first "bwa index complete. Starting bwa mem"
   bwa mem -t $threads bwa_index ../../../../../../*1P_error_corrected.fastq \
 	../../../../../../*2P_error_corrected.fastq > ${mapping}_output.sam
   rm bwa_index*
-	echo -e "\n======== [$(date +%H:%M:%S)] bwa mem complete [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "bwa mem complete"
 elif [[ $mapping == 'bowtie2' ]]; then
-  echo -e "\n======== [$(date +%H:%M:%S)] Starting bowtie2 index [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+  step_description_and_time_first "Starting bowtie2 index"
 	bowtie2-build -f ../../$scaffolds bowtie_index
-	echo -e "\n======== [$(date +%H:%M:%S)] bowtie2 index complete. Starting bowtie2 [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "bowtie2 index complete. Starting bowtie2"
 	bowtie2 -q -x bowtie_index -1 ../../../../../../*1P_error_corrected.fastq \
 	-2 ../../../../../../*2P_error_corrected.fastq -S ${mapping}_output.sam \
 	-p $threads
 	rm bowtie_index*
-  echo -e "\n======== [$(date +%H:%M:%S)] bowtie2 complete [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+  step_description_and_time_first "bowtie2 complete"
 fi
 
 # Editing the mapper outputs:
@@ -480,11 +484,11 @@ rm out_*mapped_${mapping}.txt
 # Moving back to assembler directory:
 cd ../../
 
-echo -e "++++++++ [$(date +%H:%M:%S)] FINISHED STEP 4: MAPPING [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+step_description_and_time_first "FINISHED STEP 4: MAPPING"
 
 ######################### Steps 5 and 6.1: Picking a referencd DB and taxonomic classification ################################
 
-echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 5 AND 6.1: CLASSIFICATION OF ASSEMBLED SCAFFOLDS WITH $(echo $db | tr '[:lower:]' '[:upper:]') DATABASE +++++++\n"
+step_description_and_time_first "START STEP 5 AND 6.1: CLASSIFICATION OF ASSEMBLED SCAFFOLDS WITH $(echo $db | tr '[:lower:]' '[:upper:]') DATABASE +++++++\n"
 
 mkdir step_5_reference_DB/
 mkdir step_5_reference_DB/$(echo $db | tr '[:lower:]' '[:upper:]')/
@@ -502,51 +506,56 @@ elif [[ $db == 'ncbi_nt' ]]; then
 fi
 
 if [[ $classification == "blast_first_hit" || $classification == "blast_filtered" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BLAST WITH DATABASE $blastDB [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "RUNNING BLAST WITH DATABASE $blastDB"
 	blastn -query ../../../../$scaffolds -db $blastDB -out blast_output.txt \
 	-outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
 	-evalue 1e-05 -num_threads $threads
-	echo -e "\n======== [$(date +%H:%M:%S)] BLAST WITH DATABASE $blastDB DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "BLAST WITH DATABASE $blastDB DONE"
 fi
 
 if [[ $classification == "blast_first_hit" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BLAST FIRST HIT [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "RUNNING BLAST FIRST HIT"
 	# We run a separate script to filter the BLAST results:
 	blast_filtering.bash -i blast_output.txt -f blast -t soft -T $threads -e $etetoolkit
 	mv blast_output.txt blast_filtering_results/
-	echo -e "\n======== [$(date +%H:%M:%S)] BLAST FIRST HIT DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "BLAST FIRST HIT DONE"
 
 elif [[ $classification == "blast_filtered" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING BLAST FILTERED [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "RUNNING BLAST FILTERED"
 	# We run a separate script to filter the BLAST results:
 	blast_filtering.bash -i blast_output.txt -f blast -t strict -T $threads -e $etetoolkit
 	mv blast_output.txt blast_filtering_results/
-	echo -e "\n======== [$(date +%H:%M:%S)] BLAST FILTERED DONE========\n"
+	step_description_and_time_first "BLAST FILTERED DONE========\n"
 
 elif [[ $classification == "kraken2" ]]; then
-	echo -e "\n======== [$(date +%H:%M:%S)] RUNNING KRAKEN2 WITH DATABASE $krakenDB [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "RUNNING KRAKEN2 WITH DATABASE $krakenDB"
 	# Run kraken2
-	echo $krakenDB
-	kraken2 --db $krakenDB --threads $threads ../../../../$scaffolds \
-	> kraken2_output.txt
+	kraken2 --db $krakenDB --threads $threads ../../../../../$scaffolds \
+	--report kraken2_report.txt	> kraken2_output.txt
+
 	if [[ $db == 'silva' ]]; then
-    # Now we're gonna edit the output so that it has the same format as
+		# Now we're gonna edit the output so that is has the same format as
 		# CREST output, since we already have a script to deal with
 		# SILVA CREST output/taxonomy
-    # Extract the taxids column of the standard kraken output:
-		cut -f3 kraken2_output.txt > kraken2_taxids.txt
-
-    # Merge your kraken2 taxids with the SILVA path file to assign a SILVA
+		# Translate kraken2 output into full taxonomy path:
+		kraken2_translate.py  --classification kraken2_output.txt \
+		--report kraken2_report.txt --output kraken2_translate_result.txt
+		# Modify translated output format to match SILVA taxonomy paths we have the NCBI staxid for:
+		cut -f 3 -d , kraken2_translate_result.txt \
+		| sed 's/^[A-Za-z0-9]*__root|[A-Za-z0-9]*__//g' | sed 's/|[A-Za-z0-9]*__/;/g' \
+		| sed 's/$/;/g' | sed 's/unclassified/No hits/g' | sed 's/R__root/No hits/g' \
+		| sed '1d' > kraken2_translate_result_edited.txt
+		# Access the SILVA taxonomy file and remove rows with duplicate paths (relict from merging SSU and LSU databases):
+		awk '!a[$1]++' $silva_path_taxid > tmp && mv tmp SILVA_paths_and_taxids.txt && rm tmp
+		# Merge your kraken2 taxids with the SILVA path file to assign a SILVA
 		# taxonomy path to every kraken2 hit:
-    mergeFilesOnColumn.pl $silva_path_taxid kraken2_taxids.txt 2 1 > merged.txt
-    cut -f -2 merged.txt | sed 's/;\t/\t/g' > merged_edit.txt # Edit the output
-
-    # Extract the sequence names from the kraken2 output and generate a
+		mergeFilesOnColumn.pl SILVA_paths_and_taxids.txt kraken2_translate_result_edited.txt 1 1 \
+		| cut -f 2- | sed 's/;$//g' > merged.txt
+		# Extract the sequence names from the kraken2 output and generate a
 		# final file with sequence name, taxid, and SILVA path:
-   	cut -f 3 kraken2_output.txt > names.txt
-    paste names.txt merged_edit.txt | awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $3, $2}' \
-	 	> kraken2_SILVA_formatted.txt
-    # This file has now the same format as the output of CREST and can be
+		cut -f 3 kraken2_output.txt > names.txt
+		paste names.txt merged.txt > kraken2_SILVA_formatted.txt
+		# This file has now the same format as the output of CREST and can be
 		# translated into NCBI taxonomy the same way as CREST output
 
 		# We run a separate script that was initially made to deal with the
@@ -560,37 +569,63 @@ elif [[ $classification == "kraken2" ]]; then
     assign_taxonomy_to_NCBI_staxids.sh -b NCBItaxids.txt -c 1	-e $etetoolkit
     sed -i '1d' NCBItaxids_with_taxonomy.txt # Remove header
     cut -f2 kraken2_output.txt > contig_names.txt # Get contig names from original kraken2 output
-   	paste contig_names.txt NCBItaxids_with_taxonomy.txt \
+   	paste contig_names.txt NCBItaxids_with_taxonomy.txt | sed 's/Unknown/NA/g' \
 	 	> contigs_with_NCBItaxids_and_taxonomy.txt # Add contig names to taxonomy file
-   	echo -e "sequence_name\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
-   	> kraken2_final.txt && cat contigs_with_NCBItaxids_and_taxonomy.txt | sed 's/Unknown/NA/g' \
-  	>> kraken2_final.txt # Add header
+
+  	# Turn lowest_hit into species
+		echo -e "sequence_name\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
+   	> kraken2_final.txt
+		while read line; do
+			pre=$(cut -f 1-3 <<< $line)
+			spec=$(cut -f 4 <<< $line | cut -f 1-2 -d ' ') # Cut down to first two words
+			post=$(cut -f 5- <<< $line)
+			if [[ "${spec:0:1}" =~ [a-z] ]]; then # if first letter is not capitalized (not in format "Genus species")
+				spec="NA"
+			elif [[ $(wc -w <<< "${spec}") != 2 ]]; then # if only one word (not in format "Genus species")
+				spec="NA"
+			fi
+			echo -e "${pre}\t${spec}\t${post}" >> kraken2_final.txt
+		done <contigs_with_NCBItaxids_and_taxonomy.txt
 
     # Sort files
    	mkdir intermediate_files
     mv kraken2_output.txt kraken2_taxids.txt merged* names.txt \
 		kraken2_SILVA_formatted* NCBItaxids* contig* intermediate_files/
 
-  elif [[ $db == 'ncbi_nt' ]]; then
-  	cut -f 2-3 kraken2_output.txt > kraken2_output_contig_taxid.txt # Isolate contig names and taxids
+	else # NCBI_NT
+		cut -f 2-3 kraken2_output.txt > kraken2_output_contig_taxid.txt # Isolate contig names and taxids
 		# We use a separate script to assign taxonomy to NCBI taxids:
-    assign_taxonomy_to_NCBI_staxids.sh -b kraken2_output_contig_taxid.txt \
-		-c 2 -e $etetoolkit
-    sed -i '1d' kraken2_output_contig_taxid_with_taxonomy.txt # Remove header
-    echo -e "sequence_name\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
-    > kraken2_final.txt && cat kraken2_output_contig_taxid_with_taxonomy.txt \
-		| sed 's/Unknown/NA/g' >> kraken2_final.txt # Add header
+		assign_taxonomy_to_NCBI_staxids.sh -b kraken2_output_contig_taxid.txt \
+		-c 2 -e ~/.etetoolkit/taxa.sqlite
+		sed -i '1d' kraken2_output_contig_taxid_with_taxonomy.txt # Remove header
+		sed -i 's/Unknown/NA/g' kraken2_output_contig_taxid_with_taxonomy.txt # Change unknown to NA
 
-   	# Sort files
-    mkdir intermediate_files
-    mv kraken2_output* intermediate_files/
-  fi
-echo -e "\n======== [$(date +%H:%M:%S)] KRAKEN2 WITH DATABASE $krakenDB DONE [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+		# Turn lowest_hit into species
+		echo -e "sequence_name\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
+		> kraken2_final.txt
+		while read line; do
+			pre=$(cut -f 1-3 <<< $line)
+			spec=$(cut -f 4 <<< $line | cut -f 1-2 -d ' ') # Cut down to first two words
+			post=$(cut -f 5- <<< $line)
+			if [[ "${spec:0:1}" =~ [a-z] ]]; then # if first letter is not capitalized (not in format "Genus species")
+				spec="NA"
+			elif [[ $(wc -w <<< "${spec}") != 2 ]]; then # if only one word (not in format "Genus species")
+				spec="NA"
+			fi
+			echo -e "${pre}\t${spec}\t${post}" >> kraken2_final.txt
+		done <kraken2_output_contig_taxid_with_taxonomy.txt
+
+		# Sort files
+		mkdir intermediate_files
+		mv kraken2_output* intermediate_files/
+	fi
+
+step_description_and_time_first "KRAKEN2 WITH DATABASE $krakenDB DONE"
 fi
 
 ######################### Step 6.2: Generating final putput files ################################
 
-echo -e "++++++++ [$(date +%H:%M:%S)] START STEP 6.2: GENERATING FINAL OUTPUT FILES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ++++++++\n"
+step_description_and_time_first "START STEP 6.2: GENERATING FINAL OUTPUT FILES"
 
 # Each assembler/classification tool output has a different format. We
 # make that format universal with the following code.
@@ -670,7 +705,7 @@ if [[ $classification == 'blast_filtered' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' \
 		| sed 's/length_//g' | sed 's/cov_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
+		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
 		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
@@ -678,7 +713,7 @@ if [[ $classification == 'blast_filtered' ]]; then
 	elif [[ $assembly == 'idba_ud' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/scaffold_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
+		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
 		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
@@ -686,7 +721,7 @@ if [[ $classification == 'blast_filtered' ]]; then
 	elif [[ $assembly == 'megahit' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/1' | cut -f2-17 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tsequence_length\tassembly_sequence" \
+		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tsequence_length\tassembly_sequence" \
 		> tmp \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
@@ -699,7 +734,7 @@ if [[ $classification == 'blast_filtered' ]]; then
 		| sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' \
 		| sed 's/length_//g' | sed 's/cov_//g' | sed 's/_/\t/1' \
 		| cut -f1,2,3,5-21 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
+		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
 		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
@@ -707,7 +742,7 @@ if [[ $classification == 'blast_filtered' ]]; then
 	elif [[ $assembly == 'idba_tran' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		|	sed 's/contig-[0-9]*_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
+		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
 		> tmp \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
@@ -719,7 +754,7 @@ if [[ $classification == 'blast_filtered' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/5' | sed 's/len=//g' | sed 's/TRINITY_//g' \
 		> trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tsequence_length\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
+		echo -e "sequence_name\tsequence_length\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
 		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
@@ -727,13 +762,13 @@ if [[ $classification == 'blast_filtered' ]]; then
 	elif [[ $assembly == 'transabyss' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/1' | sed 's/_/\t/1' | sed -r 's/_[0-9,.+-]*\t/\t/g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
+		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
 		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
 	fi
 
-	echo -e "\n======== [$(date +%H:%M:%S)] DONE FINALIZING BLAST_FILTERED FILES =======\n"
+	step_description_and_time_first "DONE FINALIZING BLAST_FILTERED FILES =======\n"
 
 elif [[ $classification == 'blast_first_hit' ]]; then
 
@@ -746,7 +781,7 @@ elif [[ $classification == 'blast_first_hit' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' \
 		| sed 's/length_//g' | sed 's/cov_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
+		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
 		> tmp \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
@@ -755,7 +790,7 @@ elif [[ $classification == 'blast_first_hit' ]]; then
 	elif [[ $assembly == 'idba_ud' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/scaffold_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
+		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
 		> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
@@ -763,7 +798,7 @@ elif [[ $classification == 'blast_first_hit' ]]; then
 	elif [[ $assembly == 'megahit' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/1' | cut -f2-17 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tsequence_length\tassembly_sequence" \
+		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tsequence_length\tassembly_sequence" \
 		> tmp \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
@@ -776,7 +811,7 @@ elif [[ $classification == 'blast_first_hit' ]]; then
 		| sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' \
 		| sed 's/length_//g' | sed 's/cov_//g' | sed 's/_/\t/1' \
 		| cut -f1,2,3,5-20 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
+		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
 		> tmp \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
@@ -786,7 +821,7 @@ elif [[ $classification == 'blast_first_hit' ]]; then
 	elif [[ $assembly == 'idba_tran' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		|	sed 's/contig-[0-9]*_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
+		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
 		> tmp \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
@@ -797,7 +832,7 @@ elif [[ $classification == 'blast_first_hit' ]]; then
 	elif [[ $assembly == 'trinity' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/5' | sed 's/len=//g' | sed 's/TRINITY_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tsequence_length\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
+		echo -e "sequence_name\tsequence_length\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
 		> tmp \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
@@ -807,7 +842,7 @@ elif [[ $classification == 'blast_first_hit' ]]; then
 	elif [[ $assembly == 'transabyss' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/1' | sed 's/_/\t/1' | sed -r 's/_[0-9,.+-]*\t/\t/g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tlowest_hit\tcounts\tassembly_sequence" \
+		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
 		> tmp \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
@@ -815,7 +850,7 @@ elif [[ $classification == 'blast_first_hit' ]]; then
 		&& rm tmp
 	fi
 
-	echo -e "\n======== [$(date +%H:%M:%S)] DONE FINALIZING BLAST_FIRST_HIT FILES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "DONE FINALIZING BLAST_FIRST_HIT FILES"
 
 elif [[ $classification == 'kraken2' ]]; then
 
@@ -828,7 +863,7 @@ elif [[ $classification == 'kraken2' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' \
 		| sed 's/length_//g' | sed 's/cov_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tsequence_length\tcontig_coverage\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
+		echo -e "sequence_name\tsequence_length\tcontig_coverage\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
 		> tmp \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
@@ -839,7 +874,7 @@ elif [[ $classification == 'kraken2' ]]; then
 	elif [[ $assembly == 'idba_ud' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/1' | cut -f2-20 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
+		echo -e "sequence_name\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
 		> tmp \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
@@ -850,7 +885,7 @@ elif [[ $classification == 'kraken2' ]]; then
 	elif [[ $assembly == 'megahit' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/1' | cut -f2-19 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tsequence_length\tassembly_sequence" \
+		echo -e "sequence_name\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tsequence_length\tassembly_sequence" \
 		> tmp \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
@@ -863,7 +898,7 @@ elif [[ $classification == 'kraken2' ]]; then
 		| sed 's/_/\t/2' |sed 's/_/\t/3' | sed 's/NODE_//g' \
 		| sed 's/length_//g' | sed 's/cov_//g' | sed 's/_/\t/1' \
 		| cut -f1,2,3,5-20 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tsequence_length\tcontig_coverage\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
+		echo -e "sequence_name\tsequence_length\tcontig_coverage\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
 		> tmp \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
@@ -874,7 +909,7 @@ elif [[ $classification == 'kraken2' ]]; then
 	elif [[ $assembly == 'idba_tran' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/1' | cut -f2-20 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
+		echo -e "sequence_name\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
 		> tmp \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
@@ -885,7 +920,7 @@ elif [[ $classification == 'kraken2' ]]; then
 	elif [[ $assembly == 'trinity' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/5' | sed 's/len=//g' | sed 's/TRINITY_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tsequence_length\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
+		echo -e "sequence_name\tsequence_length\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
 		> tmp \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
@@ -896,7 +931,7 @@ elif [[ $classification == 'kraken2' ]]; then
 	elif [[ $assembly == 'transabyss' ]]; then
 		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
 		| sed 's/_/\t/1' | sed 's/_/\t/1' | sed -r 's/_[0-9,.+-]*\t/\t/g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
-		echo -e "sequence_name\tcontig_length\tcontig_coverage\tstaxid\tlowest_rank\tlowest_hit\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \								> tmp \
+		echo -e "sequence_name\tcontig_length\tcontig_coverage\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \								> tmp \
 		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $2, $3, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $6, $4, $18, $19}' tmp \
@@ -904,7 +939,7 @@ elif [[ $classification == 'kraken2' ]]; then
 		&& rm tmp
 	fi
 
-	echo -e "\n======== [$(date +%H:%M:%S)] DONE FINALIZING KRAKEN2 FILES [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ========\n"
+	step_description_and_time_first "DONE FINALIZING KRAKEN2 FILES"
 fi
 
 # Display runtime
