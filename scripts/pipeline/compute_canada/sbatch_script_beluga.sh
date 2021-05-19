@@ -5,7 +5,7 @@
 #SBATCH --ntasks-per-node=40
 #SBATCH --mem=0
 #SBATCH --array=1-64
-#SBATCH --time=05:00:00
+#SBATCH --time=10:00:00
 
 # A script to run Chris Hempel's METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE in
 # parallel on beluga
@@ -31,10 +31,10 @@ start=$(date +%s)
 echo -e "Job array ID is ${SLURM_ARRAY_TASK_ID}"
 
 # Copy all necessary DBs and reads to temporary dir on server (SLURM_TMPDIR)
-echo "[$(date +%H:%M:%S)] Copying started [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]"
-cp -r ${BASE}/databases ${BASE}/programs/pipeline_environment ${HOME}/.etetoolkit \
+echo "[$(date +%H:%M:%S)] Copying started [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
+cp -r ${BASE}/databases ${BASE}/programs/ete3_env ${HOME}/.etetoolkit \
 ${R1} ${R2} ${BASE}/split_files/file_chunk_${SLURM_ARRAY_TASK_ID} ${SLURM_TMPDIR}
-echo "[$(date +%H:%M:%S)] Copying finished [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]"
+echo "[$(date +%H:%M:%S)] Copying finished [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 
 # Set some directory-specific variables
 R1=${SLURM_TMPDIR}/$(basename ${R1})
@@ -42,7 +42,7 @@ R2=${SLURM_TMPDIR}/$(basename ${R2})
 DBS=${SLURM_TMPDIR}/databases
 
 # Activate copies environment
-source ${SLURM_TMPDIR}/pipeline_environment/bin/activate
+source ${SLURM_TMPDIR}/ete3_env/bin/activate
 
 # Assign each job in array to bundle of pipelines
 jobfile=${SLURM_TMPDIR}/file_chunk_${SLURM_ARRAY_TASK_ID}
@@ -51,20 +51,20 @@ jobfile=${SLURM_TMPDIR}/file_chunk_${SLURM_ARRAY_TASK_ID}
 cwd1=${PWD}
 
 # Run pipeline for each line in chunk file, i.e., each bundled pipeline
-echo "[$(date +%H:%M:%S)] Bundled pipelines started [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]"
+echo "[$(date +%H:%M:%S)] Bundled pipelines started [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 echo "Pipelines that are to be run are:"
 cat ${jobfile}
 
 for line in {1..8}; do
   pipeline=$(sed -n ${line}p ${jobfile})
-  echo -e "\n\n ================ [$(date +%H:%M:%S)] START PIPELINE ${pipeline} [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ==============\n\n"
+  echo -e "\n\n ================ [$(date +%H:%M:%S)] START PIPELINE ${pipeline} [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m] ==============\n\n"
   mkdir -p ${pipeline}
   cd ${pipeline}
   cwd2=${PWD}
   cd ${SLURM_TMPDIR}
 
   METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_compute_canada.sh \
-  -1 $R1 -2 $R2 -P $pipeline \
+  -1 ${R1} -2 ${R2} -P ${pipeline} \
   -N ${DBS}/nt_database_feb_2020_indexed/nt \
   -S ${DBS}/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta \
   -s ${DBS}/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Sep_2020 \
@@ -88,6 +88,6 @@ for line in {1..8}; do
   cp METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/* ${cwd2}
   rm -r METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
   cd ${cwd1}
-  echo -e "\n\n ================ [$(date +%H:%M:%S)] END PIPELINE ${pipeline} [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ==============\n\n"
+  echo -e "\n\n ================ [$(date +%H:%M:%S)] END PIPELINE ${pipeline} [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m] ==============\n\n"
 done
-echo "[$(date +%H:%M:%S)] Bundled pipelines ended in $((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m"
+echo "[$(date +%H:%M:%S)] Bundled pipelines ended in $((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m"
