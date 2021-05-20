@@ -204,142 +204,129 @@ def confusion_calc (cutdown_dic_expected, cutdown_dic_FP, type):
                 if abundances.tolist()[i] < expected_list[i]:
                     TP += abundances.tolist()[i]
             if type == "abs" or type == "rel":
-                confusion_values = {"subseed": FN, "exceed": FP, "true":TP}
+                confusion_values = {"subseed_reads": FN, "exceed_reads": FP, "true_reads":TP}
+                confusion_values["false_reads"]=cutdown_dic_FP[sample][pipeline].sum()
             elif type == "pa":
                 confusion_values = {"FN": FN, "TP":TP}
-            confusion_values["FP"]=cutdown_dic_FP[sample][pipeline].sum()
+                confusion_values["FP"]=cutdown_dic_FP[sample][pipeline].sum()
             confusion_dic[pipeline] = confusion_values
         confusion_master[sample] = confusion_dic
     return confusion_master
 
 ### Apply confusion_calc function on absolute, relative, and pa cutdown master_dfs
-abs_params = confusion_calc(abs_cutdown_expected, abs_cutdown_FP, "abs")
-rel_params = confusion_calc(rel_cutdown_expected, rel_cutdown_FP, "rel")
-pa_params = confusion_calc(pa_cutdown_expected, pa_cutdown_FP, "pa")
+abs_params_reps = confusion_calc(abs_cutdown_expected, abs_cutdown_FP, "abs")
+rel_params_reps = confusion_calc(rel_cutdown_expected, rel_cutdown_FP, "rel")
+pa_params_reps = confusion_calc(pa_cutdown_expected, pa_cutdown_FP, "pa")
 
 
 ## 3.3 Calculate the average between replicates:
 ### Make dics containing each pipeline as key with one list per parameter for each pipeline:
-pip_dic_abs={}
-pip_dic_rel={}
-pip_dic_pa={}
+abs_params={}
+rel_params={}
+pa_params={}
 
-for pip_dic in [pip_dic_abs, pip_dic_rel, pip_dic_pa]:
+for params_dic in [abs_params, rel_params, pa_params]:
     for sample in ["M4_RNA", "M5_RNA", "M6_RNA"]:                                                                                                      ### TO BE DELETED since all samples will contain the same pipelines eventually
-        for pipeline in abs_params[sample].keys():
-            if pip_dic==pip_dic_abs or pip_dic==pip_dic_rel:
-                pip_dic[pipeline]={"subseed": [], "exceed": [], "true": [], "FP": []}
-            elif pip_dic==pip_dic_pa:
-                pip_dic[pipeline]={"FN": [], "FP": [], "TP": []}
+        for pipeline in abs_params_reps[sample].keys():
+            if params_dic==abs_params or params_dic==rel_params:
+                params_dic[pipeline]={"subseed_reads": [], "exceed_reads": [], "true_reads": [], "false_reads": []}
+            elif params_dic==pa_params:
+                params_dic[pipeline]={"FN": [], "FP": [], "TP": []}
 
 ### Fill in dics created above so that every pipeline contains a dic with
 ### parameters as keys and each parameter lists its three values across the
 ### three replicates:
-for param_dict in [abs_params, rel_params, pa_params]:
-    for sample, pipelines in param_dict.items():
+for param_dic_rep in [abs_params_reps, rel_params_reps, pa_params_reps]:
+    for sample, pipelines in param_dic_rep.items():
         for pipeline, params in pipelines.items():
             for param, value in params.items():
-                if param_dict==abs_params:
-                    pip_dic_abs[pipeline][param].append(value)
-                elif param_dict==rel_params:
-                    pip_dic_rel[pipeline][param].append(value)
-                elif param_dict==pa_params:
-                    pip_dic_pa[pipeline][param].append(value)
+                if param_dic_rep==abs_params_reps:
+                    abs_params[pipeline][param].append(value)
+                elif param_dic_rep==rel_params_reps:
+                    rel_params[pipeline][param].append(value)
+                elif param_dic_rep==pa_params_reps:
+                    pa_params[pipeline][param].append(value)
 
 ### Calculate the average across the three replicates:
-for pip_dic in [pip_dic_abs, pip_dic_rel, pip_dic_pa]:
-    for pipeline, params in pip_dic.items():
+for params_dic in [abs_params, rel_params, pa_params]:
+    for pipeline, params in params_dic.items():
         for param, list in params.items():
-            pip_dic[pipeline][param]=sum(list)/len(list)
+            params_dic[pipeline][param]=sum(list)/len(list)
 
 
-# 4 Calculate variance
-
-for pipeline in shared_pipelines:                                                                                                                       ### TO BE DELETED
-    ### Turn pipelines into indexes
-    col = master_dfs_uniq_abs[samples[0]].columns.tolist()[1:].index(pipeline)
-    ### Each pipeline gets a variance sum variable
-    var_sum = 0
-    ### For each row in the pipelines across replicates, calculate the variance and sum them up:
-    for row in range(0,master_dfs_uniq_abs[samples[0]].shape[0]):
-        var_sum += statistics.variance([int(master_dfs_uniq_abs[samples[0]].iloc[row,col]), int(master_dfs_uniq_abs[samples[1]].iloc[row,col]), int(master_dfs_uniq_abs[samples[2]].iloc[row,col])])
-    ### Add var_sum to chi2_var dic for respective pipeline
-    chi2_var[pipeline].append(var_sum)
+# 4 Calculate variance for absolute and realtive data and mismatches between replicates for p/a data
 
 
-# for sample, con_ma in rel_confusion.items():
-#     max=[]
-#     for pipeline, con_dic in con_ma.items():
-#         max.append(con_dic["true"])
+## 4.1  We calculate the variances for each taxon for all pipelines across the three replicates, sum up the variance of all taxa across the
+##      replicates for every pipeline, and add the returned summed variance to each pipeline in the respective params dics.
+##      NOTE: We only do that for absolute and relative data as it is unapplicable for p/a data.
 
-
-## 3.3 Make dictionaries with chi2 values for all samples for all 3 master_dfs
-# def chi2_calc (cutdown_dic):
-#     chi2_dic={}
-#     for sample, pipelines in cutdown_dic.items():
-#         chi2_val = []
-#         for pipeline, abundances in pipelines.iloc[:, 1:].iteritems():
-#             #chi2_val.append(chisquare(abundances.tolist(), pipelines['expected'].tolist()))
-#             chi2_val.append(chisquare(abundances.tolist(), pipelines['expected'].tolist()[0]) # Only chi statistics
-#             #chi2_val.append(chisquare(abundances.tolist(), pipelines['expected'].tolist())[1]) # Only p values
-#             chi2_dic[sample] = chi2_val
-#     return chi2_dic
-#
-# abs_chi2 = chi2_calc(abs_cutdown)
-# rel_chi2 = chi2_calc(rel_cutdown)
-# pa_chi2 = chi2_calc(pa_cutdown)
-
-
-
-
-
-
-## 3.1 Chi-Squared test (accuracy)
-
-### 3.1.1 To perform a Chi-Squared test on replicates, we summarize columns across the replicates:
-master_df_summarized = pd.DataFrame()
-### For all columns (note: all samples contain the same column names, so we manually pick one (the first in "samples" list))
-
-### NOTE: For now, some pipelines didn't work, so we have to make a list of shared pipelines                                                            ### TO BE DELETED
-shared_pipelines = []                                                                                                                                   ### TO BE DELETED
+## NOTE: For now, some pipelines didn't work, so we have to make a list of shared pipelines                                                            ### TO BE DELETED
+shared_pipelines_dupl = []                                                                                                                                   ### TO BE DELETED
 for sample in samples:                                                                                                                                  ### TO BE DELETED
-    shared_pipelines.extend(master_dfs_uniq_abs[sample].columns.tolist()[1:])                                                                               ### TO BE DELETED
-shared_pipelines = list(set(i for i in shared_pipelines if shared_pipelines.count(i) > 2))                                                              ### TO BE DELETED
+    shared_pipelines_dupl.extend(master_dfs_uniq_abs[sample].columns.tolist()[1:])                                                                               ### TO BE DELETED
+shared_pipelines = []                                                                                                                                  ### TO BE DELETED
+for i in shared_pipelines_dupl:                                                                                                                                  ### TO BE DELETED
+    if shared_pipelines_dupl.count(i) > 2:                                                                                                                               ### TO BE DELETED
+        if i not in shared_pipelines:                                                                                                                                  ### TO BE DELETED
+            shared_pipelines.append(i)                                                                                                                                  ### TO BE DELETED
 
-#for col in master_dfs_uniq_abs[samples[0]].columns.tolist():
-shared_pipelines_exp = shared_pipelines[:]                                                                                                              ### TO BE DELETED
-shared_pipelines_exp.append("expected")                                                                                                                 ### TO BE DELETED
-for pipeline in shared_pipelines_exp:                                                                                                                   ### TO BE DELETED
-    #### Make list per column in every sample and save in dir:
-    pipeline_dic_chi2 = {}
-    for sample in samples:
-        pipeline_dic_chi2[sample] = master_dfs_uniq_abs[sample][pipeline].tolist()
-    #### Summarize the three columns in the three replicates:
-    master_df_summarized[pipeline] = [a + b + c for a, b, c in zip(pipeline_dic_chi2[samples[0]], pipeline_dic_chi2[samples[1]], pipeline_dic_chi2[samples[2]])]
+ for params_dic in [abs_params, rel_params]:
+    for pipeline in shared_pipelines:                                                                                                                            ### TO BE DELETED
+        if params_dic==abs_params:
+            master_dfs_uniq=master_dfs_uniq_abs
+        elif params_dic==rel_params:
+            master_dfs_uniq=master_dfs_uniq_rel
+        ### Each pipeline gets a variance sum variable
+        var_sum = 0
+        pipeline_col = master_dfs_uniq[samples[0]].columns.tolist()[1:].index(pipeline)
+        ### For each taxon in the pipelines across replicates, calculate the variance and sum up all variances across all taxa:
+        for taxon in range(0,master_dfs_uniq[samples[0]].shape[0]):
+            var_sum += statistics.variance([int(master_dfs_uniq[samples[0]].iloc[taxon,pipeline_col]), int(master_dfs_uniq[samples[1]].iloc[taxon,pipeline_col]), int(master_dfs_uniq[samples[2]].iloc[taxon,pipeline_col])])
+        ### Add var_sum to chi2_var dic for respective pipeline
+        params_dic[pipeline]["variance"]=var_sum
 
-### 3.1.2 Now we perform a Chi-Squared test on the summarized master df, for each pipeline against the expected composition
-###       (note, this is the DIRTY version where we add the same amount (1) to each value to get rid of zeros in the expected columns, because otherwise the Chi-Squared test is not possible):
+## 4.2 We calculate the mismatches between replicates for each taxon for all pipelines, sum up the mismatches
+## for every pipeline, and add the mismatches to each pipeline in the respective params dics.
+for pipeline in shared_pipelines:                                                                                                                            ### TO BE DELETED
+    ### Each pipeline gets a mismatches variable to count mismatches between replicates
+    mismatches = 0
+    pipeline_col = master_dfs_uniq_pa[samples[0]].columns.tolist()[1:].index(pipeline)
+    ### For each taxon in the pipelines across replicates, count how often 1 (=present) was detected
+    ### - if it was detected only 1 one 2 times, pipelines mismatch in their outcome, which we collect in variable mismatches:
+    for taxon in range(0,master_dfs_uniq_pa[samples[0]].shape[0]):
+        count=[master_dfs_uniq_pa[samples[0]].iloc[taxon,pipeline_col], master_dfs_uniq_pa[samples[1]].iloc[taxon,pipeline_col], master_dfs_uniq_pa[samples[2]].iloc[taxon,pipeline_col]].count(1)
+        if count==1 or count==2:
+            mismatches+=1
+    pa_params[pipeline]["mismatches"]=mismatches
 
-#for pipeline in master_df_summarized.columns.tolist()[1:]:
-for pipeline in shared_pipelines:                                                                                                                       ### TO BE DELETED
-    chi2_var[pipeline] = [(chisquare([abun + 1 for abun in master_df_summarized[pipeline].tolist()],[abun + 1 for abun in master_df_summarized['expected'].tolist()])[0])]
+# 5 Make master params df
+master_param_df={}
+for pipeline in shared_pipelines:                                                                                                                ### TO BE DELETED
+    master_param_df[pipeline]={}
+    for params_dic in [abs_params, rel_params, pa_params]:
+        for param in params_dic[pipeline].keys():
+            master_param_df[pipeline][param]=params_dic[pipeline][param]
 
+# TO DO: to df and then PCA
 
-## 3.2 Sum of variance for each taxon (precision)
-##     Finally, we calculate the variance for all pipelines across the three replicates by summing up the variance of each taxa across the
-##     replicates for every pipeline and add the returned summed variance to the pipelines in the "chi2_var" dic
-
-#for pipeline in master_dfs_uniq_abs[samples[0]].columns.tolist()[1:]:
-for pipeline in shared_pipelines:                                                                                                                       ### TO BE DELETED
-    ### Turn pipelines into indexes
-    col = master_dfs_uniq_abs[samples[0]].columns.tolist()[1:].index(pipeline)
-    ### Each pipeline gets a variance sum variable
-    var_sum = 0
-    ### For each row in the pipelines across replicates, calculate the variance and sum them up:
-    for row in range(0,master_dfs_uniq_abs[samples[0]].shape[0]):
-        var_sum += statistics.variance([int(master_dfs_uniq_abs[samples[0]].iloc[row,col]), int(master_dfs_uniq_abs[samples[1]].iloc[row,col]), int(master_dfs_uniq_abs[samples[2]].iloc[row,col])])
-    ### Add var_sum to chi2_var dic for respective pipeline
-    chi2_var[pipeline].append(var_sum)
+# # This is for all 3 data types, which is inappropriate:
+# for params_dic in [abs_params, rel_params, pa_params]:
+#     for pipeline in shared_pipelines:                                                                                                                       ### TO BE DELETED
+#         if params_dic==abs_params:
+#             master_dfs_uniq=master_dfs_uniq_abs
+#         elif params_dic==rel_params:
+#             master_dfs_uniq=master_dfs_uniq_rel
+#         elif params_dic==pa_params:
+#             master_dfs_uniq=master_dfs_uniq_pa
+#         col = master_dfs_uniq[samples[0]].columns.tolist()[1:].index(pipeline)
+#         ### Each pipeline gets a variance sum variable
+#         var_sum = 0
+#         ### For each row in the pipelines across replicates, calculate the variance and sum them up:
+#         for row in range(0,master_dfs_uniq[samples[0]].shape[0]):
+#             var_sum += statistics.variance([int(master_dfs_uniq[samples[0]].iloc[row,col]), int(master_dfs_uniq[samples[1]].iloc[row,col]), int(master_dfs_uniq[samples[2]].iloc[row,col])])
+#         ### Add var_sum to chi2_var dic for respective pipeline
+#         params_dic[pipeline]["variance"]=var_sum
 
 
 ## 3.3 Assign which tools have been used each step in the pipeline, with one column per step,
@@ -379,3 +366,57 @@ for pipeline in chi2_var:
 # dic_abun_exp = {"abun": [abun / 3 for abun in master_df_summarized["expected"]], "taxa": unique_taxa}
 # df_abun_exp = pd.DataFrame.from_dict(dic_abun_exp)
 # df_abun_exp.to_csv("{savedir}df_abun_exp.csv".format(savedir=savedir))
+
+
+
+
+# OLD CODE:
+
+# ## 3.1 Chi-Squared test (accuracy)
+#
+# ### 3.1.1 To perform a Chi-Squared test on replicates, we summarize columns across the replicates:
+# master_df_summarized = pd.DataFrame()
+# ### For all columns (note: all samples contain the same column names, so we manually pick one (the first in "samples" list))
+#
+# ### NOTE: For now, some pipelines didn't work, so we have to make a list of shared pipelines                                                            ### TO BE DELETED
+# shared_pipelines = []                                                                                                                                   ### TO BE DELETED
+# for sample in samples:                                                                                                                                  ### TO BE DELETED
+#     shared_pipelines.extend(master_dfs_uniq_abs[sample].columns.tolist()[1:])                                                                               ### TO BE DELETED
+# shared_pipelines = list(set(i for i in shared_pipelines if shared_pipelines.count(i) > 2))                                                              ### TO BE DELETED
+#
+# #for col in master_dfs_uniq_abs[samples[0]].columns.tolist():
+# shared_pipelines_exp = shared_pipelines[:]                                                                                                              ### TO BE DELETED
+# shared_pipelines_exp.append("expected")                                                                                                                 ### TO BE DELETED
+# for pipeline in shared_pipelines_exp:                                                                                                                   ### TO BE DELETED
+#     #### Make list per column in every sample and save in dir:
+#     pipeline_dic_chi2 = {}
+#     for sample in samples:
+#         pipeline_dic_chi2[sample] = master_dfs_uniq_abs[sample][pipeline].tolist()
+#     #### Summarize the three columns in the three replicates:
+#     master_df_summarized[pipeline] = [a + b + c for a, b, c in zip(pipeline_dic_chi2[samples[0]], pipeline_dic_chi2[samples[1]], pipeline_dic_chi2[samples[2]])]
+#
+# ### 3.1.2 Now we perform a Chi-Squared test on the summarized master df, for each pipeline against the expected composition
+# ###       (note, this is the DIRTY version where we add the same amount (1) to each value to get rid of zeros in the expected columns, because otherwise the Chi-Squared test is not possible):
+#
+# #for pipeline in master_df_summarized.columns.tolist()[1:]:
+# for pipeline in shared_pipelines:                                                                                                                       ### TO BE DELETED
+#     chi2_var[pipeline] = [(chisquare([abun + 1 for abun in master_df_summarized[pipeline].tolist()],[abun + 1 for abun in master_df_summarized['expected'].tolist()])[0])]
+#
+#
+# ## 3.2 Sum of variance for each taxon (precision)
+# ##     Finally, we calculate the variance for all pipelines across the three replicates by summing up the variance of each taxa across the
+# ##     replicates for every pipeline and add the returned summed variance to the pipelines in the "chi2_var" dic
+#
+# #for pipeline in master_dfs_uniq_abs[samples[0]].columns.tolist()[1:]:
+# for pipeline in shared_pipelines:                                                                                                                       ### TO BE DELETED
+#     ### Turn pipelines into indexes
+#     col = master_dfs_uniq_abs[samples[0]].columns.tolist()[1:].index(pipeline)
+#     ### Each pipeline gets a variance sum variable
+#     var_sum = 0
+#     ### For each row in the pipelines across replicates, calculate the variance and sum them up:
+#     for row in range(0,master_dfs_uniq_abs[samples[0]].shape[0]):
+#         var_sum += statistics.variance([int(master_dfs_uniq_abs[samples[0]].iloc[row,col]), int(master_dfs_uniq_abs[samples[1]].iloc[row,col]), int(master_dfs_uniq_abs[samples[2]].iloc[row,col])])
+#     ### Add var_sum to chi2_var dic for respective pipeline
+#     chi2_var[pipeline].append(var_sum)
+#
+#
