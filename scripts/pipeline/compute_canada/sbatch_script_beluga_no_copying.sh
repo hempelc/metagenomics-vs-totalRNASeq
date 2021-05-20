@@ -5,7 +5,7 @@
 #SBATCH --ntasks-per-node=40
 #SBATCH --mem=0
 #SBATCH --array=1-64
-#SBATCH --time=10:00:00
+#SBATCH --time=15:00:00
 
 # A script to run Chris Hempel's METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE in
 # parallel on beluga
