@@ -57,7 +57,6 @@ chi2_var = {} # Empty dic that will eventually contain all chi-squares statistic
 # 1 Read in all pipeline results for every sample and the expected mock communty as df;
 #   add all taxa from all dfs to "all_taxa" list, needed to generate master dfs that contain counts of all taxa from all samples and mock community:
 for sample in samples:
-
     ## 1.1 Make expected mock community df
 
     ### To calculate the absolute expected read count for the taxa in the mock community, we need the hardcoded taxonomic information of each taxon. We save it in a dictionary:
@@ -114,8 +113,10 @@ for sample in samples:
             df_agg = df_small.groupby(list(df_small.columns)[:-1]).sum().reset_index()
             #### Add all taxa to list "all taxa"
             all_taxa.extend(df_agg[groupby_rank].tolist())
-            #### Make dict key with keys = filename (without full path and extension) and value = edited df
-            sample_dfs["{file}".format(file=file).split("/")[-1].split(".")[-2].split("trimmed_at_phred_")[1].split("_pipeline_final")[0]] = df_agg
+            #### Edit file name so that pipeline name is displayed properly
+            pipeline_name=file.split("/")[-1].split(".")[-2].split("trimmed_at_phred_")[1].split("_pipeline_final")[0].replace("IDBA_", "IDBA-").replace("NCBI_NT", "NCBI-NT").replace("BLAST_FIRST_HIT", "BLAST-FIRST-HIT").replace("BLAST_FILTERED", "BLAST-FILTERED")
+            #### Make dict key with keys = piepline_name and value = edited df
+            sample_dfs[pipeline_name] = df_agg
         else:                                                                                                                                            ### TO BE DELETED
             continue                                                                                                                                     ### TO BE DELETED
     ### Save sample_df in dic "master_dfs_raw":
@@ -271,7 +272,7 @@ for i in shared_pipelines_dupl:                                                 
         if i not in shared_pipelines:                                                                                                                                  ### TO BE DELETED
             shared_pipelines.append(i)                                                                                                                                  ### TO BE DELETED
 
- for params_dic in [abs_params, rel_params]:
+for params_dic in [abs_params, rel_params]:
     for pipeline in shared_pipelines:                                                                                                                            ### TO BE DELETED
         if params_dic==abs_params:
             master_dfs_uniq=master_dfs_uniq_abs
@@ -308,7 +309,14 @@ for pipeline in shared_pipelines:                                               
         for param in params_dic[pipeline].keys():
             master_param_df[pipeline][param]=params_dic[pipeline][param]
 
-# TO DO: to df and then PCA
+params_table=pd.DataFrame(master_param_df)
+
+# TO DO: add columsn for tools in each step and then PCA
+
+
+for pipeline in master_param_df:
+    pipeline_replace = pipeline.replace("IDBA_", "IDBA-").replace("NCBI_NT", "NCBI-NT").replace("BLAST_FIRST_HIT", "BLAST-FIRST-HIT").replace("BLAST_FILTERED", "BLAST-FILTERED")
+    master_param_df[pipeline_replace] = master_param_df.pop(pipeline)
 
 # # This is for all 3 data types, which is inappropriate:
 # for params_dic in [abs_params, rel_params, pa_params]:
