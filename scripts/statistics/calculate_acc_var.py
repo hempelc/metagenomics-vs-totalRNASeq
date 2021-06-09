@@ -10,6 +10,9 @@ import statistics
 import copy
 from scipy.stats import chisquare
 from scipy.stats import combine_pvalues
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+import plotly.express as px
 # NOTE: When running the code, ignore the warning - stems from a function that I had to implement because some of the files were wrong ("NA" in counts column), but I fixed that in the pipeline,
 # so after I rerun the pipelines, we can take out that portion of code and the warning will disappear
 
@@ -301,7 +304,9 @@ for pipeline in shared_pipelines:                                               
             mismatches+=1
     pa_params[pipeline]["mismatches"]=mismatches
 
+
 # 5 Make master params df
+## Merge separate parameter dics into one
 master_param_df={}
 for pipeline in shared_pipelines:                                                                                                                ### TO BE DELETED
     master_param_df[pipeline]={}
@@ -309,14 +314,68 @@ for pipeline in shared_pipelines:                                               
         for param in params_dic[pipeline].keys():
             master_param_df[pipeline][param]=params_dic[pipeline][param]
 
+## Add info on tools used in each step for each pipeline
+step_list=["trimming_score", "rRNA_sorting_tool", "assembly_tool", "mapper", "database", "classifier"]
+for step in step_list:
+    for pipeline in master_param_df.keys():
+        master_param_df[pipeline][step]=pipeline.split("_")[step_list.index(step)]
+
+## Make the df and add a dummy column with expected outcome
 params_table=pd.DataFrame(master_param_df)
+params_table["expected_dummy"]=[0.0, 0.0, 1.0, 0.0, 0, 0.0, 0.0, 1.0, 0, "dummy", "dummy", "dummy", "dummy", "dummy", "dummy"]
+params_table=params_table.transpose()
+## Get info which one is expected
+col=["pipeline"] * 1480
+col.append("expected")
+params_table["exp"]=col
 
-# TO DO: add columsn for tools in each step and then PCA
+# 6 Do PCA (from https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
+## Grab columns we need
+pca_table=params_table.iloc[:, 0:9]
+##standardize data
+pca_table_std=StandardScaler().fit_transform(pca_table)
+## Do PCA
+pca = PCA(n_components=2)
+principal_components = pca.fit_transform(pca_table_std)
+principal_df = pd.DataFrame(data = principal_components, columns = ['PC1', 'PC2'], index=pca_table.index)
+print("PC1: " + str(pca.explained_variance_ratio_[0]) + ", PC2: " + str(pca.explained_variance_ratio_[1]))
+## Plot
+plot_df=pd.concat([principal_df, params_table.iloc[:, 9:16]], axis = 1).rename_axis("pipeline").reset_index()
+
+fig = px.scatter(plot_df, x="PC1", y="PC2", color="exp", hover_data=["pipeline"])
+fig.show()
+
+fig = px.scatter(plot_df, x="PC1", y="PC2", color="trimming_score", hover_data=["pipeline"])
+fig.show()
+
+fig = px.scatter(plot_df, x="PC1", y="PC2", color="rRNA_sorting_tool", hover_data=["pipeline"])
+fig.show()
+
+fig = px.scatter(plot_df, x="PC1", y="PC2", color="assembly_tool", hover_data=["pipeline"])
+fig.show()
+
+fig = px.scatter(plot_df, x="PC1", y="PC2", color="mapper", hover_data=["pipeline"])
+fig.show()
+
+fig = px.scatter(plot_df, x="PC1", y="PC2", color="database", hover_data=["pipeline"])
+fig.show()
+
+fig = px.scatter(plot_df, x="PC1", y="PC2", color="classifier", hover_data=["pipeline"])
+fig.show()
 
 
-for pipeline in master_param_df:
-    pipeline_replace = pipeline.replace("IDBA_", "IDBA-").replace("NCBI_NT", "NCBI-NT").replace("BLAST_FIRST_HIT", "BLAST-FIRST-HIT").replace("BLAST_FILTERED", "BLAST-FILTERED")
-    master_param_df[pipeline_replace] = master_param_df.pop(pipeline)
+# TO DO: check why all variances are =0
+
+
+
+
+
+
+
+
+
+
+
 
 # # This is for all 3 data types, which is inappropriate:
 # for params_dic in [abs_params, rel_params, pa_params]:
@@ -342,20 +401,20 @@ for pipeline in master_param_df:
 ##     and add a column to find the distance between (1|1) (reverted normalized origin = best case) and each normalized pipeline coordinate
 
 ### 3.3.1 Calculate min and max for Chi-Square statistics and summed variance;
-chi2_min = chi2_var[min(chi2_var.keys(), key=(lambda k: chi2_var[k][0]))][0]
-chi2_max = chi2_var[max(chi2_var.keys(), key=(lambda k: chi2_var[k][0]))][0]
-var_min = chi2_var[min(chi2_var.keys(), key=(lambda k: chi2_var[k][1]))][1]
-var_max = chi2_var[max(chi2_var.keys(), key=(lambda k: chi2_var[k][1]))][1]
-
-### 3.3.2 Add columns for tools, normalized coordinates, and distance
-for pipeline in chi2_var:
-    #### Add normalized Chi-Square statistics and summed variance coordinates (reversed for accuracy so that 1 is best and 0 is worst)
-    chi2_var[pipeline].extend([1-normalize(chi2_var[pipeline][0], chi2_min, chi2_max), 1-normalize(chi2_var[pipeline][1], var_min, var_max)])
-    #### Add distance from normalized coordinates to normalized origin
-    chi2_var[pipeline].append(point_dist([chi2_var[pipeline][2], chi2_var[pipeline][3]], [1,1]))
-    #### Add tool names
-    pipeline_replace = pipeline.replace("IDBA_", "IDBA-").replace("NCBI_NT", "NCBI-NT").replace("BLAST_FIRST_HIT", "BLAST-FIRST-HIT").replace("BLAST_FILTERED", "BLAST-FILTERED")
-    chi2_var[pipeline].extend(pipeline_replace.split("_"))
+# chi2_min = chi2_var[min(chi2_var.keys(), key=(lambda k: chi2_var[k][0]))][0]
+# chi2_max = chi2_var[max(chi2_var.keys(), key=(lambda k: chi2_var[k][0]))][0]
+# var_min = chi2_var[min(chi2_var.keys(), key=(lambda k: chi2_var[k][1]))][1]
+# var_max = chi2_var[max(chi2_var.keys(), key=(lambda k: chi2_var[k][1]))][1]
+#
+# ### 3.3.2 Add columns for tools, normalized coordinates, and distance
+# for pipeline in chi2_var:
+#     #### Add normalized Chi-Square statistics and summed variance coordinates (reversed for accuracy so that 1 is best and 0 is worst)
+#     chi2_var[pipeline].extend([1-normalize(chi2_var[pipeline][0], chi2_min, chi2_max), 1-normalize(chi2_var[pipeline][1], var_min, var_max)])
+#     #### Add distance from normalized coordinates to normalized origin
+#     chi2_var[pipeline].append(point_dist([chi2_var[pipeline][2], chi2_var[pipeline][3]], [1,1]))
+#     #### Add tool names
+#     pipeline_replace = pipeline.replace("IDBA_", "IDBA-").replace("NCBI_NT", "NCBI-NT").replace("BLAST_FIRST_HIT", "BLAST-FIRST-HIT").replace("BLAST_FILTERED", "BLAST-FILTERED")
+#     chi2_var[pipeline].extend(pipeline_replace.split("_"))
 
 
 
