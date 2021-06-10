@@ -198,12 +198,13 @@ def confusion_calc (cutdown_dic_expected, cutdown_dic_FP, type):
             FN=0
             FP=0
             TP=0
+            TN=0
             for i in range(len(abundances.tolist())):
                 if abundances.tolist()[i] - expected_list[i] < 0:
                     FN += (abundances.tolist()[i] - expected_list[i])*-1
                 if abundances.tolist()[i] - expected_list[i] > 0:
                     FP += (abundances.tolist()[i] - expected_list[i])
-                if abundances.tolist()[i] >= expected_list[i]:
+                if abundances.tolist()[i] != 0 and abundances.tolist()[i] >= expected_list[i]:
                     TP += expected_list[i]
                 if abundances.tolist()[i] < expected_list[i]:
                     TP += abundances.tolist()[i]
@@ -211,8 +212,10 @@ def confusion_calc (cutdown_dic_expected, cutdown_dic_FP, type):
                 confusion_values = {"subseed_reads": FN, "exceed_reads": FP, "true_reads":TP}
                 confusion_values["false_reads"]=cutdown_dic_FP[sample][pipeline].sum()
             elif type == "pa":
-                confusion_values = {"FN": FN, "TP":TP}
+                confusion_values = {"FN": FN, "TP":TP, "TN":TN}
                 confusion_values["FP"]=cutdown_dic_FP[sample][pipeline].sum()
+                #print(cutdown_dic_FP[sample][pipeline])
+                confusion_values["TN"]=len(cutdown_dic_FP[sample][pipeline])-cutdown_dic_FP[sample][pipeline].tolist().count(1)
             confusion_dic[pipeline] = confusion_values
         confusion_master[sample] = confusion_dic
     return confusion_master
@@ -221,7 +224,6 @@ def confusion_calc (cutdown_dic_expected, cutdown_dic_FP, type):
 abs_params_reps = confusion_calc(abs_cutdown_expected, abs_cutdown_FP, "abs")
 rel_params_reps = confusion_calc(rel_cutdown_expected, rel_cutdown_FP, "rel")
 pa_params_reps = confusion_calc(pa_cutdown_expected, pa_cutdown_FP, "pa")
-
 
 ## 3.3 Calculate the average between replicates:
 ### Make dics containing each pipeline as key with one list per parameter for each pipeline:
@@ -235,7 +237,7 @@ for params_dic in [abs_params, rel_params, pa_params]:
             if params_dic==abs_params or params_dic==rel_params:
                 params_dic[pipeline]={"subseed_reads": [], "exceed_reads": [], "true_reads": [], "false_reads": []}
             elif params_dic==pa_params:
-                params_dic[pipeline]={"FN": [], "FP": [], "TP": []}
+                params_dic[pipeline]={"FN": [], "FP": [], "TP": [], "TN": []}
 
 ### Fill in dics created above so that every pipeline contains a dic with
 ### parameters as keys and each parameter lists its three values across the
@@ -290,6 +292,7 @@ for params_dic in [abs_params, rel_params]:
         ### Add var_sum to chi2_var dic for respective pipeline
         params_dic[pipeline]["variance"]=var_sum
 
+
 ## 4.2 We calculate the mismatches between replicates for each taxon for all pipelines, sum up the mismatches
 ## for every pipeline, and add the mismatches to each pipeline in the respective params dics.
 for pipeline in shared_pipelines:                                                                                                                            ### TO BE DELETED
@@ -320,9 +323,9 @@ for step in step_list:
     for pipeline in master_param_df.keys():
         master_param_df[pipeline][step]=pipeline.split("_")[step_list.index(step)]
 
-## Make the df and add a dummy column with expected outcome
+## Make the df and add a dummy column with expected outcome (the expected outcome for TN is the number of all taxa - the number of expected taxa)
 params_table=pd.DataFrame(master_param_df)
-params_table["expected_dummy"]=[0.0, 0.0, 1.0, 0.0, 0, 0.0, 0.0, 1.0, 0, "dummy", "dummy", "dummy", "dummy", "dummy", "dummy"]
+params_table["expected_dummy"]=[0.0, 0.0, 1.0, 0.0, 0, 0.0, 0.0, 1.0, len(unique_taxa)-len(expected_df.index), 0, "expected", "expected", "expected", "expected", "expected", "expected"]
 params_table=params_table.transpose()
 ## Get info which one is expected
 col=["pipeline"] * 1480
@@ -331,7 +334,7 @@ params_table["exp"]=col
 
 # 6 Do PCA (from https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
 ## Grab columns we need
-pca_table=params_table.iloc[:, 0:9]
+pca_table=params_table.iloc[:, 0:10]
 ##standardize data
 pca_table_std=StandardScaler().fit_transform(pca_table)
 ## Do PCA
@@ -340,7 +343,7 @@ principal_components = pca.fit_transform(pca_table_std)
 principal_df = pd.DataFrame(data = principal_components, columns = ['PC1', 'PC2'], index=pca_table.index)
 print("PC1: " + str(pca.explained_variance_ratio_[0]) + ", PC2: " + str(pca.explained_variance_ratio_[1]))
 ## Plot
-plot_df=pd.concat([principal_df, params_table.iloc[:, 9:16]], axis = 1).rename_axis("pipeline").reset_index()
+plot_df=pd.concat([principal_df, params_table.iloc[:, 10:17]], axis = 1).rename_axis("pipeline").reset_index()
 
 fig = px.scatter(plot_df, x="PC1", y="PC2", color="exp", hover_data=["pipeline"])
 fig.show()
@@ -365,14 +368,6 @@ fig.show()
 
 
 # TO DO: check why all variances are =0
-
-
-
-
-
-
-
-
 
 
 
