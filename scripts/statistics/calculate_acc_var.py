@@ -9,6 +9,7 @@ import math
 import statistics
 import copy
 from scipy.stats import chisquare
+from scipy.stats import variation
 from scipy.stats import combine_pvalues
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
@@ -153,12 +154,54 @@ for sample, pipeline_dfs in master_dfs_raw.items():
         #### Make a new column in  master df named after the pipeline and add taxon counts for that pipeline
         master_dfs_uniq_abs[sample][pipeline]=counts
 
+### NOTE: For now, some pipelines didn't work, so we have to make a list of shared pipelines                                                            ### TO BE DELETED
+shared_pipelines_dupl = []                                                                                                                                   ### TO BE DELETED
+for sample in samples:                                                                                                                                  ### TO BE DELETED
+    shared_pipelines_dupl.extend(master_dfs_uniq_abs[sample].columns.tolist())                                                                             ### TO BE DELETED
+shared_pipelines = []                                                                                                                                  ### TO BE DELETED
+for i in shared_pipelines_dupl:                                                                                                                                  ### TO BE DELETED
+    if shared_pipelines_dupl.count(i) > 2:                                                                                                                               ### TO BE DELETED
+        if i not in shared_pipelines:                                                                                                                                  ### TO BE DELETED
+            shared_pipelines.append(i)                                                                                                                                  ### TO BE DELETED
+                                                                                                                           ### TO BE DELETED
+## And we cut the master df down to these pipelines:                                                                                                                           ### TO BE DELETED
+master_dfs_uniq_abs_shared={}                                                                                                                           ### TO BE DELETED
+for sample in samples:                                                                                                                           ### TO BE DELETED
+    master_dfs_uniq_abs_shared[sample]={}                                                                                                                           ### TO BE DELETED
+                                                                                                                               ### TO BE DELETED
+for i in shared_pipelines:                                                                                                                           ### TO BE DELETED
+    for sample in samples:                                                                                                                           ### TO BE DELETED
+        master_dfs_uniq_abs_shared[sample][i]=master_dfs_uniq_abs[sample][i]                                                                                                                           ### TO BE DELETED
+
+master_dfs_uniq_abs_del={}                                                                                                                           ### TO BE DELETED
+for sample in samples:                                                                                                                           ### TO BE DELETED
+    master_dfs_uniq_abs_del[sample]=pd.DataFrame(master_dfs_uniq_abs_shared[sample])                                                                                                                           ### TO BE DELETED
+
+master_dfs_uniq_abs = copy.deepcopy(master_dfs_uniq_abs_del)                                                                                                                     ### TO BE DELETED
+
+
 ## 2.3 Generate master df with relative read counts for every sample and save in dic "master_dfs_uniq_rel":
 ### Based on absolute counts, divide every column entry by the column sum for all columns
 for key, value in master_dfs_uniq_abs.items():
     master_dfs_uniq_rel[key] = master_dfs_uniq_abs[key]/master_dfs_uniq_abs[key][master_dfs_uniq_abs[key].columns].sum()
 
-## 2.3 Generate master df with presence/absence for every sample and save in dic "master_dfs_uniq_pa":
+### And we cut the master df down to shared pipelines
+master_dfs_uniq_rel_shared={}                                                                                                                           ### TO BE DELETED
+for sample in samples:                                                                                                                           ### TO BE DELETED
+    master_dfs_uniq_rel_shared[sample]={}                                                                                                                           ### TO BE DELETED
+
+for i in shared_pipelines:                                                                                                                           ### TO BE DELETED
+    for sample in samples:                                                                                                                           ### TO BE DELETED
+        master_dfs_uniq_rel_shared[sample][i]=master_dfs_uniq_rel[sample][i]                                                                                                                           ### TO BE DELETED
+
+master_dfs_uniq_rel_del={}                                                                                                                           ### TO BE DELETED
+for sample in samples:                                                                                                                           ### TO BE DELETED
+    master_dfs_uniq_rel_del[sample]=pd.DataFrame(master_dfs_uniq_rel_shared[sample])                                                                                                                           ### TO BE DELETED
+                                                                                                                                                        ### TO BE DELETED
+master_dfs_uniq_rel = copy.deepcopy(master_dfs_uniq_rel_del)                                                                                                                     ### TO BE DELETED
+
+
+## 2.4 Generate master df with presence/absence for every sample and save in dic "master_dfs_uniq_pa":
 ### Deepcopy one of the master dfs
 master_dfs_uniq_pa = copy.deepcopy(master_dfs_uniq_abs)
 ### Replace all non-zero values with 1
@@ -232,7 +275,7 @@ rel_params={}
 pa_params={}
 
 for params_dic in [abs_params, rel_params, pa_params]:
-    for sample in ["M4_RNA", "M5_RNA", "M6_RNA"]:                                                                                                      ### TO BE DELETED since all samples will contain the same pipelines eventually
+    for sample in samples:                                                                                                      ### TO BE DELETED since all samples will contain the same pipelines eventually
         for pipeline in abs_params_reps[sample].keys():
             if params_dic==abs_params or params_dic==rel_params:
                 params_dic[pipeline]={"subseed_reads": [], "exceed_reads": [], "true_reads": [], "false_reads": []}
@@ -259,26 +302,25 @@ for params_dic in [abs_params, rel_params, pa_params]:
         for param, list in params.items():
             params_dic[pipeline][param]=sum(list)/len(list)
 
+#################################################################################### double check
+##### 11 Jun: variation of matrices:
+# for pipeline in pa_params.keys():
+#     for param in ["FN", "FP", "TP", "TN"]:
+#         param_rep_values=[]
+#         for sample in samples:
+#             param_rep_values.append(pa_params_reps[sample][pipeline][param])
+#         print(param_rep_values)
+#         pa_params[pipeline][param + "_var"]=variation(param_rep_values)
 
-# 4 Calculate variance for absolute and realtive data and mismatches between replicates for p/a data
+# 4 Calculate variance for absolute and relative data and mismatches between replicates for p/a data
 
 
 ## 4.1  We calculate the variances for each taxon for all pipelines across the three replicates, sum up the variance of all taxa across the
 ##      replicates for every pipeline, and add the returned summed variance to each pipeline in the respective params dics.
 ##      NOTE: We only do that for absolute and relative data as it is unapplicable for p/a data.
 
-## NOTE: For now, some pipelines didn't work, so we have to make a list of shared pipelines                                                            ### TO BE DELETED
-shared_pipelines_dupl = []                                                                                                                                   ### TO BE DELETED
-for sample in samples:                                                                                                                                  ### TO BE DELETED
-    shared_pipelines_dupl.extend(master_dfs_uniq_abs[sample].columns.tolist()[1:])                                                                               ### TO BE DELETED
-shared_pipelines = []                                                                                                                                  ### TO BE DELETED
-for i in shared_pipelines_dupl:                                                                                                                                  ### TO BE DELETED
-    if shared_pipelines_dupl.count(i) > 2:                                                                                                                               ### TO BE DELETED
-        if i not in shared_pipelines:                                                                                                                                  ### TO BE DELETED
-            shared_pipelines.append(i)                                                                                                                                  ### TO BE DELETED
-
 for params_dic in [abs_params, rel_params]:
-    for pipeline in shared_pipelines:                                                                                                                            ### TO BE DELETED
+    for pipeline in shared_pipelines[1:len(shared_pipelines)]:                                                                                                                            ### TO BE DELETED
         if params_dic==abs_params:
             master_dfs_uniq=master_dfs_uniq_abs
         elif params_dic==rel_params:
@@ -295,7 +337,7 @@ for params_dic in [abs_params, rel_params]:
 
 ## 4.2 We calculate the mismatches between replicates for each taxon for all pipelines, sum up the mismatches
 ## for every pipeline, and add the mismatches to each pipeline in the respective params dics.
-for pipeline in shared_pipelines:                                                                                                                            ### TO BE DELETED
+for pipeline in shared_pipelines[1:len(shared_pipelines)]:                                                                                                                            ### TO BE DELETED
     ### Each pipeline gets a mismatches variable to count mismatches between replicates
     mismatches = 0
     pipeline_col = master_dfs_uniq_pa[samples[0]].columns.tolist()[1:].index(pipeline)
@@ -311,7 +353,7 @@ for pipeline in shared_pipelines:                                               
 # 5 Make master params df
 ## Merge separate parameter dics into one
 master_param_df={}
-for pipeline in shared_pipelines:                                                                                                                ### TO BE DELETED
+for pipeline in shared_pipelines[1:len(shared_pipelines)]:                                                                                                                ### TO BE DELETED
     master_param_df[pipeline]={}
     for params_dic in [abs_params, rel_params, pa_params]:
         for param in params_dic[pipeline].keys():
