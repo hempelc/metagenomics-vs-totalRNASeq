@@ -488,7 +488,7 @@ step_description_and_time_first "FINISHED STEP 4: MAPPING"
 
 ######################### Steps 5 and 6.1: Picking a referencd DB and taxonomic classification ################################
 
-step_description_and_time_first "START STEP 5 AND 6.1: CLASSIFICATION OF ASSEMBLED SCAFFOLDS WITH $(echo $db | tr '[:lower:]' '[:upper:]') DATABASE +++++++\n"
+step_description_and_time_first "START STEP 5 AND 6.1: CLASSIFICATION OF ASSEMBLED SCAFFOLDS WITH $(echo $db | tr '[:lower:]' '[:upper:]') DATABASE"
 
 mkdir step_5_reference_DB/
 mkdir step_5_reference_DB/$(echo $db | tr '[:lower:]' '[:upper:]')/
@@ -525,7 +525,7 @@ elif [[ $classification == "blast_filtered" ]]; then
 	# We run a separate script to filter the BLAST results:
 	blast_filtering.bash -i blast_output.txt -f blast -t strict -T $threads -e $etetoolkit
 	mv blast_output.txt blast_filtering_results/
-	step_description_and_time_first "BLAST FILTERED DONE========\n"
+	step_description_and_time_first "BLAST FILTERED DONE"
 
 elif [[ $classification == "kraken2" ]]; then
 	step_description_and_time_first "RUNNING KRAKEN2 WITH DATABASE $krakenDB"
@@ -768,7 +768,7 @@ if [[ $classification == 'blast_filtered' ]]; then
 		>> ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
 	fi
 
-	step_description_and_time_first "DONE FINALIZING BLAST_FILTERED FILES =======\n"
+	step_description_and_time_first "DONE FINALIZING BLAST_FILTERED FILES"
 
 elif [[ $classification == 'blast_first_hit' ]]; then
 
