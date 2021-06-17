@@ -1,0 +1,96 @@
+Use of copied files/directories in pipeline steps:
+
+
+BASE="/home/hempelc/projects/def-dsteinke/hempelc/pilot_project"
+
+=====================================================
+Files/directories that are copied to ${SLURM_TMPDIR}:
+=====================================================
+${BASE}/databases/
+        |--  kraken2_nt_DB
+        |--  kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Sep_2020
+        |--  NCBI_staxids_non_scientific.txt
+        |--  NCBI_staxids_scientific.txt
+        |--  nt_database_feb_2020_indexed
+        |--  SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020
+        |--  SILVA_paths_and_taxids.txt
+         --  sortmerna_silva_databases
+             ├── rfam-5.8s-database-id98.fasta
+             ├── rfam-5s-database-id98.fasta
+             ├── silva-arc-16s-id95.fasta
+             ├── silva-arc-23s-id98.fasta
+             ├── silva-bac-16s-id90.fasta
+             ├── silva-bac-23s-id98.fasta
+             ├── silva-euk-18s-id95.fasta
+             ├── silva-euk-28s-id98.fasta
+
+${BASE}/programs/ete3_env/
+
+${BASE}/programs/rRNAFilter
+
+${HOME}/.etetoolkit
+
+${R1} (forward reads)
+
+${R2} (reverse reads)
+
+${BASE}/split_files/file_chunk_${SLURM_ARRAY_TASK_ID}
+
+
+Note that in the following I will use the full path for my files/dirs as they are
+located on my acccount, however, after copying them to SLURM_TMPDIR, these paths
+would become "${SLURM_TMPDIR}"/[copied dir/file]
+
+
+==========================
+Used within sbatch script:
+==========================
+${BASE}/programs/ete3_env/
+${BASE}/split_files/file_chunk_${SLURM_ARRAY_TASK_ID}
+
+
+========================
+Used in step 1 Trimming:
+========================
+${R1} (forward reads)
+${R2} (reverse reads)
+
+
+============================
+Used in step 2 rRNA sorting:
+============================
+${BASE}/databases/sortmerna_silva_databases/rfam-5.8s-database-id98.fasta
+${BASE}/databases/sortmerna_silva_databases/rfam-5s-database-id98.fasta
+${BASE}/databases/sortmerna_silva_databases/silva-arc-16s-id95.fasta
+${BASE}/databases/sortmerna_silva_databases/silva-arc-23s-id98.fasta
+${BASE}/databases/sortmerna_silva_databases/silva-bac-16s-id90.fasta
+${BASE}/databases/sortmerna_silva_databases/silva-bac-23s-id98.fasta
+${BASE}/databases/sortmerna_silva_databases/silva-euk-18s-id95.fasta
+${BASE}/databases/sortmerna_silva_databases/silva-euk-28s-id98.fasta
+${BASE}/programs/rRNAFilter
+
+
+========================
+Used in step 3 assembly:
+========================
+None
+
+
+=======================
+Used in step 4 mapping:
+=======================
+None
+
+
+=================================================
+Used in step 5 and 6 database and classification:
+=================================================
+${BASE}/programs/ete3_env/
+${HOME}/.etetoolkit
+${BASE}/programs/kraken2_nt_DB
+${BASE}/programs/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Sep_2020
+${BASE}/programs/NCBI_staxids_non_scientific.txt
+${BASE}/programs/NCBI_staxids_scientific.txt
+${BASE}/programs/nt_database_feb_2020_indexed
+${BASE}/programs/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020
+${BASE}/programs/SILVA_paths_and_taxids.txt
