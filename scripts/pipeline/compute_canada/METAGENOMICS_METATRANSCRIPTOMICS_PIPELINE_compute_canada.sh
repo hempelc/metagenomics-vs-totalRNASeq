@@ -75,7 +75,7 @@ Usage:
 threads='16'
 
 # Set specified options:
-while getopts ':1:2:P:N:S:n:s:B:b:A:a:E:e:R:r:x:F:f:T:t:m:p:h' opt; do
+while getopts ':1:2:P:N:S:n:s:B:b:A:a:E:e:R:r:x:F:f:T:t:i:m:p:h' opt; do
  	case "${opt}" in
 		1) forward_reads="${OPTARG}" ;;
 		2) reverse_reads="${OPTARG}" ;;
@@ -97,6 +97,7 @@ while getopts ':1:2:P:N:S:n:s:B:b:A:a:E:e:R:r:x:F:f:T:t:m:p:h' opt; do
 		f) ncbi_non_scientific="${OPTARG}" ;;
 		T) trimmomatic="${OPTARG}" ;;
 		t) etetoolkit="${OPTARG}" ;;
+		i) rrnafil="${OPTARG}" ;;
 		m) memory="${OPTARG}" ;;
 		p) threads="${OPTARG}" ;;
 		h) echo "$usage"
@@ -114,13 +115,14 @@ shift $((OPTIND - 1))
 # Check if required options are set:
 if [[ -z $forward_reads || -z $reverse_reads || -z $pipeline \
 || -z "${ncbi_nt_blast_db}" || -z "${silva_blast_db}" || -z "${ncbi_nt_kraken2_db}" \
-|| -z "${silva_kraken2_db}" || -z "${etetoolkit}" || -z $silva_sortmerna_bac_lsu \
+|| -z "${silva_kraken2_db}" || -z $silva_sortmerna_bac_lsu \
 || -z $silva_sortmerna_bac_ssu || -z $silva_sortmerna_arc_lsu \
 || -z $silva_sortmerna_arc_ssu || -z $silva_sortmerna_euk_lsu \
 || -z $silva_sortmerna_euk_ssu || -z $silva_sortmerna_rfam_5 \
 || -z $silva_sortmerna_rfam_5_8 || -z "${silva_path_taxid}" || -z "${ncbi_scientific}" \
-|| -z "${ncbi_non_scientific}" || -z $trimmomatic || -z $memory ]]; then
-   echo -e "-1, -2, -P, -N, -S, -n, -s, -B, -b, -A, -a, -E, -e, -R, -r, -x, -F, -f, -T, -m, and -p must be set.\n"
+|| -z "${ncbi_non_scientific}" || -z "${trimmomatic}" || -z "${etetoolkit}" || -z "${rrnafil}" \
+|| -z "${memory}" ]]; then
+   echo -e "-1, -2, -P, -N, -S, -n, -s, -B, -b, -A, -a, -E, -e, -R, -r, -x, -F, -f, -T, -t, -i, -m, and -p must be set.\n"
    echo -e "$usage\n\n"
    echo -e "Exiting script.\n"
    exit
@@ -257,7 +259,7 @@ elif [[ "${sorting}" == "rrnafilter" ]]; then
 	# rRNAFilter only worked for us when we started it within the directory
 	# containing the .jar file. To simplify switching to that directory, we copy
 	# it from its location to the pwd:
-	cp -r ~/projects/def-dsteinke/hempelc/pilot_project/programs/rRNAFilter .
+	cp -r $rrnafil .
 	cd rRNAFilter/
 	# We use 7GB for the rRNAFilter .jar, as shown in the rRNAFilter manual:
 	java -jar -Xmx7g rRNAFilter_commandline.jar \

@@ -31,10 +31,11 @@ start=$(date +%s)
 echo -e "Job array ID is ${SLURM_ARRAY_TASK_ID}"
 
 # Copy all necessary DBs and reads to temporary dir on server (SLURM_TMPDIR)
-echo "[$(date +%H:%M:%S)] Copying started [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]"
-cp -r ${BASE}/databases ${BASE}/programs/pipeline_environment ${HOME}/.etetoolkit \
-${R1} ${R2} ${BASE}/split_files/file_chunk_${SLURM_ARRAY_TASK_ID} ${SLURM_TMPDIR}
-echo "[$(date +%H:%M:%S)] Copying finished [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]"
+echo "[$(date +%H:%M:%S)] Copying started [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
+cp -r ${BASE}/databases ${BASE}/programs/ete3_env ${HOME}/.etetoolkit \
+${R1} ${R2} ${BASE}/split_files/file_chunk_${SLURM_ARRAY_TASK_ID} \
+${BASE}/programs/rRNAFilter ${SLURM_TMPDIR}
+echo "[$(date +%H:%M:%S)] Copying finished [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 
 # Set some directory-specific variables
 R1=${SLURM_TMPDIR}/$(basename ${R1})
@@ -82,6 +83,7 @@ for line in {1..8}; do
   -f ${DBS}/NCBI_staxids_non_scientific.txt \
   -t ${SLURM_TMPDIR}/.etetoolkit/taxa.sqlite \
   -T ${EBROOTTRIMMOMATIC}/trimmomatic-0.39.jar \
+  -i ${SLURM_TMPDIR}/rRNAFilter
   -m ${memory} \
   -p ${threads}
 
