@@ -185,6 +185,11 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	sortmerna --ref /hdd2/databases/sortmerna_silva_databases/silva-bac-16s-id90.fasta \
 	--ref /hdd2/databases/sortmerna_silva_databases/silva-arc-16s-id95.fasta \
 	--ref /hdd2/databases/sortmerna_silva_databases/silva-euk-18s-id95.fasta \
+  --ref /hdd2/databases/sortmerna_silva_databases/silva-euk-28s-id98.fasta \
+  --ref /hdd2/databases/sortmerna_silva_databases/silva-arc-23s-id98.fasta \
+  --ref /hdd2/databases/sortmerna_silva_databases/silva-bac-23s-id98.fasta \
+  --ref /hdd2/databases/sortmerna_silva_databases/rfam-5.8s-database-id98.fasta \
+  --ref /hdd2/databases/sortmerna_silva_databases/rfam-5s-database-id98.fasta \
 	--reads ../*1P_error_corrected.fastq --reads ../*2P_error_corrected.fastq \
 	--paired_in --out2 -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA/ \
 	--threads 1:1:$threads
