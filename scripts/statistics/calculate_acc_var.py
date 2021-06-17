@@ -2,18 +2,15 @@
 
 import pandas as pd
 import numpy as np
+import plotly.express as px
 import glob
 import os
 import csv
-import math
-import statistics
+#import math
 import copy
-from scipy.stats import chisquare
-from scipy.stats import variation
-from scipy.stats import combine_pvalues
+from statistics import stdev
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
-import plotly.express as px
 # NOTE: When running the code, ignore the warning - stems from a function that I had to implement because some of the files were wrong ("NA" in counts column), but I fixed that in the pipeline,
 # so after I rerun the pipelines, we can take out that portion of code and the warning will disappear
 
@@ -26,37 +23,81 @@ import plotly.express as px
 # TO DO (LONG-TERM): making "mega master df" that aggregates on all ranks for each sample, with one column indicating on which rank the row has been aggregated
 
 # Functions
-## To calculate the distance between two points:
-def point_dist (p1, p2):
-    dist = math.sqrt( ((p1[0]-p2[0])**2)+((p1[1]-p2[1])**2) )
-    return dist
+## Function to cut down master_dfs to only expected taxa:
+def cutdown (master_df, type):
+    cutdown_dic = {}
+    for sample, pipelines in master_df.items():
+        if type == "above_zero":
+            cutdown_dic[sample] = pipelines.loc[pipelines['expected'] != 0]
+        elif type == "equal_zero":
+            cutdown_dic[sample] = pipelines.loc[pipelines['expected'] == 0]
+    return cutdown_dic
 
-## To normalize value list[x] to range 0-1 based on min/max of list:
-def normalize (x,min_x,max_x):
-    normalized = (x-min_x)/(max_x-min_x)
-    return normalized
+## Function to calculate metrics for all samples for all 3 master_dfs:
+def confusion_calc (cutdown_dic_expected, cutdown_dic_FP, type):
+    confusion_master={}
+    for sample, pipelines in cutdown_dic_expected.items():
+        expected_list=pipelines['expected'].tolist()
+        confusion_dic = {}
+        for pipeline, abundances in pipelines.iloc[:, 1:].iteritems():
+            FN=0
+            FP=0
+            TP=0
+            TN=0
+            for i in range(len(abundances.tolist())):
+                if abundances.tolist()[i] - expected_list[i] > 0:
+                    FP += (abundances.tolist()[i] - expected_list[i])
+                if abundances.tolist()[i] != 0 and abundances.tolist()[i] >= expected_list[i]:
+                    TP += expected_list[i]
+                if abundances.tolist()[i] < expected_list[i]:
+                    TP += abundances.tolist()[i]
+            if type == "abs" or type == "rel":
+                for i in range(len(abundances.tolist())):
+                    if abundances.tolist()[i] != 0 and abundances.tolist()[i] - expected_list[i] < 0:
+                        FN += (abundances.tolist()[i] - expected_list[i])*-1
+                confusion_values = {"subseed_reads": FN, "exceed_reads": FP, "true_reads":TP}
+                confusion_values["false_reads"]=cutdown_dic_FP[sample][pipeline].sum()
+            elif type == "pa":
+                for i in range(len(abundances.tolist())):
+                    if abundances.tolist()[i] - expected_list[i] < 0:
+                        FN += (abundances.tolist()[i] - expected_list[i])*-1
+                confusion_values = {"FN": FN, "TP":TP, "TN":TN}
+                confusion_values["FP"]=cutdown_dic_FP[sample][pipeline].sum()
+                confusion_values["TN"]=len(cutdown_dic_FP[sample][pipeline])-cutdown_dic_FP[sample][pipeline].tolist().count(1)
+            confusion_dic[pipeline] = confusion_values
+        confusion_master[sample] = confusion_dic
+    return confusion_master
+
 
 # Parameters
 workdir = "/Users/christopherhempel/Desktop/mock_community_RNA/" # Full path to directory that contains samples, HAS TO END WITH "/"
-#workdir = "/Users/julia/Documents/Projects/MicrobeCommunities/Abstract/mock_community_RNA/"
 savedir = "/Users/christopherhempel/Desktop/jupyter_notebook_plots/" # Full path to directory where plots should be saved, HAS TO END WITH "/"
 samples = ["M4_RNA", "M5_RNA", "M6_RNA"] # 3 replicate samples to include into the analysis (must equal names of directories in workdir that contain each sample's pipeline results)
 groupby_rank = "lowest_hit" # Basis for taxa rank to group rows on. Either based on genus (option "genus") or on species (option "lowest_hit" (NOTE later "species"))
 rel_abun_basis = "cell" # Basis for relative abundance calculation of expected mock community taxa abundance. Either based on genomic DNA (option "gen") or on cell number (option "cell")
 
-# MAYBE TO DO: implement that script can be run form command line and insert parameter check to make sure that
-# parameters are one of the allowed options and that variable "samples" is not empty
+# MAYBE TO DO: implement that script can be run from command line and insert metric check to make sure that
+# metrics are one of the allowed options and that variable "samples" is not empty
 
 
 # Hardcoded variables
 num_reads_abs = {"M4_DNA": 310806, "M4_RNA": 211414, "M5_DNA": 146174, "M5_RNA": 322631, "M6_DNA": 114459, "M6_RNA": 269408} # dict with read numbers per sample for easy accessibility
 rel_abun_gen = [89.1, 8.9, 0.89, 0.89, 0.089, 0.089, 0.0089, 0.00089, 0.00089, 0.000089] # Relative abundances of mock community taxa in percent based on genomic DNA
 rel_abun_cell = [94.9, 4.2, 0.7, 0.12, 0.058, 0.059, 0.015, 0.001, 0.00007, 0.0001] # Relative abundances of mock community taxa in percent based on cell number
+
+
+############################################ Loop over DNA and RNA samples would start here
+# Empty lists and dics, to be filled in during the script
 master_dfs_raw = {} # Empty dic that will eventually contain all samples' raw pipelines output
 master_dfs_uniq_abs = {} # Empty dic that will eventually contain all samples' master dfs with absolute counts (dfs with rows = all unique taxa)
 master_dfs_uniq_rel = {} # Empty dic that will eventually contain all samples' master dfs with relative counts (dfs with rows = all unique taxa)
 all_taxa = [] # Empty list that will eventually contain all taxa that appear in all samples
-chi2_var = {} # Empty dic that will eventually contain all chi-squares statistics and ANOVA variance F-statistics for all pipelines
+abs_metrics={} # Empty dic that will eventually contain all absolute abundance-based metrics for PCA
+rel_metrics={} # Empty dic that will eventually contain all relative abundance-based metrics for PCA
+pa_metrics={} # Empty dic that will eventually contain all p/a-based metrics for PCA
+master_metrics_df={} # Empty dic that will eventually contain all metrics for PCA
+expected_dic = {} # Empty dic that will eventually contain expected species adn their abundances
+
 
 # 1 Read in all pipeline results for every sample and the expected mock communty as df;
 #   add all taxa from all dfs to "all_taxa" list, needed to generate master dfs that contain counts of all taxa from all samples and mock community:
@@ -64,7 +105,6 @@ for sample in samples:
     ## 1.1 Make expected mock community df
 
     ### To calculate the absolute expected read count for the taxa in the mock community, we need the hardcoded taxonomic information of each taxon. We save it in a dictionary:
-    expected_dic = {}
     expected_dic["L_monocytogenes"] = ["Bacteria", "Firmicutes", "Bacilli", "Bacillales", "Listeriaceae", "Listeria", "Listeria monocytogenes"]
     expected_dic["P_aeruginosa"] = ["Bacteria", "Proteobacteria", "Gammaproteobacteria", "Pseudomonadales", "Pseudomonadaceae", "Pseudomonas", "Pseudomonas aeruginosa"]
     expected_dic["B_subtilis"] = ["Bacteria", "Firmicutes", "Bacilli", "Bacillales", "Bacilliaceae", "Bacillus", "Bacillus subtilis"]
@@ -125,6 +165,7 @@ for sample in samples:
             continue                                                                                                                                     ### TO BE DELETED
     ### Save sample_df in dic "master_dfs_raw":
     master_dfs_raw[sample] = sample_dfs
+
 
 
 # 2 Make a "unique_taxa" list that contains all taxa that appear in all samples;
@@ -209,19 +250,10 @@ for key, value in master_dfs_uniq_pa.items():
     value[value != 0] = 1
 
 
-# 3 Calculate confusion matrix
+
+# 3 Calculate metrics
 
 ## 3.1 Cut down master_dfs to only expected taxa
-### Make function to cut down master_dfs to only expected taxa:
-def cutdown (master_df, type):
-    cutdown_dic = {}
-    for sample, pipelines in master_df.items():
-        if type == "above_zero":
-            cutdown_dic[sample] = pipelines.loc[pipelines['expected'] != 0]
-        elif type == "equal_zero":
-            cutdown_dic[sample] = pipelines.loc[pipelines['expected'] == 0]
-    return cutdown_dic
-
 ### Apply cutdown function on absolute, relative, and pa master_dfs
 abs_cutdown_expected = cutdown(master_dfs_uniq_abs, "above_zero")
 rel_cutdown_expected = cutdown(master_dfs_uniq_rel, "above_zero")
@@ -231,161 +263,128 @@ abs_cutdown_FP = cutdown(master_dfs_uniq_abs, "equal_zero")
 rel_cutdown_FP = cutdown(master_dfs_uniq_rel, "equal_zero")
 pa_cutdown_FP = cutdown(master_dfs_uniq_pa, "equal_zero")
 
-## 3.2 Make confusion matrices for all samples for all 3 master_dfs
-def confusion_calc (cutdown_dic_expected, cutdown_dic_FP, type):
-    confusion_master={}
-    for sample, pipelines in cutdown_dic_expected.items():
-        expected_list=pipelines['expected'].tolist()
-        confusion_dic = {}
-        for pipeline, abundances in pipelines.iloc[:, 1:].iteritems():
-            FN=0
-            FP=0
-            TP=0
-            TN=0
-            for i in range(len(abundances.tolist())):
-                if abundances.tolist()[i] - expected_list[i] < 0:
-                    FN += (abundances.tolist()[i] - expected_list[i])*-1
-                if abundances.tolist()[i] - expected_list[i] > 0:
-                    FP += (abundances.tolist()[i] - expected_list[i])
-                if abundances.tolist()[i] != 0 and abundances.tolist()[i] >= expected_list[i]:
-                    TP += expected_list[i]
-                if abundances.tolist()[i] < expected_list[i]:
-                    TP += abundances.tolist()[i]
-            if type == "abs" or type == "rel":
-                confusion_values = {"subseed_reads": FN, "exceed_reads": FP, "true_reads":TP}
-                confusion_values["false_reads"]=cutdown_dic_FP[sample][pipeline].sum()
-            elif type == "pa":
-                confusion_values = {"FN": FN, "TP":TP, "TN":TN}
-                confusion_values["FP"]=cutdown_dic_FP[sample][pipeline].sum()
-                #print(cutdown_dic_FP[sample][pipeline])
-                confusion_values["TN"]=len(cutdown_dic_FP[sample][pipeline])-cutdown_dic_FP[sample][pipeline].tolist().count(1)
-            confusion_dic[pipeline] = confusion_values
-        confusion_master[sample] = confusion_dic
-    return confusion_master
 
-### Apply confusion_calc function on absolute, relative, and pa cutdown master_dfs
-abs_params_reps = confusion_calc(abs_cutdown_expected, abs_cutdown_FP, "abs")
-rel_params_reps = confusion_calc(rel_cutdown_expected, rel_cutdown_FP, "rel")
-pa_params_reps = confusion_calc(pa_cutdown_expected, pa_cutdown_FP, "pa")
+## 3.2 Apply confusion_calc function on absolute, relative, and pa cutdown master_dfs
+abs_metrics_reps = confusion_calc(abs_cutdown_expected, abs_cutdown_FP, "abs")
+rel_metrics_reps = confusion_calc(rel_cutdown_expected, rel_cutdown_FP, "rel")
+pa_metrics_reps = confusion_calc(pa_cutdown_expected, pa_cutdown_FP, "pa")
+
 
 ## 3.3 Calculate the average between replicates:
-### Make dics containing each pipeline as key with one list per parameter for each pipeline:
-abs_params={}
-rel_params={}
-pa_params={}
-
-for params_dic in [abs_params, rel_params, pa_params]:
+### Make dics containing each pipeline as key with one list per metric for each pipeline:
+for metrics_dic in [abs_metrics, rel_metrics, pa_metrics]:
     for sample in samples:                                                                                                      ### TO BE DELETED since all samples will contain the same pipelines eventually
-        for pipeline in abs_params_reps[sample].keys():
-            if params_dic==abs_params or params_dic==rel_params:
-                params_dic[pipeline]={"subseed_reads": [], "exceed_reads": [], "true_reads": [], "false_reads": []}
-            elif params_dic==pa_params:
-                params_dic[pipeline]={"FN": [], "FP": [], "TP": [], "TN": []}
+        for pipeline in abs_metrics_reps[sample].keys():
+            if metrics_dic==abs_metrics or metrics_dic==rel_metrics:
+                metrics_dic[pipeline]={"subseed_reads": [], "exceed_reads": [], "true_reads": [], "false_reads": []}
+            elif metrics_dic==pa_metrics:
+                metrics_dic[pipeline]={"FN": [], "FP": [], "TP": [], "TN": []}
 
 ### Fill in dics created above so that every pipeline contains a dic with
-### parameters as keys and each parameter lists its three values across the
+### metrics as keys and each metric lists its three values across the
 ### three replicates:
-for param_dic_rep in [abs_params_reps, rel_params_reps, pa_params_reps]:
-    for sample, pipelines in param_dic_rep.items():
-        for pipeline, params in pipelines.items():
-            for param, value in params.items():
-                if param_dic_rep==abs_params_reps:
-                    abs_params[pipeline][param].append(value)
-                elif param_dic_rep==rel_params_reps:
-                    rel_params[pipeline][param].append(value)
-                elif param_dic_rep==pa_params_reps:
-                    pa_params[pipeline][param].append(value)
+for metric_dic_rep in [abs_metrics_reps, rel_metrics_reps, pa_metrics_reps]:
+    for sample, pipelines in metric_dic_rep.items():
+        for pipeline, metrics in pipelines.items():
+            for metric, value in metrics.items():
+                if metric_dic_rep==abs_metrics_reps:
+                    abs_metrics[pipeline][metric].append(value)
+                elif metric_dic_rep==rel_metrics_reps:
+                    rel_metrics[pipeline][metric].append(value)
+                elif metric_dic_rep==pa_metrics_reps:
+                    pa_metrics[pipeline][metric].append(value)
 
 ### Calculate the average across the three replicates:
-for params_dic in [abs_params, rel_params, pa_params]:
-    for pipeline, params in params_dic.items():
-        for param, list in params.items():
-            params_dic[pipeline][param]=sum(list)/len(list)
-
-#################################################################################### double check
-##### 11 Jun: variation of matrices:
-# for pipeline in pa_params.keys():
-#     for param in ["FN", "FP", "TP", "TN"]:
-#         param_rep_values=[]
-#         for sample in samples:
-#             param_rep_values.append(pa_params_reps[sample][pipeline][param])
-#         print(param_rep_values)
-#         pa_params[pipeline][param + "_var"]=variation(param_rep_values)
-
-# 4 Calculate variance for absolute and relative data and mismatches between replicates for p/a data
+for metrics_dic in [abs_metrics, rel_metrics, pa_metrics]:
+    for pipeline, metrics in metrics_dic.items():
+        for metric, list in metrics.items():
+            metrics_dic[pipeline][metric]=sum(list)/len(list)
 
 
-## 4.1  We calculate the variances for each taxon for all pipelines across the three replicates, sum up the variance of all taxa across the
-##      replicates for every pipeline, and add the returned summed variance to each pipeline in the respective params dics.
-##      NOTE: We only do that for absolute and relative data as it is unapplicable for p/a data.
-
-for params_dic in [abs_params, rel_params]:
-    for pipeline in shared_pipelines[1:len(shared_pipelines)]:                                                                                                                            ### TO BE DELETED
-        if params_dic==abs_params:
-            master_dfs_uniq=master_dfs_uniq_abs
-        elif params_dic==rel_params:
-            master_dfs_uniq=master_dfs_uniq_rel
-        ### Each pipeline gets a variance sum variable
-        var_sum = 0
-        pipeline_col = master_dfs_uniq[samples[0]].columns.tolist()[1:].index(pipeline)
-        ### For each taxon in the pipelines across replicates, calculate the variance and sum up all variances across all taxa:
-        for taxon in range(0,master_dfs_uniq[samples[0]].shape[0]):
-            var_sum += statistics.variance([int(master_dfs_uniq[samples[0]].iloc[taxon,pipeline_col]), int(master_dfs_uniq[samples[1]].iloc[taxon,pipeline_col]), int(master_dfs_uniq[samples[2]].iloc[taxon,pipeline_col])])
-        ### Add var_sum to chi2_var dic for respective pipeline
-        params_dic[pipeline]["variance"]=var_sum
+## 3.4 Caluclate SD across the three replicates for all 3 types of datasets
+### 3.4.1 For p/a data
+metric_list_pa=["FN", "FP", "TP", "TN"]
+#ideal_vals_pa=[0, 0, 9, len(unique_taxa)-len(expected_df.index)]
+for pipeline in pa_metrics.keys():
+    for metric in metric_list_pa:
+        metric_rep_values_pa=[]
+        for sample in samples:
+            metric_rep_values_pa.append(float(pa_metrics_reps[sample][pipeline][metric]))
+        #pa_metrics[pipeline][metric + "_var"]=stdev(metric_rep_values)/(ideal_vals_pa[metric_list_pa.index(metric)]-sum(metric_rep_values)/len(metric_rep_values))
+        pa_metrics[pipeline][metric + "_sd"]=stdev(metric_rep_values_pa)
 
 
-## 4.2 We calculate the mismatches between replicates for each taxon for all pipelines, sum up the mismatches
-## for every pipeline, and add the mismatches to each pipeline in the respective params dics.
-for pipeline in shared_pipelines[1:len(shared_pipelines)]:                                                                                                                            ### TO BE DELETED
-    ### Each pipeline gets a mismatches variable to count mismatches between replicates
-    mismatches = 0
-    pipeline_col = master_dfs_uniq_pa[samples[0]].columns.tolist()[1:].index(pipeline)
-    ### For each taxon in the pipelines across replicates, count how often 1 (=present) was detected
-    ### - if it was detected only 1 one 2 times, pipelines mismatch in their outcome, which we collect in variable mismatches:
-    for taxon in range(0,master_dfs_uniq_pa[samples[0]].shape[0]):
-        count=[master_dfs_uniq_pa[samples[0]].iloc[taxon,pipeline_col], master_dfs_uniq_pa[samples[1]].iloc[taxon,pipeline_col], master_dfs_uniq_pa[samples[2]].iloc[taxon,pipeline_col]].count(1)
-        if count==1 or count==2:
-            mismatches+=1
-    pa_params[pipeline]["mismatches"]=mismatches
+### 3.4.2 For relative and absolute data
+metric_list_abs_rel=["subseed_reads", "exceed_reads", "true_reads", "false_reads"]
+for metrics_dic_abs_rel in [abs_metrics, rel_metrics]:
+    if metrics_dic_abs_rel==abs_metrics:
+        reps_dic=abs_metrics_reps
+    elif metrics_dic_abs_rel==rel_metrics:
+        reps_dic=rel_metrics_reps
+    for pipeline in metrics_dic_abs_rel.keys():
+        for metric in metric_list_abs_rel:
+            metric_rep_values_abs_rel=[]
+            for sample in samples:
+                metric_rep_values_abs_rel.append(float(reps_dic[sample][pipeline][metric]))
+                #pa_metrics[pipeline][metric + "_var"]=stdev(metric_rep_values)/(ideal_vals_pa[metric_list_pa.index(metric)]-sum(metric_rep_values)/len(metric_rep_values))
+            metrics_dic_abs_rel[pipeline][metric + "_sd"]=stdev(metric_rep_values_abs_rel)
 
 
-# 5 Make master params df
-## Merge separate parameter dics into one
-master_param_df={}
+
+# 4 Make master metrics df
+## Merge separate metric dics into one
 for pipeline in shared_pipelines[1:len(shared_pipelines)]:                                                                                                                ### TO BE DELETED
-    master_param_df[pipeline]={}
-    for params_dic in [abs_params, rel_params, pa_params]:
-        for param in params_dic[pipeline].keys():
-            master_param_df[pipeline][param]=params_dic[pipeline][param]
+    master_metrics_df[pipeline]={}
+    for metrics_dic in [abs_metrics, rel_metrics, pa_metrics]:
+        for metric in metrics_dic[pipeline].keys():
+            master_metrics_df[pipeline][metric]=metrics_dic[pipeline][metric]
 
 ## Add info on tools used in each step for each pipeline
 step_list=["trimming_score", "rRNA_sorting_tool", "assembly_tool", "mapper", "database", "classifier"]
 for step in step_list:
-    for pipeline in master_param_df.keys():
-        master_param_df[pipeline][step]=pipeline.split("_")[step_list.index(step)]
+    for pipeline in master_metrics_df.keys():
+        master_metrics_df[pipeline][step]=pipeline.split("_")[step_list.index(step)]
 
-## Make the df and add a dummy column with expected outcome (the expected outcome for TN is the number of all taxa - the number of expected taxa)
-params_table=pd.DataFrame(master_param_df)
-params_table["expected_dummy"]=[0.0, 0.0, 1.0, 0.0, 0, 0.0, 0.0, 1.0, len(unique_taxa)-len(expected_df.index), 0, "expected", "expected", "expected", "expected", "expected", "expected"]
-params_table=params_table.transpose()
-## Get info which one is expected
-col=["pipeline"] * 1480
-col.append("expected")
-params_table["exp"]=col
+## Make the df
+metrics_table=pd.DataFrame(master_metrics_df)
+metrics_table=metrics_table.transpose()
 
-# 6 Do PCA (from https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
-## Grab columns we need
-pca_table=params_table.iloc[:, 0:10]
-##standardize data
+############################################ Loop over DNA and RNA samples would go until here
+
+# 6 PCA (from https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
+## 6.1 Perform initial PCA
+###Grab columns we need
+pca_table=metrics_table.iloc[:, 0:16]
+### Standardize data
 pca_table_std=StandardScaler().fit_transform(pca_table)
-## Do PCA
+### Perform PCA
 pca = PCA(n_components=2)
-principal_components = pca.fit_transform(pca_table_std)
-principal_df = pd.DataFrame(data = principal_components, columns = ['PC1', 'PC2'], index=pca_table.index)
+principal_components_no_exp = pca.fit_transform(pca_table_std)
 print("PC1: " + str(pca.explained_variance_ratio_[0]) + ", PC2: " + str(pca.explained_variance_ratio_[1]))
-## Plot
-plot_df=pd.concat([principal_df, params_table.iloc[:, 10:17]], axis = 1).rename_axis("pipeline").reset_index()
+
+
+## 6.2 Add dummy and predict coordinates in PCA with all pipelines and expected dummy
+#### Add a dummy column with expected outcome (the expected outcome for TN is the number of all taxa - the number of expected taxa)
+metrics_table=metrics_table.transpose()
+metrics_table["expected_dummy"]=[0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 9.0, len(unique_taxa)-len(expected_df.index), 0.0, 0.0, 0.0, 0.0, "expected", "expected", "expected", "expected", "expected", "expected"]
+metrics_table=metrics_table.transpose()
+
+### Add column to indicate which pipeline is the expected dummy
+col=["pipeline"] * (len(metrics_table)-1)
+col.append("expected")
+metrics_table["exp"]=col
+
+### Predict the coordinates in the PCA for all pipelines plus the expected (that way, the expected doesn't affekt the PCA itself)
+pca_table_with_exp=metrics_table.iloc[:, 0:16]
+pca_table_with_exp_std=StandardScaler().fit_transform(pca_table_with_exp)
+principal_components_with_exp=pca.transform(pca_table_with_exp_std)
+principal_df = pd.DataFrame(data = principal_components_with_exp, columns = ['PC1', 'PC2'], index=pca_table_with_exp.index)
+
+
+
+# 7 Plot
+## Make df from PC1+2 coordinates and tools per pipeline to plot
+plot_df=pd.concat([principal_df, metrics_table.iloc[:, 16:24]], axis = 1).rename_axis("pipeline").reset_index()
 
 fig = px.scatter(plot_df, x="PC1", y="PC2", color="exp", hover_data=["pipeline"])
 fig.show()
@@ -409,19 +408,18 @@ fig = px.scatter(plot_df, x="PC1", y="PC2", color="classifier", hover_data=["pip
 fig.show()
 
 
-# TO DO: check why all variances are =0
 
 
-
+# OLD CODE:
 
 # # This is for all 3 data types, which is inappropriate:
-# for params_dic in [abs_params, rel_params, pa_params]:
+# for metrics_dic in [abs_metrics, rel_metrics, pa_metrics]:
 #     for pipeline in shared_pipelines:                                                                                                                       ### TO BE DELETED
-#         if params_dic==abs_params:
+#         if metrics_dic==abs_metrics:
 #             master_dfs_uniq=master_dfs_uniq_abs
-#         elif params_dic==rel_params:
+#         elif metrics_dic==rel_metrics:
 #             master_dfs_uniq=master_dfs_uniq_rel
-#         elif params_dic==pa_params:
+#         elif metrics_dic==pa_metrics:
 #             master_dfs_uniq=master_dfs_uniq_pa
 #         col = master_dfs_uniq[samples[0]].columns.tolist()[1:].index(pipeline)
 #         ### Each pipeline gets a variance sum variable
@@ -430,7 +428,7 @@ fig.show()
 #         for row in range(0,master_dfs_uniq[samples[0]].shape[0]):
 #             var_sum += statistics.variance([int(master_dfs_uniq[samples[0]].iloc[row,col]), int(master_dfs_uniq[samples[1]].iloc[row,col]), int(master_dfs_uniq[samples[2]].iloc[row,col])])
 #         ### Add var_sum to chi2_var dic for respective pipeline
-#         params_dic[pipeline]["variance"]=var_sum
+#         metrics_dic[pipeline]["variance"]=var_sum
 
 
 ## 3.3 Assign which tools have been used each step in the pipeline, with one column per step,
@@ -472,9 +470,43 @@ fig.show()
 # df_abun_exp.to_csv("{savedir}df_abun_exp.csv".format(savedir=savedir))
 
 
+# 4 Calculate variance for absolute and relative data and mismatches between replicates for p/a data
+
+## 4.1  We calculate the variances for each taxon for all pipelines across the three replicates, sum up the variance of all taxa across the
+##      replicates for every pipeline, and add the returned summed variance to each pipeline in the respective metrics dics.
+##      NOTE: We only do that for absolute and relative data as it is unapplicable for p/a data.
+
+# for metrics_dic in [abs_metrics, rel_metrics]:
+#     for pipeline in shared_pipelines[1:len(shared_pipelines)]:                                                                                                                            ### TO BE DELETED
+#         if metrics_dic==abs_metrics:
+#             master_dfs_uniq=master_dfs_uniq_abs
+#         elif metrics_dic==rel_metrics:
+#             master_dfs_uniq=master_dfs_uniq_rel
+#         ### Each pipeline gets a variance sum variable
+#         var_sum = 0
+#         pipeline_col = master_dfs_uniq[samples[0]].columns.tolist()[1:].index(pipeline)
+#         ### For each taxon in the pipelines across replicates, calculate the variance and sum up all variances across all taxa:
+#         for taxon in range(0,master_dfs_uniq[samples[0]].shape[0]):
+#             var_sum += statistics.variance([int(master_dfs_uniq[samples[0]].iloc[taxon,pipeline_col]), int(master_dfs_uniq[samples[1]].iloc[taxon,pipeline_col]), int(master_dfs_uniq[samples[2]].iloc[taxon,pipeline_col])])
+#         ### Add var_sum to chi2_var dic for respective pipeline
+#         metrics_dic[pipeline]["variance"]=var_sum
 
 
-# OLD CODE:
+## 4.2 We calculate the mismatches between replicates for each taxon for all pipelines, sum up the mismatches
+## for every pipeline, and add the mismatches to each pipeline in the respective metrics dics.
+# for pipeline in shared_pipelines[1:len(shared_pipelines)]:                                                                                                                            ### TO BE DELETED
+#     ### Each pipeline gets a mismatches variable to count mismatches between replicates
+#     mismatches = 0
+#     pipeline_col = master_dfs_uniq_pa[samples[0]].columns.tolist()[1:].index(pipeline)
+#     ### For each taxon in the pipelines across replicates, count how often 1 (=present) was detected
+#     ### - if it was detected only 1 one 2 times, pipelines mismatch in their outcome, which we collect in variable mismatches:
+#     for taxon in range(0,master_dfs_uniq_pa[samples[0]].shape[0]):
+#         count=[master_dfs_uniq_pa[samples[0]].iloc[taxon,pipeline_col], master_dfs_uniq_pa[samples[1]].iloc[taxon,pipeline_col], master_dfs_uniq_pa[samples[2]].iloc[taxon,pipeline_col]].count(1)
+#         if count==1 or count==2:
+#             mismatches+=1
+#     pa_metrics[pipeline]["mismatches"]=mismatches
+
+
 
 # ## 3.1 Chi-Squared test (accuracy)
 #
