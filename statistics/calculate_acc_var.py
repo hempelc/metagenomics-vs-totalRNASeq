@@ -8,7 +8,6 @@ import glob
 import os
 import csv
 import copy
-from statistics import stdev
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
