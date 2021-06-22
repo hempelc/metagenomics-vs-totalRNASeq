@@ -177,7 +177,8 @@ for sample in samples:
 # 2 Make a "unique_taxa" list that contains all taxa that appear in all samples;
 #   generate a "master_df" df from each sample that contains counts for all taxa in all samples and mock community:
 
-## 2.1 Drop duplicates of "all_taxa" list
+## 2.1 Add expected taxa to list in case they're not picked up by any pipeline and drop duplicates:
+all_taxa.extend(expected_df[groupby_rank].tolist())
 unique_taxa = list(set(all_taxa))
 
 
@@ -303,8 +304,8 @@ for metric_dic_rep in [abs_metrics_reps, rel_metrics_reps, pa_metrics_reps]:
 ### Calculate the average across the three replicates:
 for metrics_dic in [abs_metrics, rel_metrics, pa_metrics]:
     for pipeline, metrics in metrics_dic.items():
-        for metric, list in metrics.items():
-            metrics_dic[pipeline][metric]=sum(list)/len(list)
+        for metric, lst in metrics.items():
+            metrics_dic[pipeline][metric]=sum(lst)/len(lst)
 
 
 ## 3.4 Caluclate SD across the three replicates for all 3 types of datasets
@@ -350,6 +351,7 @@ for step in step_list:
     for pipeline in master_metrics_df.keys():
         master_metrics_df[pipeline][step]=pipeline.split("_")[step_list.index(step)]
 
+
 ## Make the df
 metrics_table=pd.DataFrame(master_metrics_df)
 metrics_table=metrics_table.transpose()
@@ -376,7 +378,7 @@ print("PC1: " + str(pca.explained_variance_ratio_[0]) + ", PC2: " + str(pca.expl
 ## 5.2 Add dummy and predict coordinates in PCA with all pipelines and expected dummy
 #### Add a dummy column with expected outcome (the expected outcome for TN is the number of all taxa - the number of expected taxa)
 metrics_table=metrics_table.transpose()
-metrics_table["expected_dummy"]=[0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 9.0, len(unique_taxa)-len(expected_df.index), 0.0, 0.0, 0.0, 0.0, "expected", "expected", "expected", "expected", "expected", "expected"]
+metrics_table["expected_dummy"]=[0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10.0, len(unique_taxa)-len(expected_df.index), 0.0, 0.0, 0.0, 0.0, "expected", "expected", "expected", "expected", "expected", "expected"]
 metrics_table=metrics_table.transpose()
 
 ### Add column to indicate which pipeline is the expected dummy
@@ -394,28 +396,28 @@ pc_df = pd.DataFrame(data = pcs_with_exp, columns = ['PC1', 'PC2'], index=pca_ta
 
 # 6 Plot
 ## Make df from PC1+2 coordinates and tools per pipeline to plot
-plot_df=pd.concat([pc_df, metrics_table.iloc[:, 16:24]], axis = 1).rename_axis("pipeline").reset_index()
+plot_df=pd.concat([pc_df, metrics_table.iloc[:, 16:23]], axis = 1).rename_axis("pipeline").reset_index()
 
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="exp", hover_data=["pipeline"])
-fig.show()
+fig1 = px.scatter(plot_df, x="PC1", y="PC2", color="exp", hover_data=["pipeline"])
+fig1.show()
 
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="trimming_score", hover_data=["pipeline"])
-fig.show()
+fig2 = px.scatter(plot_df, x="PC1", y="PC2", color="trimming_score", hover_data=["pipeline"])
+fig2.show()
 
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="rRNA_sorting_tool", hover_data=["pipeline"])
-fig.show()
+fig3 = px.scatter(plot_df, x="PC1", y="PC2", color="rRNA_sorting_tool", hover_data=["pipeline"])
+fig3.show()
 
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="assembly_tool", hover_data=["pipeline"])
-fig.show()
+fig4 = px.scatter(plot_df, x="PC1", y="PC2", color="assembly_tool", hover_data=["pipeline"])
+fig4.show()
 
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="mapper", hover_data=["pipeline"])
-fig.show()
+fig5 = px.scatter(plot_df, x="PC1", y="PC2", color="mapper", hover_data=["pipeline"])
+fig5.show()
 
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="database", hover_data=["pipeline"])
-fig.show()
+fig6 = px.scatter(plot_df, x="PC1", y="PC2", color="database", hover_data=["pipeline"])
+fig6.show()
 
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="classifier", hover_data=["pipeline"])
-fig.show()
+fig7 = px.scatter(plot_df, x="PC1", y="PC2", color="classifier", hover_data=["pipeline"])
+fig7.show()
 
 
 
@@ -423,7 +425,7 @@ fig.show()
 # 7 Linear regression (following https://datatofish.com/statsmodels-linear-regression/)
 ## 7.1 Set up X and Y
 y = pc_lr
-X_no_dummies=metrics_table.drop("expected_dummy").drop("exp", axis=1).iloc[:, 16:24]
+X_no_dummies=metrics_table.drop("expected_dummy").drop("exp", axis=1).iloc[:, 16:23]
 X_no_intercept=pd.get_dummies(data=X_no_dummies)
 X = sm.add_constant(X_no_intercept) # This adds a constant as a column which is needed to calculate the intercept of the model
 
@@ -437,7 +439,70 @@ summary = lr_model.summary2().tables[1][['Coef.', 'P>|t|']]
 summary.rename(columns={"Coef.": "Coefficient", "P>|t|": "p-value"})
 
 
-# ###################### FOR PCA WITHOUT AAd METRICS:
+
+# 8 k-means clustering (following https://realpython.com/k-means-clustering-python/)
+from kneed import KneeLocator
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+kmean_table_std = pca_table_std
+
+# Estimate best kluster number k
+## Elbow method based on SSE
+#### A list holds the SSE values for each k
+sse = []
+for k in range(1, 20):
+    kmeans = KMeans(n_clusters=k)
+    kmeans.fit(kmean_table_std)
+    sse.append(kmeans.inertia_)
+
+### Plot SSEs to choose best k
+fig_k_sse = px.line(pd.DataFrame(list(zip(range(1, 20), sse)), columns =['Number of Clusters', 'SSE']), x="Number of Clusters", y="SSE")
+fig_k_sse.show()
+
+### Or calculate using KneedLocator
+kl = KneeLocator(range(1, 20), sse, curve="convex", direction="decreasing")
+kl.elbow
+
+## Silhouette coefficient
+silhouette_coefficients = []
+### start at 2 clusters for silhouette coefficient
+for k in range(2, 20):
+    kmeans = KMeans(n_clusters=k)
+    kmeans.fit(kmean_table_std)
+    score = silhouette_score(kmean_table_std, kmeans.labels_)
+    silhouette_coefficients.append(score)
+
+fig_k_silhouette = px.line(pd.DataFrame(list(zip(range(2, 20), silhouette_coefficients)), columns =['Number of Clusters', 'Silhouette Coefficients']), x="Number of Clusters", y="Silhouette Coefficients")
+fig_k_silhouette.show()
+
+# Based on both test, we define k as 5
+k=5
+
+## Actual kmeans
+kmeans = KMeans(n_clusters=k)
+kmeans.fit(kmean_table_std)
+
+# The lowest SSE value
+kmeans.inertia_
+
+# The number of iterations required to converge
+kmeans.n_iter_
+
+kmeans.labels_
+
+kmean_df=pd.DataFrame(pcs_no_exp, columns = ['PC1', 'PC2'], index=pca_table.index).rename_axis("pipeline").reset_index()
+kmean_df['cluster']=[str(x) for x in kmeans.labels_.tolist()]
+fig_kmean = px.scatter(kmean_df, x="PC1", y="PC2", color="cluster", hover_data=["pipeline"])
+fig_kmean.show()
+
+
+
+# Exports
+summary.to_csv('lr.csv')
+# Export tables to csv
+metrics_table.iloc[:, 16:22].to_csv('tools.csv')
+metrics_table.iloc[:, 0:16].to_csv('metrics.csv')
+# ###################### FOR PCA WITHOUT AAD METRICS:
 #
 # ## Make the df
 # metrics_table=pd.DataFrame(master_metrics_df)
