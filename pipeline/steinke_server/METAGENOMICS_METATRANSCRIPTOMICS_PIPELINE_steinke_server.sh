@@ -473,9 +473,14 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				step_description_and_time_second "RUNNING KRAKEN2 WITH DATABASE $DB"
 				mkdir KRAKEN2/
 				cd KRAKEN2/
-	     	# Run kraken2
-				kraken2 --db $krakenDB --threads $threads ../../../../../$scaffolds --report kraken2_report.txt \
-				> kraken2_output.txt
+
+				# We run kraken2 only if scaffolds exist to save time
+				if [ -f ../../../../../$scaffolds ]; then
+					kraken2 --db $krakenDB --threads $threads ../../../../../$scaffolds --report kraken2_report.txt \
+					> kraken2_output.txt
+				else 
+					step_description_and_time_second "NO SCAFFOLDS FILE TO ANNOTATE"
+				fi
 
 				if [[ $DB == 'SILVA' ]]; then
 		      # Now we're gonna edit the output so that is has the same format as
