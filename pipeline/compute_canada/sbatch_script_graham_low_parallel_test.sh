@@ -1,9 +1,8 @@
 #!/bin/bash
 
 #SBATCH --account=def-dsteinke
-#SBATCH --ntasks-per-node=32
+#SBATCH --cpus-per-task=32
 #SBATCH --mem=0
-#SBATCH --array=1-140
 #SBATCH --time=4:00:00
 
 # A script to run Chris Hempel's METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE in
@@ -12,6 +11,9 @@
 # Uses full graham nodes with 32 cores and all available memory (903 nodes available)
 
 # --array=1-64 is set to 64 to generate 64 jobs for 64 bundled pipeline combinations
+
+# Record env
+parallel --record-env
 
 # Load modules
 module load StdEnv/2020 gcc/9.3.0 openmpi/4.0.3 trimmomatic/0.39 fastqc/0.11.9 \
@@ -22,20 +24,20 @@ leveldb/1.22 trans-abyss/2.0.1 megahit/1.2.9 bedtools/2.29.2
 
 # Set some general variables
 memory="$((${SLURM_MEM_PER_NODE} / 1024))G" # $SLURM_MEM_PER_NODE is in Megabyte
-threads=${SLURM_NTASKS_PER_NODE}
 BASE="/home/hempelc/projects/def-dsteinke/hempelc/pilot_project"
 start=$(date +%s)
 
 # Echo array ID
-echo -e "Job array ID is ${SLURM_ARRAY_TASK_ID}"
+echo -e "Job array ID is 133"
+## Remember to set ID back to ARRAY_ID
 
-# Copy all necessary DBs and reads to temporary dir on server (SLURM_TMPDIR)
+# Copy all necessary DBs, reads, and files to temporary dir on server (SLURM_TMPDIR)
 echo "[$(date +%H:%M:%S)] Copying started [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 cp -r ${BASE}/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Sep_2020 \
 ${BASE}/databases/NCBI_staxids*_scientific.txt ${BASE}/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020 \
 ${BASE}/databases/SILVA_paths_and_taxids.txt ${BASE}/databases/sortmerna_silva_databases \
 ${BASE}/programs/ete3_env ${HOME}/.etetoolkit \
-${R1} ${R2} ${BASE}/split_files_low/file_chunk_${SLURM_ARRAY_TASK_ID} \
+${R1} ${R2} ${BASE}/split_files_low/file_chunk_133 \
 ${BASE}/programs/rRNAFilter ${SLURM_TMPDIR}
 echo "[$(date +%H:%M:%S)] Copying finished [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 
@@ -44,33 +46,33 @@ R1=${SLURM_TMPDIR}/$(basename ${R1})
 R2=${SLURM_TMPDIR}/$(basename ${R2})
 DBS=${SLURM_TMPDIR}/databases
 
-# Activate copies environment
+# Activate copied environment
 source ${SLURM_TMPDIR}/ete3_env/bin/activate
 
 # Assign each job in array to bundle of pipelines
-jobfile=${SLURM_TMPDIR}/file_chunk_${SLURM_ARRAY_TASK_ID}
+jobfile=${SLURM_TMPDIR}/file_chunk_133
 
 # Save path for directory in which pipeline was started
 cwd1=${PWD}
 
 # Run pipeline for each line in chunk file, i.e., each bundled pipeline
-echo "[$(date +%H:%M:%S)] Bundled pipelines started [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]"
+echo "[$(date +%H:%M:%S)] Bundled pipelines started [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 echo "Pipelines that are to be run are:"
 cat ${jobfile}
 
+# Define function to run pipelines in parallel
 run_it(){
-  jobfile=$1
-  line=$2
-  R1=$3
-  R2=$4
-  memory=$5
-  threads=$6
-  pipeline=$(sed -n ${line}p ${jobfile})
+  pipeline=$1
+  R1=$2
+  R2=$3
+  memory=$4
+  threads=$5
+  start=$6
   mkdir -p ${pipeline}
   cwd2=${PWD}/${pipeline}
   cd ${SLURM_TMPDIR}
 
-  echo -e "\n\n ================ [$(date +%H:%M:%S)] START PIPELINE ${pipeline} [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ==============\n\n"
+  echo -e "\n\n ================ [$(date +%H:%M:%S)] START PIPELINE ${pipeline} [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m] ==============\n\n"
 
   METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_compute_canada.sh \
   -1 ${R1} -2 ${R2} -P ${pipeline} \
@@ -101,9 +103,16 @@ run_it(){
   echo -e "\n\n ================ [$(date +%H:%M:%S)] END PIPELINE ${pipeline} [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m] ==============\n\n"
 }
 
-#export -f run_it
+# Set threads specifically before exporting the function
+threads=${SLURM_CPUS_PER_TASK}
+
+# Exporting the function
+export -f run_it
+
+# And dividing the numbers of threads by 8 for 8 parallel processes
 in_threads=$(( ${threads} / 8 ))
 
-parallel -j 8 run_it.sh ${jobfile} {} ${R1} ${R2} ${memory} ${in_threads} :::: ${jobfile}
+parallel --env _ -j 8 run_it {} ${R1} ${R2} ${memory} ${in_threads} ${start} :::: ${jobfile}
 
 echo "[$(date +%H:%M:%S)] Bundled pipelines ended in $((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m"
+
