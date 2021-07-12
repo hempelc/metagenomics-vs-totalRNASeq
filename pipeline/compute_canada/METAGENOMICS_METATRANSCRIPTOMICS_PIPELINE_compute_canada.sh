@@ -403,10 +403,10 @@ elif [[ $assembly == "trinity" ]]; then
 	step_description_and_time_first "RUNNING TRINITY"
 	# Barrnap and rRNAFilter output fasta files which has to be indicated to Trinity:
   if [[ $sorting == "rrnafilter" || $sorting == "barrnap" ]]; then
-		Trinity --seqType fa --max_memory $memory --left ../$R1_sorted --right \
+		Trinity --seqType fa --max_memory 20G --left ../$R1_sorted --right \
     ../$R2_sorted --CPU $threads --output TRINITY/ --NO_SEQTK
   else
-    Trinity --seqType fq --max_memory $memory --left ../$R1_sorted --right \
+    Trinity --seqType fq --max_memory 20G --left ../$R1_sorted --right \
     ../$R2_sorted --CPU $threads --output TRINITY/ --NO_SEQTK
   fi
   cat TRINITY/Trinity.fasta | sed 's/ len/_len/g' \

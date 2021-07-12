@@ -334,11 +334,11 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 		# Barrnap and rRNAFilter output fasta files which has to be indicated to Trinity:
     if [[ $rrna_filter_results == "rRNAFILTER" \
 		|| $rrna_filter_results == "BARRNAP" ]]; then
-  		Trinity --seqType fa --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024)-5)))G --left ../../$R1_sorted --right \
-      ../../$R2_sorted --CPU $threads --output TRINITY/ # The max_memory command simply takes the maximum RAM size in GB and subtracts 5GB
+  		Trinity --seqType fa --max_memory 20G --left ../../$R1_sorted --right \
+      ../../$R2_sorted --CPU $threads --output TRINITY/
     else
-      Trinity --seqType fq --max_memory $(echo $(($(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) / (1024 * 1024 * 1024)-5)))G --left ../../$R1_sorted --right \
-      ../../$R2_sorted --CPU $threads --output TRINITY/ # The max_memory command simply takes the maximum RAM size in GB and subtracts 5GB
+      Trinity --seqType fq --max_memory 20G --left ../../$R1_sorted --right \
+      ../../$R2_sorted --CPU $threads --output TRINITY/
     fi
     cat TRINITY/Trinity.fasta | sed 's/ len/_len/g' \
 		> TRINITY/Trinity_with_length.fasta  # Edit for universal format
@@ -478,7 +478,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				if [ -f ../../../../../$scaffolds ]; then
 					kraken2 --db $krakenDB --threads $threads ../../../../../$scaffolds --report kraken2_report.txt \
 					> kraken2_output.txt
-				else 
+				else
 					step_description_and_time_second "NO SCAFFOLDS FILE TO ANNOTATE"
 				fi
 
