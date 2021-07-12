@@ -10,8 +10,6 @@
 
 # Uses full graham nodes with 32 cores and all available memory (903 nodes available)
 
-# --array=1-64 is set to 64 to generate 64 jobs for 64 bundled pipeline combinations
-
 # Record env
 parallel --record-env
 
@@ -27,17 +25,13 @@ memory="$((${SLURM_MEM_PER_NODE} / 1024))G" # $SLURM_MEM_PER_NODE is in Megabyte
 BASE="/home/hempelc/projects/def-dsteinke/hempelc/pilot_project"
 start=$(date +%s)
 
-# Echo array ID
-echo -e "Job array ID is 133"
-## Remember to set ID back to ARRAY_ID
-
 # Copy all necessary DBs, reads, and files to temporary dir on server (SLURM_TMPDIR)
 echo "[$(date +%H:%M:%S)] Copying started [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 cp -r ${BASE}/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Sep_2020 \
 ${BASE}/databases/NCBI_staxids*_scientific.txt ${BASE}/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020 \
 ${BASE}/databases/SILVA_paths_and_taxids.txt ${BASE}/databases/sortmerna_silva_databases \
 ${BASE}/programs/ete3_env ${HOME}/.etetoolkit \
-${R1} ${R2} ${BASE}/split_files_low/file_chunk_133 \
+${R1} ${R2} ${BASE}/split_files_no_ncbi-nt/file_chunk13.txt \
 ${BASE}/programs/rRNAFilter ${SLURM_TMPDIR}
 echo "[$(date +%H:%M:%S)] Copying finished [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 
@@ -50,7 +44,7 @@ DBS=${SLURM_TMPDIR}/databases
 source ${SLURM_TMPDIR}/ete3_env/bin/activate
 
 # Assign each job in array to bundle of pipelines
-jobfile=${SLURM_TMPDIR}/file_chunk_133
+jobfile=${SLURM_TMPDIR}/file_chunk13.txt
 
 # Save path for directory in which pipeline was started
 cwd1=${PWD}
@@ -110,9 +104,8 @@ threads=${SLURM_CPUS_PER_TASK}
 export -f run_it
 
 # And dividing the numbers of threads by 8 for 8 parallel processes
-in_threads=$(( ${threads} / 8 ))
+in_threads=$(( ${threads} / 16 ))
 
-parallel --env _ -j 8 run_it {} ${R1} ${R2} ${memory} ${in_threads} ${start} :::: ${jobfile}
+parallel --env _ -j 16 run_it {} ${R1} ${R2} ${memory} ${in_threads} ${start} :::: ${jobfile}
 
 echo "[$(date +%H:%M:%S)] Bundled pipelines ended in $((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m"
-
