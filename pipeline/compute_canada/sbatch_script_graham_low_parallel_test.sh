@@ -3,7 +3,7 @@
 #SBATCH --account=def-dsteinke
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=0
-#SBATCH --time=4:00:00
+#SBATCH --time=1:00:00
 
 # A script to run Chris Hempel's METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE in
 # parallel on graham
@@ -52,9 +52,6 @@ source ${SLURM_TMPDIR}/ete3_env/bin/activate
 # Assign each job in array to bundle of pipelines
 jobfile=${SLURM_TMPDIR}/file_chunk_133
 
-# Save path for directory in which pipeline was started
-cwd1=${PWD}
-
 # Run pipeline for each line in chunk file, i.e., each bundled pipeline
 echo "[$(date +%H:%M:%S)] Bundled pipelines started [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 echo "Pipelines that are to be run are:"
@@ -68,9 +65,14 @@ run_it(){
   memory=$4
   threads=$5
   start=$6
+
+  # Save path for directory in which pipeline was started
+  cwd1=${PWD}
+  
   mkdir -p ${pipeline}
-  cwd2=${PWD}/${pipeline}
   cd ${SLURM_TMPDIR}
+  mkdir -p ${pipeline}
+  cd ${pipeline}
 
   echo -e "\n\n ================ [$(date +%H:%M:%S)] START PIPELINE ${pipeline} [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m] ==============\n\n"
 
@@ -97,8 +99,8 @@ run_it(){
   -m ${memory} \
   -p ${threads}
 
-  mv METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/* ${cwd2}
-  rm -r METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
+  cp ${SLURM_TMPDIR}/${pipeline}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/* ${cwd1}/${pipeline}
+  rm -r ${SLURM_TMPDIR}/${pipeline}/
 
   echo -e "\n\n ================ [$(date +%H:%M:%S)] END PIPELINE ${pipeline} [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m] ==============\n\n"
 }
