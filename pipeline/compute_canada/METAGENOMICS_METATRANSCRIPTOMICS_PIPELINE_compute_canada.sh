@@ -532,7 +532,7 @@ elif [[ $classification == "blast_filtered" ]]; then
 elif [[ $classification == "kraken2" ]]; then
 	step_description_and_time_first "RUNNING KRAKEN2 WITH DATABASE $krakenDB"
 	# Run kraken2
-	kraken2 --db $krakenDB --threads $threads ../../../../../$scaffolds \
+	kraken2 --db $krakenDB --threads $threads ../../../../$scaffolds \
 	--report kraken2_report.txt	> kraken2_output.txt
 
 	if [[ $db == 'silva' ]]; then
