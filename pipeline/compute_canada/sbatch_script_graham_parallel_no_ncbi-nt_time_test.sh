@@ -3,7 +3,7 @@
 #SBATCH --account=def-dsteinke
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=0
-#SBATCH --time=1:00:00
+#SBATCH --time=4:00:00
 
 # A script to run Chris Hempel's METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE in
 # parallel on graham
