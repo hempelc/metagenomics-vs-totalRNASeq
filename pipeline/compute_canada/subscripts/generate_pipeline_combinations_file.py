@@ -2,6 +2,7 @@
 
 import itertools
 import random
+import sys
 
 def split(lst, n):
     """Splits list into n equally sized chunks"""
@@ -13,12 +14,14 @@ def split_list(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
 
+num_pip = int(sys.argv[1])
+
 # Manually enter tools for each step:
 trimming=["5", "10", "15", "20"]
 sorting=["sortmerna", "barrnap", "rrnafilter", "unsorted"]
 assembly=["spades", "metaspades", "idba_ud", "megahit", "rnaspades", "idba_tran", "trinity", "transabyss"]
 mapping=["bwa", "bowtie2"]
-db=["ncbi_nt", "silva"]
+db=["ncbi-nt", "silva"]
 classification=["blast_first_hit", "blast_filtered", "kraken2"]
 all=[trimming, sorting, assembly, mapping, db, classification] # list of steps
 
@@ -27,7 +30,7 @@ combinations_tuples_list=list(itertools.product(*all))
 # Turn that into list of strings:
 combinations_str_list = ['-'.join(tool) for tool in combinations_tuples_list]
 random.shuffle(combinations_str_list)
-chunks=list(split_list(combinations_str_list, 16))
+chunks=list(split_list(combinations_str_list, num_pip))
 
 for i in range(len(chunks)):
     out="file_chunk" + str(i+1) + ".txt"
