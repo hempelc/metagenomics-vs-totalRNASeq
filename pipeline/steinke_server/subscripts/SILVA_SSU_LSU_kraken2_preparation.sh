@@ -29,20 +29,19 @@ cat SILVA_138.1_SSURef_NR99_tax_silva_trunc.fasta \
 
 #Concatenate the SSU und LSU fasta files:
 cat SILVA_138.1_SSURef_NR99_tax_silva_trunc_filtered.fasta \
+SILVA_138.1_LSURef_NR99_tax_silva_trunc.fasta \
 > SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta
-cat SILVA_138.1_LSURef_NR99_tax_silva_trunc.fasta \
->> SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta
 
 # As of 04 Sep 2020, the available SILVA LSU and SSU taxmap files contain
 # duplicate accession IDs with different taxids in the SSU and LSU files. We're
 # going to use all accession IDs from the SSU file, check which additional ones
 # are in the LSU file (about 23,000 are not in the SSU file) and just take these
 # extra ones from the LSU taxmap file to not overwrite SSU taxids with LSU taxids:
-cat taxmap_slv_ssu_ref_nr_138.1.txt > taxmap_slv_ssu_lsu_ref_nr_138.1.duplicates.txt
+cat taxmap_slv_ssu_ref_nr_138.1.txt > taxmap_slv_ssu_lsu_ref_nr_138.1.txt
 tail -n +2 taxmap_slv_ssu_ref_nr_138.1.txt | cut -f1 > grep_list.txt
 tail -n +2 taxmap_slv_lsu_ref_nr_138.1.txt | grep -v -f grep_list.txt >> taxmap_slv_ssu_lsu_ref_nr_138.1.txt
 #tail -n +2 taxmap_slv_lsu_ref_nr_138.1.txt | grep -v -f grep_list.txt >> taxmap_slv_ssu_lsu_ref_nr_138.1.duplicates.txt
-#awk '!a[$1]++' taxmap_slv_ssu_lsu_ref_nr_138.1.duplicates.txt > taxmap_slv_ssu_lsu_ref_nr_138.1.txt 
+#awk '!a[$1]++' taxmap_slv_ssu_lsu_ref_nr_138.1.duplicates.txt > taxmap_slv_ssu_lsu_ref_nr_138.1.txt
 tail -n +2 taxmap_slv_ssu_lsu_ref_nr_138.1.txt | cut -f1,6  > accids_taxids.txt
 
 # Turn fasta into tab delimited file and edit so that accession numbers can be merged
@@ -72,7 +71,7 @@ print("Processing files in python...")
 tax_slv_file="tax_slv_ssu_138.1.txt"
 
 
-# Make nodes_SILVA_SSU_LSU.dmp:
+# Make nodes.dmp:
 
 ## Read in tax file (note: we don't need the LSU tax file as well since all taxa
 ## from the LSU tax file are also part of the SSU tax file):
@@ -130,7 +129,7 @@ nodes_SILVA_SSU_LSU_df.to_csv("nodes.dmp", sep='\t', na_rep='NA', index=False, \
 header=False)
 
 
-# Make names_SILVA_SSU_LSU.dmp
+# Make names.dmp
 
 tax_slv_df3=tax_slv_df1.copy() # Make a copy of df1
 # Remove the last ";"" and the first taxon in the taxonomy path:
