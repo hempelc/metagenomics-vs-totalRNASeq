@@ -77,7 +77,7 @@ run_it(){
 
   echo -e "\n\n ================ [$(date +%H:%M:%S)] START PIPELINE ${pipeline} [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m] ==============\n\n"
 
-  METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_compute_canada.sh \
+  METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_compute_canada_no_ncbi-nt.sh \
   -1 ${R1} -2 ${R2} -P ${pipeline} \
   -N ${SLURM_TMPDIR}/nt_database_feb_2020_indexed/nt \
   -S ${SLURM_TMPDIR}/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta \
