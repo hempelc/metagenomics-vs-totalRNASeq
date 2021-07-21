@@ -4,7 +4,6 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=124G
 #SBATCH --time=5:30:00
-#SBATCH --array=1-768
 
 # A script to run Chris Hempel's METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE in
 # parallel on graham
@@ -28,13 +27,10 @@ memory="$((${SLURM_MEM_PER_NODE} / 1024))G" # $SLURM_MEM_PER_NODE is in Megabyte
 BASE="/home/hempelc/projects/def-dsteinke/hempelc/pilot_project"
 start=$(date +%s)
 
-# Echo array ID
-echo -e "Job array ID is ${SLURM_ARRAY_TASK_ID}"
-
 # Copy all necessary DBs and reads to temporary dir on server (SLURM_TMPDIR)
 echo "[$(date +%H:%M:%S)] Copying started [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 cp -r ${BASE}/databases ${BASE}/programs/ete3_env ${HOME}/.etetoolkit \
-${R1} ${R2} ${BASE}/split_files_ncbi/file_chunk${SLURM_ARRAY_TASK_ID} \
+${R1} ${R2} ${BASE}/split_files_ncbi/file_chunk13 \
 ${BASE}/programs/rRNAFilter ${pipeline}/*.fa* ${pipeline}/merge_input_mapped_* \
 ${SLURM_TMPDIR}
 echo "[$(date +%H:%M:%S)] Copying finished [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
@@ -48,7 +44,7 @@ DBS=${SLURM_TMPDIR}/databases
 source ${SLURM_TMPDIR}/ete3_env/bin/activate
 
 # Assign each job in array to bundle of pipelines
-jobfile=${SLURM_TMPDIR}/file_chunk${SLURM_ARRAY_TASK_ID}
+jobfile=${SLURM_TMPDIR}/file_chunk13
 
 # Run pipeline for each line in chunk file, i.e., each bundled pipeline
 echo "[$(date +%H:%M:%S)] Bundled pipelines started [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]"

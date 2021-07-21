@@ -176,264 +176,6 @@ step_description_and_time_first "START RUNNING SCRIPT"
 #conda activate ete3 # ete3 is our conda environemnt in which we installed ete3
 # NOTE: outcommented to be run on graham, not needed
 
-# Make output directory and directory for final files:
-mkdir METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
-mkdir METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/
-cd METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
-
-# Save full current path in variable to make navigation between directories easier:
-base_directory=$(pwd)
-
-######################### Step 1: trimming ################################
-
-step_description_and_time_first "START STEP 1: TRIMMING AND ERROR CORRECTION"
-# Trimming is done with a separate subscript:
-fastqc_on_R1_R2_and_optional_trimming.sh \
--T $trimmomatic -1 $forward_reads -2 $reverse_reads -t yes -p $threads -P $trimming
-mv fastqc_on_R1_R2_and_optional_trimming_output/ step_1_trimming/
-
-# Use a line from the script "fastqc_on_R1_R2_and_optional_trimming.sh" to
-# generate the variable baseout and change into the generated directory:
-baseout=${forward_reads%_*} # Make basename
-cd step_1_trimming/trimmomatic/trimmed_at_phred_${trimming}_${baseout##*/}
-
-# Running error correction module of SPAdes on all trimmed reads
-step_description_and_time_first "ERROR-CORRECTING READS"
-spades.py -1 *1P.fastq -2 *2P.fastq \
---only-error-correction --disable-gzip-output -o error_correction \
--t $threads
-mv error_correction/corrected/*1P*.fastq \
-error_correction/corrected/*2P*.fastq .
-# Rename cryptic name of error-corrected reads:
-R1=$(echo *1P.00.0_0.cor.fastq) \
-&& 	mv *1P.00.0_0.cor.fastq ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
-sed -r -i 's/ BH:.{2,6}//g' ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
-R2=$(echo *2P.00.0_0.cor.fastq) \
-&& mv *2P.00.0_0.cor.fastq ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
-sed -r -i 's/ BH:.{2,6}//g' ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
-rm -r error_correction/
-step_description_and_time_first "FINISHED ERROR-CORRECTING READS"
-
-step_description_and_time_first "FINISHED STEP 1: TRIMMING AND ERROR CORRECTION"
-
-######################### Step 2: rRNA sorting ################################
-
-step_description_and_time_first "START STEP 2: rRNA SORTING OF TRIMMED READS"
-
-mkdir step_2_rrna_sorting/
-cd step_2_rrna_sorting/
-
-if [[ ${sorting} == "barrnap" || ${sorting} == "rrnafilter" ]]; then
-	step_description_and_time_first "CONVERT READS IN FASTA FORMAT"
-	mkdir reads_in_fasta_format/
-	fq2fa ../*1P_error_corrected.fastq reads_in_fasta_format/R1.fa
-	fq2fa ../*2P_error_corrected.fastq reads_in_fasta_format/R2.fa
-	step_description_and_time_first "READS TO FASTA CONVERSION DONE"
-fi
-
-if [[ ${sorting} == "sortmerna" ]]; then
-	step_description_and_time_first "RUNNING SORTMERNA"
-	mkdir SORTMERNA/
-	sortmerna --ref $silva_sortmerna_bac_lsu \
-	--ref $silva_sortmerna_bac_ssu \
-	--ref $silva_sortmerna_arc_lsu \
-	--ref $silva_sortmerna_arc_ssu \
-	--ref $silva_sortmerna_euk_lsu \
-	--ref $silva_sortmerna_euk_ssu \
-	--ref $silva_sortmerna_rfam_5 \
-	--ref $silva_sortmerna_rfam_5_8 \
-  --reads ../*1P_error_corrected.fastq --reads ../*2P_error_corrected.fastq \
-	--paired_in	--out2 -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA/ \
-	--threads 1:1:$threads
-	cd SORTMERNA/
-	step_description_and_time_first "SORTMERNA DONE"
-
-elif [[ ${sorting} == "rrnafilter" ]]; then
-	step_description_and_time_first "RUNNING rRNAFILTER"
-	mkdir rRNAFILTER/
-	cd rRNAFILTER/
-	# rRNAFilter only worked for us when we started it within the directory
-	# containing the .jar file. To simplify switching to that directory, we copy
-	# it from its location to the pwd:
-	cp -r $rrnafil .
-	cd rRNAFilter/
-	# We use 7GB for the rRNAFilter .jar, as shown in the rRNAFilter manual:
-	java -jar -Xmx7g rRNAFilter_commandline.jar \
-	-i ../../reads_in_fasta_format/R1.fa -r 0
-	java -jar -Xmx7g rRNAFilter_commandline.jar \
-	-i ../../reads_in_fasta_format/R2.fa -r 0
-	mv ../../reads_in_fasta_format/R*.fa_rRNA ..
-	cd ..
-	rm -r rRNAFilter
-	# We want to keep paired reads, so we extract all rRNA read names that were
-	# found in R1 and R2, save them as one list, and extract all reads from both
-	# R1 and R2 reads. That way, even if only one read from a pair was identified
-	# as rRNA, we keep the pair of reads:
-	fasta_to_tab R1.fa_rRNA | cut -f 1 | cut -f1 -d " " > names.txt
-	fasta_to_tab R2.fa_rRNA | cut -f 1 | cut -f1 -d " " >> names.txt
-	sort -u names.txt > names_sorted.txt
-	seqtk subseq ../reads_in_fasta_format/R1.fa names_sorted.txt \
-	> rRNAFilter_paired_R1.fa
-	seqtk subseq ../reads_in_fasta_format/R2.fa names_sorted.txt \
-	> rRNAFilter_paired_R2.fa
-	rm names_sorted.txt names.txt
-	step_description_and_time_first "rRNAFILTER DONE"
-
-elif [[ ${sorting} == "barrnap" ]]; then
-	step_description_and_time_first "RUNNING BARRNAP"
-	mkdir BARRNAP/
-	for kingdom in euk bac arc; do # barrnap needs to be run on kingdoms separately
-		step_description_and_time_first "RUNNING BARRNAP ON KINGDOM $kingdom AND R1 READS"
-		barrnap \
-		--quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
-		--threads $threads --outseq BARRNAP/${kingdom}_reads1.fa \
-		reads_in_fasta_format/R1.fa
-		step_description_and_time_first "RUNNING BARRNAP ON KINGDOM $kingdom AND R2 READS"
-		barrnap \
-		--quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
-		--threads $threads --outseq BARRNAP/${kingdom}_reads2.fa \
-		reads_in_fasta_format/R2.fa
-		rm reads_in_fasta_format/*.fai
-		sed 's/.*::/>/g' BARRNAP/${kingdom}_reads1.fa | sed 's/:[^:]*$//g' \
-		> BARRNAP/${kingdom}_reads1_edited.fa
-		sed 's/.*::/>/g' BARRNAP/${kingdom}_reads2.fa | sed 's/:[^:]*$//g' \
-		> BARRNAP/${kingdom}_reads2_edited.fa
-	done
-	# Concatenating results from the three kingdoms and R1 and R2 files
-	cat BARRNAP/*edited.fa > BARRNAP/all_reads.fa
-	# We want to keep paired reads, so we extract all rRNA read names that were
-	# found in R1 and R2 for the three kingdoms (in all_reads.fa), save them as
-	# one list, and extract all reads from both R1 and R2 reads. That way, even if
-	# only one read from a pair was identified as rRNA, we keep the pair of reads:
-	fasta_to_tab BARRNAP/all_reads.fa | cut -f 1 | cut -f1 -d " " | sort -u \
-	> BARRNAP/names_sorted.txt
-	seqtk subseq reads_in_fasta_format/R1.fa BARRNAP/names_sorted.txt \
-	> BARRNAP/barrnap_paired_R1.fa
-	seqtk subseq reads_in_fasta_format/R2.fa BARRNAP/names_sorted.txt \
-	> BARRNAP/barrnap_paired_R2.fa
-	rm BARRNAP/names_sorted.txt
-	cd BARRNAP/
-	step_description_and_time_first "BARRNAP DONE"
-
-elif [[ ${sorting} == "unsorted" ]]; then
-	step_description_and_time_first "MAKING FOLDER UNSORTED/ AND COPYING UNSORTED READS IN THERE TO KEEP THE FOLDER STRUCTURE CONSTANT"
-	mkdir UNSORTED/
-	cp ../*1P_error_corrected.fastq ../*2P_error_corrected.fastq UNSORTED/
-	cd UNSORTED/
-fi
-
-step_description_and_time_first "FINISHED STEP 2: rRNA SORTING"
-
-######################### Step 3: Assembly ################################
-
-step_description_and_time_first "START STEP 3: ASSEMBLY"
-
-mkdir step_3_assembly/
-cd step_3_assembly/
-
-if [[ $sorting == 'rrnafilter' ]]; then
-	R1_sorted='rRNAFilter_paired_R1.fa'
-	R2_sorted='rRNAFilter_paired_R2.fa'
-elif [[ $sorting == 'sortmerna' ]]; then
-	R1_sorted='out/aligned_fwd.fastq'
-	R2_sorted='out/aligned_rev.fastq'
-elif [[ $sorting == 'barrnap' ]]; then
-	R1_sorted='barrnap_paired_R1.fa'
-	R2_sorted='barrnap_paired_R2.fa'
-elif [[ $sorting == 'unsorted' ]]; then
-	R1_sorted='*1P_error_corrected.fastq'
-	R2_sorted='*2P_error_corrected.fastq'
-fi
-
-if [[ $assembly == "spades" ]]; then
-	step_description_and_time_first "RUNNING SPADES"
-	mkdir SPADES/
-	spades.py -1 ../$R1_sorted -2 ../$R2_sorted --only-assembler \
-	-o SPADES/ -t $threads
-	cd SPADES/
-	step_description_and_time_first "SPADES DONE"
-
-elif [[ $assembly == "metaspades" ]]; then
-	step_description_and_time_first "RUNNING METASPADES"
-	mkdir METASPADES/
-	spades.py --meta -1 ../$R1_sorted -2 ../$R2_sorted --only-assembler \
-	-o METASPADES/ -t $threads
-	cd METASPADES/
-	step_description_and_time_first "METASPADES DONE"
-
-elif [[ $assembly == "megahit" ]]; then
-	step_description_and_time_first "RUNNING MEGAHIT"
-	megahit --presets meta-large -t $threads -1 ../$R1_sorted \
-	-2 ../$R2_sorted -o MEGAHIT/
-	cd MEGAHIT/
-	step_description_and_time_first "MEGAHIT DONE"
-
-elif [[ $assembly == "idba_ud" ]]; then
-	step_description_and_time_first "RUNNING IDBA_UD"
-	# Note: we had to edit IDBA prior to compiling it because it didn't work
-	# using long reads and the -l option. This seems to be a common problem and
-	# can be circumvented following for example the instructions in
-	# http://seqanswers.com/forums/showthread.php?t=29109, and see also
-	# https://github.com/loneknightpy/idba/issues/26
-	# IDBA_UD only takes interleaved fasta files
-	fq2fa --merge --filter ../$R1_sorted ../$R2_sorted idba_ud_input.fa
-	idba_ud --num_threads $threads -r idba_ud_input.fa -o IDBA_UD/
-	mv idba_ud_input.fa IDBA_UD/
-	cd IDBA_UD/
-	step_description_and_time_first "IDBA_UD DONE"
-
-elif [[ $assembly == "rnaspades" ]]; then
-	step_description_and_time_first "RUNNING RNASPADES"
-	mkdir RNASPADES/
-	spades.py --rna -1 ../$R1_sorted -2 ../$R2_sorted --only-assembler \
-	-o RNASPADES/ -t $threads
-	cd RNASPADES/
-	step_description_and_time_first "RNASPADES DONE"
-
-elif [[ $assembly == "idba_tran" ]]; then
-	step_description_and_time_first "RUNNING IDBA_TRAN"
-	# IDBA_TRAN only takes interleaved fasta files
-	fq2fa --merge ../$R1_sorted ../$R2_sorted idba_tran_input.fa
-	idba_tran --num_threads $threads -l idba_tran_input.fa -o IDBA_TRAN/
-	mv idba_tran_input.fa IDBA_TRAN/
-	cd IDBA_TRAN
-	step_description_and_time_first "IDBA_TRAN DONE"
-
-elif [[ $assembly == "trinity" ]]; then
-	step_description_and_time_first "RUNNING TRINITY"
-	# Barrnap and rRNAFilter output fasta files which has to be indicated to Trinity:
-  if [[ $sorting == "rrnafilter" || $sorting == "barrnap" ]]; then
-		Trinity --seqType fa --max_memory 20G --left ../$R1_sorted --right \
-    ../$R2_sorted --CPU $threads --output TRINITY/ --NO_SEQTK
-  else
-    Trinity --seqType fq --max_memory 20G --left ../$R1_sorted --right \
-    ../$R2_sorted --CPU $threads --output TRINITY/ --NO_SEQTK
-  fi
-  cat TRINITY/Trinity.fasta | sed 's/ len/_len/g' \
-	> TRINITY/Trinity_with_length.fasta  # Edit for universal format
-	cd TRINITY/
-	step_description_and_time_first "TRINITY DONE"
-
-elif [[ $assembly == "transabyss" ]]; then
-	step_description_and_time_first "RUNNING TRANSABYSS"
-  transabyss --pe ../$R1_sorted ../$R2_sorted --threads $threads \
-  --outdir TRANSABYSS/
-  sed 's/ /_/g' TRANSABYSS/transabyss-final.fa \
-	> TRANSABYSS/transabyss-final_edited.fa # Edit for universal format
-	cd TRANSABYSS/
-	step_description_and_time_first "TRANSABYSS DONE"
-fi
-
-step_description_and_time_first "FINISHED STEP 3: ASSEMBLY"
-
-######################## Step 4: Mapping ################################
-
-step_description_and_time_first "START STEP 4: MAPPING"
-
-mkdir step_4_mapping/
-mkdir step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/
-cd step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/
-
 if [[ $assembly == 'spades' ]]; then
 	scaffolds='scaffolds.fasta'
 elif [[ $assembly == 'metaspades' ]]; then
@@ -452,41 +194,320 @@ elif [[ $assembly == 'transabyss' ]]; then
 	scaffolds='transabyss-final_edited.fa'
 fi
 
-if [[ $mapping == 'bwa' ]]; then
-  step_description_and_time_first "Starting bwa index"
-  bwa index -p bwa_index ../../$scaffolds
-  step_description_and_time_first "bwa index complete. Starting bwa mem"
-  bwa mem -t $threads bwa_index ../../../../../../*1P_error_corrected.fastq \
-	../../../../../../*2P_error_corrected.fastq > ${mapping}_output.sam
-  rm bwa_index*
-	step_description_and_time_first "bwa mem complete"
-elif [[ $mapping == 'bowtie2' ]]; then
-  step_description_and_time_first "Starting bowtie2 index"
-	bowtie2-build -f ../../$scaffolds bowtie_index
-	step_description_and_time_first "bowtie2 index complete. Starting bowtie2"
-	bowtie2 -q -x bowtie_index -1 ../../../../../../*1P_error_corrected.fastq \
-	-2 ../../../../../../*2P_error_corrected.fastq -S ${mapping}_output.sam \
-	-p $threads
-	rm bowtie_index*
-  step_description_and_time_first "bowtie2 complete"
-fi
+# Make output directory and directory for final files:
+mkdir METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
+mkdir METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/
 
-# Editing the mapper outputs:
-samtools view -F 4 ${mapping}_output.sam | cut -f3	| sort | uniq -c \
-| column -t | sed 's/  */\t/g' > out_mapped_${mapping}.txt
-samtools view -f 4 ${mapping}_output.sam | cut -f3 |	sort | uniq -c \
-| column -t | sed 's/  */\t/g' > out_unmapped_${mapping}.txt
-echo -e "counts\tsequence_name" > merge_input_mapped_${mapping}.txt \
-&& cat out_mapped_${mapping}.txt >> merge_input_mapped_${mapping}.txt
-echo -e "counts\tsequence_name" > merge_input_unmapped_${mapping}.txt \
-&& cat out_unmapped_${mapping}.txt >> merge_input_unmapped_${mapping}.txt
+# Copy scaffolds and mapped fiels into base dir
+cp ${scaffolds} merge_input_mapped_${mapping}.txt METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
+cd METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
 
-rm out_*mapped_${mapping}.txt
+# Save full current path in variable to make navigation between directories easier:
+base_directory=$(pwd)
 
-# Moving back to assembler directory:
-cd ../../
-
-step_description_and_time_first "FINISHED STEP 4: MAPPING"
+# ######################### Step 1: trimming ################################
+#
+# step_description_and_time_first "START STEP 1: TRIMMING AND ERROR CORRECTION"
+# # Trimming is done with a separate subscript:
+# fastqc_on_R1_R2_and_optional_trimming.sh \
+# -T $trimmomatic -1 $forward_reads -2 $reverse_reads -t yes -p $threads -P $trimming
+# mv fastqc_on_R1_R2_and_optional_trimming_output/ step_1_trimming/
+#
+# # Use a line from the script "fastqc_on_R1_R2_and_optional_trimming.sh" to
+# # generate the variable baseout and change into the generated directory:
+# baseout=${forward_reads%_*} # Make basename
+# cd step_1_trimming/trimmomatic/trimmed_at_phred_${trimming}_${baseout##*/}
+#
+# # Running error correction module of SPAdes on all trimmed reads
+# step_description_and_time_first "ERROR-CORRECTING READS"
+# spades.py -1 *1P.fastq -2 *2P.fastq \
+# --only-error-correction --disable-gzip-output -o error_correction \
+# -t $threads
+# mv error_correction/corrected/*1P*.fastq \
+# error_correction/corrected/*2P*.fastq .
+# # Rename cryptic name of error-corrected reads:
+# R1=$(echo *1P.00.0_0.cor.fastq) \
+# && 	mv *1P.00.0_0.cor.fastq ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
+# sed -r -i 's/ BH:.{2,6}//g' ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
+# R2=$(echo *2P.00.0_0.cor.fastq) \
+# && mv *2P.00.0_0.cor.fastq ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
+# sed -r -i 's/ BH:.{2,6}//g' ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
+# rm -r error_correction/
+# step_description_and_time_first "FINISHED ERROR-CORRECTING READS"
+#
+# step_description_and_time_first "FINISHED STEP 1: TRIMMING AND ERROR CORRECTION"
+#
+# ######################### Step 2: rRNA sorting ################################
+#
+# step_description_and_time_first "START STEP 2: rRNA SORTING OF TRIMMED READS"
+#
+# mkdir step_2_rrna_sorting/
+# cd step_2_rrna_sorting/
+#
+# if [[ ${sorting} == "barrnap" || ${sorting} == "rrnafilter" ]]; then
+# 	step_description_and_time_first "CONVERT READS IN FASTA FORMAT"
+# 	mkdir reads_in_fasta_format/
+# 	fq2fa ../*1P_error_corrected.fastq reads_in_fasta_format/R1.fa
+# 	fq2fa ../*2P_error_corrected.fastq reads_in_fasta_format/R2.fa
+# 	step_description_and_time_first "READS TO FASTA CONVERSION DONE"
+# fi
+#
+# if [[ ${sorting} == "sortmerna" ]]; then
+# 	step_description_and_time_first "RUNNING SORTMERNA"
+# 	mkdir SORTMERNA/
+# 	sortmerna --ref $silva_sortmerna_bac_lsu \
+# 	--ref $silva_sortmerna_bac_ssu \
+# 	--ref $silva_sortmerna_arc_lsu \
+# 	--ref $silva_sortmerna_arc_ssu \
+# 	--ref $silva_sortmerna_euk_lsu \
+# 	--ref $silva_sortmerna_euk_ssu \
+# 	--ref $silva_sortmerna_rfam_5 \
+# 	--ref $silva_sortmerna_rfam_5_8 \
+#   --reads ../*1P_error_corrected.fastq --reads ../*2P_error_corrected.fastq \
+# 	--paired_in	--out2 -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA/ \
+# 	--threads 1:1:$threads
+# 	cd SORTMERNA/
+# 	step_description_and_time_first "SORTMERNA DONE"
+#
+# elif [[ ${sorting} == "rrnafilter" ]]; then
+# 	step_description_and_time_first "RUNNING rRNAFILTER"
+# 	mkdir rRNAFILTER/
+# 	cd rRNAFILTER/
+# 	# rRNAFilter only worked for us when we started it within the directory
+# 	# containing the .jar file. To simplify switching to that directory, we copy
+# 	# it from its location to the pwd:
+# 	cp -r $rrnafil .
+# 	cd rRNAFilter/
+# 	# We use 7GB for the rRNAFilter .jar, as shown in the rRNAFilter manual:
+# 	java -jar -Xmx7g rRNAFilter_commandline.jar \
+# 	-i ../../reads_in_fasta_format/R1.fa -r 0
+# 	java -jar -Xmx7g rRNAFilter_commandline.jar \
+# 	-i ../../reads_in_fasta_format/R2.fa -r 0
+# 	mv ../../reads_in_fasta_format/R*.fa_rRNA ..
+# 	cd ..
+# 	rm -r rRNAFilter
+# 	# We want to keep paired reads, so we extract all rRNA read names that were
+# 	# found in R1 and R2, save them as one list, and extract all reads from both
+# 	# R1 and R2 reads. That way, even if only one read from a pair was identified
+# 	# as rRNA, we keep the pair of reads:
+# 	fasta_to_tab R1.fa_rRNA | cut -f 1 | cut -f1 -d " " > names.txt
+# 	fasta_to_tab R2.fa_rRNA | cut -f 1 | cut -f1 -d " " >> names.txt
+# 	sort -u names.txt > names_sorted.txt
+# 	seqtk subseq ../reads_in_fasta_format/R1.fa names_sorted.txt \
+# 	> rRNAFilter_paired_R1.fa
+# 	seqtk subseq ../reads_in_fasta_format/R2.fa names_sorted.txt \
+# 	> rRNAFilter_paired_R2.fa
+# 	rm names_sorted.txt names.txt
+# 	step_description_and_time_first "rRNAFILTER DONE"
+#
+# elif [[ ${sorting} == "barrnap" ]]; then
+# 	step_description_and_time_first "RUNNING BARRNAP"
+# 	mkdir BARRNAP/
+# 	for kingdom in euk bac arc; do # barrnap needs to be run on kingdoms separately
+# 		step_description_and_time_first "RUNNING BARRNAP ON KINGDOM $kingdom AND R1 READS"
+# 		barrnap \
+# 		--quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
+# 		--threads $threads --outseq BARRNAP/${kingdom}_reads1.fa \
+# 		reads_in_fasta_format/R1.fa
+# 		step_description_and_time_first "RUNNING BARRNAP ON KINGDOM $kingdom AND R2 READS"
+# 		barrnap \
+# 		--quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
+# 		--threads $threads --outseq BARRNAP/${kingdom}_reads2.fa \
+# 		reads_in_fasta_format/R2.fa
+# 		rm reads_in_fasta_format/*.fai
+# 		sed 's/.*::/>/g' BARRNAP/${kingdom}_reads1.fa | sed 's/:[^:]*$//g' \
+# 		> BARRNAP/${kingdom}_reads1_edited.fa
+# 		sed 's/.*::/>/g' BARRNAP/${kingdom}_reads2.fa | sed 's/:[^:]*$//g' \
+# 		> BARRNAP/${kingdom}_reads2_edited.fa
+# 	done
+# 	# Concatenating results from the three kingdoms and R1 and R2 files
+# 	cat BARRNAP/*edited.fa > BARRNAP/all_reads.fa
+# 	# We want to keep paired reads, so we extract all rRNA read names that were
+# 	# found in R1 and R2 for the three kingdoms (in all_reads.fa), save them as
+# 	# one list, and extract all reads from both R1 and R2 reads. That way, even if
+# 	# only one read from a pair was identified as rRNA, we keep the pair of reads:
+# 	fasta_to_tab BARRNAP/all_reads.fa | cut -f 1 | cut -f1 -d " " | sort -u \
+# 	> BARRNAP/names_sorted.txt
+# 	seqtk subseq reads_in_fasta_format/R1.fa BARRNAP/names_sorted.txt \
+# 	> BARRNAP/barrnap_paired_R1.fa
+# 	seqtk subseq reads_in_fasta_format/R2.fa BARRNAP/names_sorted.txt \
+# 	> BARRNAP/barrnap_paired_R2.fa
+# 	rm BARRNAP/names_sorted.txt
+# 	cd BARRNAP/
+# 	step_description_and_time_first "BARRNAP DONE"
+#
+# elif [[ ${sorting} == "unsorted" ]]; then
+# 	step_description_and_time_first "MAKING FOLDER UNSORTED/ AND COPYING UNSORTED READS IN THERE TO KEEP THE FOLDER STRUCTURE CONSTANT"
+# 	mkdir UNSORTED/
+# 	cp ../*1P_error_corrected.fastq ../*2P_error_corrected.fastq UNSORTED/
+# 	cd UNSORTED/
+# fi
+#
+# step_description_and_time_first "FINISHED STEP 2: rRNA SORTING"
+#
+# ######################### Step 3: Assembly ################################
+#
+# step_description_and_time_first "START STEP 3: ASSEMBLY"
+#
+# mkdir step_3_assembly/
+# cd step_3_assembly/
+#
+# if [[ $sorting == 'rrnafilter' ]]; then
+# 	R1_sorted='rRNAFilter_paired_R1.fa'
+# 	R2_sorted='rRNAFilter_paired_R2.fa'
+# elif [[ $sorting == 'sortmerna' ]]; then
+# 	R1_sorted='out/aligned_fwd.fastq'
+# 	R2_sorted='out/aligned_rev.fastq'
+# elif [[ $sorting == 'barrnap' ]]; then
+# 	R1_sorted='barrnap_paired_R1.fa'
+# 	R2_sorted='barrnap_paired_R2.fa'
+# elif [[ $sorting == 'unsorted' ]]; then
+# 	R1_sorted='*1P_error_corrected.fastq'
+# 	R2_sorted='*2P_error_corrected.fastq'
+# fi
+#
+# if [[ $assembly == "spades" ]]; then
+# 	step_description_and_time_first "RUNNING SPADES"
+# 	mkdir SPADES/
+# 	spades.py -1 ../$R1_sorted -2 ../$R2_sorted --only-assembler \
+# 	-o SPADES/ -t $threads
+# 	cd SPADES/
+# 	step_description_and_time_first "SPADES DONE"
+#
+# elif [[ $assembly == "metaspades" ]]; then
+# 	step_description_and_time_first "RUNNING METASPADES"
+# 	mkdir METASPADES/
+# 	spades.py --meta -1 ../$R1_sorted -2 ../$R2_sorted --only-assembler \
+# 	-o METASPADES/ -t $threads
+# 	cd METASPADES/
+# 	step_description_and_time_first "METASPADES DONE"
+#
+# elif [[ $assembly == "megahit" ]]; then
+# 	step_description_and_time_first "RUNNING MEGAHIT"
+# 	megahit --presets meta-large -t $threads -1 ../$R1_sorted \
+# 	-2 ../$R2_sorted -o MEGAHIT/
+# 	cd MEGAHIT/
+# 	step_description_and_time_first "MEGAHIT DONE"
+#
+# elif [[ $assembly == "idba_ud" ]]; then
+# 	step_description_and_time_first "RUNNING IDBA_UD"
+# 	# Note: we had to edit IDBA prior to compiling it because it didn't work
+# 	# using long reads and the -l option. This seems to be a common problem and
+# 	# can be circumvented following for example the instructions in
+# 	# http://seqanswers.com/forums/showthread.php?t=29109, and see also
+# 	# https://github.com/loneknightpy/idba/issues/26
+# 	# IDBA_UD only takes interleaved fasta files
+# 	fq2fa --merge --filter ../$R1_sorted ../$R2_sorted idba_ud_input.fa
+# 	idba_ud --num_threads $threads -r idba_ud_input.fa -o IDBA_UD/
+# 	mv idba_ud_input.fa IDBA_UD/
+# 	cd IDBA_UD/
+# 	step_description_and_time_first "IDBA_UD DONE"
+#
+# elif [[ $assembly == "rnaspades" ]]; then
+# 	step_description_and_time_first "RUNNING RNASPADES"
+# 	mkdir RNASPADES/
+# 	spades.py --rna -1 ../$R1_sorted -2 ../$R2_sorted --only-assembler \
+# 	-o RNASPADES/ -t $threads
+# 	cd RNASPADES/
+# 	step_description_and_time_first "RNASPADES DONE"
+#
+# elif [[ $assembly == "idba_tran" ]]; then
+# 	step_description_and_time_first "RUNNING IDBA_TRAN"
+# 	# IDBA_TRAN only takes interleaved fasta files
+# 	fq2fa --merge ../$R1_sorted ../$R2_sorted idba_tran_input.fa
+# 	idba_tran --num_threads $threads -l idba_tran_input.fa -o IDBA_TRAN/
+# 	mv idba_tran_input.fa IDBA_TRAN/
+# 	cd IDBA_TRAN
+# 	step_description_and_time_first "IDBA_TRAN DONE"
+#
+# elif [[ $assembly == "trinity" ]]; then
+# 	step_description_and_time_first "RUNNING TRINITY"
+# 	# Barrnap and rRNAFilter output fasta files which has to be indicated to Trinity:
+#   if [[ $sorting == "rrnafilter" || $sorting == "barrnap" ]]; then
+# 		Trinity --seqType fa --max_memory 20G --left ../$R1_sorted --right \
+#     ../$R2_sorted --CPU $threads --output TRINITY/ --NO_SEQTK
+#   else
+#     Trinity --seqType fq --max_memory 20G --left ../$R1_sorted --right \
+#     ../$R2_sorted --CPU $threads --output TRINITY/ --NO_SEQTK
+#   fi
+#   cat TRINITY/Trinity.fasta | sed 's/ len/_len/g' \
+# 	> TRINITY/Trinity_with_length.fasta  # Edit for universal format
+# 	cd TRINITY/
+# 	step_description_and_time_first "TRINITY DONE"
+#
+# elif [[ $assembly == "transabyss" ]]; then
+# 	step_description_and_time_first "RUNNING TRANSABYSS"
+#   transabyss --pe ../$R1_sorted ../$R2_sorted --threads $threads \
+#   --outdir TRANSABYSS/
+#   sed 's/ /_/g' TRANSABYSS/transabyss-final.fa \
+# 	> TRANSABYSS/transabyss-final_edited.fa # Edit for universal format
+# 	cd TRANSABYSS/
+# 	step_description_and_time_first "TRANSABYSS DONE"
+# fi
+#
+# step_description_and_time_first "FINISHED STEP 3: ASSEMBLY"
+#
+# ######################## Step 4: Mapping ################################
+#
+# step_description_and_time_first "START STEP 4: MAPPING"
+#
+# mkdir step_4_mapping/
+# mkdir step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/
+# cd step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/
+#
+# if [[ $assembly == 'spades' ]]; then
+# 	scaffolds='scaffolds.fasta'
+# elif [[ $assembly == 'metaspades' ]]; then
+# 	scaffolds='scaffolds.fasta'
+# elif [[ $assembly == 'megahit' ]]; then
+# 	scaffolds='final.contigs.fa'
+# elif [[ $assembly == 'idba_ud' ]]; then
+# 	scaffolds='scaffold.fa'
+# elif [[ $assembly == 'rnaspades' ]]; then
+# 	scaffolds='transcripts.fasta'
+# elif [[ $assembly == 'idba_tran' ]]; then
+# 	scaffolds='contig.fa'
+# elif [[ $assembly == 'trinity' ]]; then
+# 	scaffolds='Trinity_with_length.fasta'
+# elif [[ $assembly == 'transabyss' ]]; then
+# 	scaffolds='transabyss-final_edited.fa'
+# fi
+#
+# if [[ $mapping == 'bwa' ]]; then
+#   step_description_and_time_first "Starting bwa index"
+#   bwa index -p bwa_index ../../$scaffolds
+#   step_description_and_time_first "bwa index complete. Starting bwa mem"
+#   bwa mem -t $threads bwa_index ../../../../../../*1P_error_corrected.fastq \
+# 	../../../../../../*2P_error_corrected.fastq > ${mapping}_output.sam
+#   rm bwa_index*
+# 	step_description_and_time_first "bwa mem complete"
+# elif [[ $mapping == 'bowtie2' ]]; then
+#   step_description_and_time_first "Starting bowtie2 index"
+# 	bowtie2-build -f ../../$scaffolds bowtie_index
+# 	step_description_and_time_first "bowtie2 index complete. Starting bowtie2"
+# 	bowtie2 -q -x bowtie_index -1 ../../../../../../*1P_error_corrected.fastq \
+# 	-2 ../../../../../../*2P_error_corrected.fastq -S ${mapping}_output.sam \
+# 	-p $threads
+# 	rm bowtie_index*
+#   step_description_and_time_first "bowtie2 complete"
+# fi
+#
+# # Editing the mapper outputs:
+# samtools view -F 4 ${mapping}_output.sam | cut -f3	| sort | uniq -c \
+# | column -t | sed 's/  */\t/g' > out_mapped_${mapping}.txt
+# samtools view -f 4 ${mapping}_output.sam | cut -f3 |	sort | uniq -c \
+# | column -t | sed 's/  */\t/g' > out_unmapped_${mapping}.txt
+# echo -e "counts\tsequence_name" > merge_input_mapped_${mapping}.txt \
+# && cat out_mapped_${mapping}.txt >> merge_input_mapped_${mapping}.txt
+# echo -e "counts\tsequence_name" > merge_input_unmapped_${mapping}.txt \
+# && cat out_unmapped_${mapping}.txt >> merge_input_unmapped_${mapping}.txt
+#
+# rm out_*mapped_${mapping}.txt
+#
+# # Moving back to assembler directory:
+# cd ../../
+#
+# step_description_and_time_first "FINISHED STEP 4: MAPPING"
 
 ######################### Steps 5 and 6.1: Picking a referencd DB and taxonomic classification ################################
 
@@ -509,7 +530,7 @@ fi
 
 if [[ $classification == "blast_first_hit" || $classification == "blast_filtered" ]]; then
 	step_description_and_time_first "RUNNING BLAST WITH DATABASE $blastDB"
-	blastn -query ../../../../$scaffolds -db $blastDB -out blast_output.txt \
+	blastn -query ${base_directory}/${scaffolds} -db $blastDB -out blast_output.txt \
 	-outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
 	-evalue 1e-05 -num_threads $threads
 	step_description_and_time_first "BLAST WITH DATABASE $blastDB DONE"
@@ -532,7 +553,7 @@ elif [[ $classification == "blast_filtered" ]]; then
 elif [[ $classification == "kraken2" ]]; then
 	step_description_and_time_first "RUNNING KRAKEN2 WITH DATABASE $krakenDB"
 	# Run kraken2
-	kraken2 --db $krakenDB --threads $threads ../../../../$scaffolds \
+	kraken2 --db $krakenDB --threads $threads ${base_directory}/${scaffolds} \
 	--report kraken2_report.txt	> kraken2_output.txt
 
 	if [[ $db == 'silva' ]]; then
@@ -640,19 +661,19 @@ if [[ $assembly == 'spades' || $assembly == 'metaspades' \
 || $assembly == 'idba_ud' || $assembly == 'rnaspades' \
 || $assembly == 'transabyss' ]]; then
 	# Change the sequences' fasta format to tab delimited:
-	fasta_to_tab ../../../../../../${scaffolds} > tmp
+	fasta_to_tab ${base_directory}/${scaffolds} > tmp
 	# Add header name so that we can later merge on outer with a python script:
 	echo -e "sequence_name\tsequence" > ${assembly}_tab_to_merge.txt \
 	&& cat tmp >> ${assembly}_tab_to_merge.txt
 	# And remove intermediate file:
 	rm tmp
 	# Now the scaffold names can be merged with the mapper output:
-	merge_on_outer.py ../../../../../../step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/merge_input_mapped_${mapping}.txt \
+	merge_on_outer.py ${base_directory}/merge_input_mapped_${mapping}.txt \
 	${assembly}_tab_to_merge.txt ${assembly}_final_${mapping}_merge_ready.txt
 
 elif [[ $assembly == 'megahit' ]]; then
 	# Change the sequences' fasta format to tab delimited:
-	fasta_to_tab ../../../../../../${scaffolds} \
+	fasta_to_tab ${base_directory}/${scaffolds} \
 	| sed 's/ /\t/g' | cut -f1,4,5 | sed 's/len=//g' \
 	> tmp
 	# Add header name so that we can later merge on outer with a python script:
@@ -661,12 +682,12 @@ elif [[ $assembly == 'megahit' ]]; then
 	# And remove intermediate file:
 	rm tmp
 	# Now the scaffold names can be merged with the mapper output:
-	merge_on_outer.py ../../../../../../step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/merge_input_mapped_${mapping}.txt \
+	merge_on_outer.py ${base_directory}/merge_input_mapped_${mapping}.txt \
 	${assembly}_tab_to_merge.txt ${assembly}_final_${mapping}_merge_ready.txt
 
 elif [[ $assembly == 'idba_tran' ]]; then
 	# Change the sequences' fasta format to tab delimited:
-	fasta_to_tab ../../../../../../${scaffolds} \
+	fasta_to_tab ${base_directory}/${scaffolds} \
 	| sed 's/_/\t/2'  | sed 's/_/\t/3' | sed 's/ /\t/g' | cut -f1,3,5,6 \
 	> tmp
 	# Add header name so that we can later merge on outer with a python script:
@@ -675,12 +696,12 @@ elif [[ $assembly == 'idba_tran' ]]; then
 	# And remove intermediate file:
 	rm tmp
 	# Now the scaffold names can be merged with the mapper output:
-	merge_on_outer.py ../../../../../../step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/merge_input_mapped_${mapping}.txt \
+	merge_on_outer.py ${base_directory}/merge_input_mapped_${mapping}.txt \
 	${assembly}_tab_to_merge.txt ${assembly}_final_${mapping}_merge_ready.txt
 
 elif [[ $assembly == 'trinity' ]]; then
 	# Change the sequences' fasta format to tab delimited:
-	fasta_to_tab ../../../../../../${scaffolds} \
+	fasta_to_tab ${base_directory}/${scaffolds} \
 	| sed 's/ /\t/1' | cut -f1,3 > tmp
 	# Add header name so that we can later merge on outer with a python script:
 	echo -e "sequence_name\tsequence" > ${assembly}_tab_to_merge.txt \
@@ -688,7 +709,7 @@ elif [[ $assembly == 'trinity' ]]; then
 	# And remove intermediate file:
 	rm tmp
 	# Now the scaffold names can be merged with the mapper output:
-	merge_on_outer.py ../../../../../../step_4_mapping/$(echo $mapping | tr '[:lower:]' '[:upper:]')/merge_input_mapped_${mapping}.txt \
+	merge_on_outer.py ${base_directory}/merge_input_mapped_${mapping}.txt \
 	${assembly}_tab_to_merge.txt ${assembly}_final_${mapping}_merge_ready.txt
 fi
 
