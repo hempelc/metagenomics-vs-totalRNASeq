@@ -541,9 +541,9 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 					echo -e "sequence_name\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
 			   	> kraken2_final.txt
 					while read line; do
-						pre=$(cut -f 1-3 -d ' ' <<< $line)
-						spec=$(cut -f 4 -d ' ' <<< $line | cut -f 1-2 -d ' ') # Cut down to first two words
-						post=$(cut -f 5- -d ' ' <<< $line)
+						pre=$(cut -f 1-3 <<< "${line}")
+						spec=$(cut -f 4 <<< "${line}" | cut -f 1-2 -d ' ') # Cut down to first two words
+						post=$(cut -f 5- <<< "${line}")
 						if [[ "${spec:0:1}" =~ [a-z] ]]; then # if first letter is not capitalized (not in format "Genus species")
 							spec="NA"
 						elif [[ $(wc -w <<< "${spec}") != 2 ]]; then # if only one word (not in format "Genus species")
@@ -569,9 +569,9 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 					echo -e "sequence_name\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
 					> kraken2_final.txt
 					while read line; do
-						pre=$(cut -f 1-3 -d ' ' <<< $line)
-						spec=$(cut -f 4 -d ' ' <<< $line | cut -f 1-2 -d ' ') # Cut down to first two words
-						post=$(cut -f 5- -d ' ' <<< $line)
+						pre=$(cut -f 1-3 <<< "${line}")
+						spec=$(cut -f 4 <<< "${line}" | cut -f 1-2 -d ' ') # Cut down to first two words
+						post=$(cut -f 5- <<< "${line}")
 						if [[ "${spec:0:1}" =~ [a-z] ]]; then # if first letter is not capitalized (not in format "Genus species")
 							spec="NA"
 						elif [[ $(wc -w <<< "${spec}") != 2 ]]; then # if only one word (not in format "Genus species")
