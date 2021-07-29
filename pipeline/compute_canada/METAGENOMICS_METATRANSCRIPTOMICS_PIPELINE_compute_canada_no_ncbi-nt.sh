@@ -550,7 +550,7 @@ elif [[ $classification == "kraken2" ]]; then
 	cut -f 2-3 kraken2_output.txt > kraken2_output_contig_taxid.txt # Isolate contig names and taxids
 	# We use a separate script to assign taxonomy to NCBI taxids:
 	assign_taxonomy_to_NCBI_staxids.sh -b kraken2_output_contig_taxid.txt \
-	-c 2 -e ~/.etetoolkit/taxa.sqlite
+	-c 2 -e $etetoolkit
 	sed -i '1d' kraken2_output_contig_taxid_with_taxonomy.txt # Remove header
 	sed -i 's/Unknown/NA/g' kraken2_output_contig_taxid_with_taxonomy.txt # Change unknown to NA
 

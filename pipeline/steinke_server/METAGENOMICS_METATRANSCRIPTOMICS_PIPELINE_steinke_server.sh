@@ -437,8 +437,8 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 			# For loop 4: loop over the reference DBs for taxonomic classification:
 			for DB in SILVA NCBI_NT; do
 				if [[ $DB == "SILVA" ]]; then
-					krakenDB="/hdd2/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Sep_2020/"
-					blastDB="/hdd2/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta"
+					krakenDB="/hdd2/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Jul_2021/"
+					blastDB="/hdd2/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Jul_2021/blastdb"
 				else # NCBI_NT
 					krakenDB="/hdd2/databases/kraken2_nt_DB"
 					blastDB="/hdd2/databases/nt_database_feb_2020_indexed/nt"

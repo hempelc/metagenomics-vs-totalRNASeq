@@ -34,8 +34,8 @@ echo -e "Job array ID is ${SLURM_ARRAY_TASK_ID}"
 
 # Copy all necessary DBs, reads, and files to temporary dir on server (SLURM_TMPDIR)
 echo "[$(date +%H:%M:%S)] Copying started [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
-cp -r ${BASE}/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Sep_2020 \
-${BASE}/databases/NCBI_staxids*_scientific.txt ${BASE}/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020 \
+cp -r ${BASE}/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Jul_2021 \
+${BASE}/databases/NCBI_staxids*_scientific.txt ${BASE}/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Jul_2021 \
 ${BASE}/databases/SILVA_paths_and_taxids.txt ${BASE}/databases/sortmerna_silva_databases \
 ${BASE}/programs/ete3_env ${HOME}/.etetoolkit \
 ${R1} ${R2} ${BASE}/split_files/file_chunk${SLURM_ARRAY_TASK_ID}.txt \
@@ -80,8 +80,8 @@ run_it(){
   METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_compute_canada_no_ncbi-nt.sh \
   -1 ${R1} -2 ${R2} -P ${pipeline} \
   -N ${SLURM_TMPDIR}/nt_database_feb_2020_indexed/nt \
-  -S ${SLURM_TMPDIR}/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta \
-  -s ${SLURM_TMPDIR}/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Sep_2020 \
+  -S ${SLURM_TMPDIR}/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Jul_2021/blastdb \
+  -s ${SLURM_TMPDIR}/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Jul_2021 \
   -n ${SLURM_TMPDIR}/kraken2_nt_DB \
   -a ${SLURM_TMPDIR}/sortmerna_silva_databases/silva-arc-16s-id95.fasta \
   -b ${SLURM_TMPDIR}/sortmerna_silva_databases/silva-bac-16s-id90.fasta \

@@ -73,8 +73,8 @@ run_it(){
   METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_compute_canada_with_ncbi-nt.sh \
   -1 ${R1} -2 ${R2} -P ${pipeline} \
   -N ${DBS}/nt_database_feb_2020_indexed/nt \
-  -S ${DBS}/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta \
-  -s ${DBS}/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Sep_2020 \
+  -S ${DBS}/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Jul_2021/blastdb \
+  -s ${DBS}/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Jul_2021 \
   -n ${DBS}/kraken2_nt_DB \
   -a ${DBS}/sortmerna_silva_databases/silva-arc-16s-id95.fasta \
   -b ${DBS}/sortmerna_silva_databases/silva-bac-16s-id90.fasta \
