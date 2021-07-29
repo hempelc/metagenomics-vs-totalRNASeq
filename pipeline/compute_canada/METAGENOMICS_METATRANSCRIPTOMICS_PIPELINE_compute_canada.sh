@@ -533,94 +533,33 @@ elif [[ $classification == "kraken2" ]]; then
 	step_description_and_time_first "RUNNING KRAKEN2 WITH DATABASE $krakenDB"
 	# Run kraken2
 	kraken2 --db $krakenDB --threads $threads ../../../../../$scaffolds \
-	--report kraken2_report.txt	> kraken2_output.txt
+	> kraken2_output.txt
 
-	if [[ $db == 'silva' ]]; then
-		# Now we're gonna edit the output so that is has the same format as
-		# CREST output, since we already have a script to deal with
-		# SILVA CREST output/taxonomy
-		# Translate kraken2 output into full taxonomy path:
-		kraken2_translate.py  --classification kraken2_output.txt \
-		--report kraken2_report.txt --output kraken2_translate_result.txt
-		# Modify translated output format to match SILVA taxonomy paths we have the NCBI staxid for:
-		cut -f 3 -d , kraken2_translate_result.txt \
-		| sed 's/^[A-Za-z0-9]*__root|[A-Za-z0-9]*__//g' | sed 's/|[A-Za-z0-9]*__/;/g' \
-		| sed 's/$/;/g' | sed 's/unclassified/No hits/g' | sed 's/R__root/No hits/g' \
-		| sed '1d' > kraken2_translate_result_edited.txt
-		# Access the SILVA taxonomy file and remove rows with duplicate paths (relict from merging SSU and LSU databases):
-		awk '!a[$1]++' $silva_path_taxid > tmp && mv tmp SILVA_paths_and_taxids.txt && rm tmp
-		# Merge your kraken2 taxids with the SILVA path file to assign a SILVA
-		# taxonomy path to every kraken2 hit:
-		mergeFilesOnColumn.pl SILVA_paths_and_taxids.txt kraken2_translate_result_edited.txt 1 1 \
-		| cut -f 2- | sed 's/;$//g' > merged.txt
-		# Extract the sequence names from the kraken2 output and generate a
-		# final file with sequence name, taxid, and SILVA path:
-		cut -f 3 kraken2_output.txt > names.txt
-		paste names.txt merged.txt > kraken2_SILVA_formatted.txt
-		# This file has now the same format as the output of CREST and can be
-		# translated into NCBI taxonomy the same way as CREST output
+	cut -f 2-3 kraken2_output.txt > kraken2_output_contig_taxid.txt # Isolate contig names and taxids
+	# We use a separate script to assign taxonomy to NCBI taxids:
+	assign_taxonomy_to_NCBI_staxids.sh -b kraken2_output_contig_taxid.txt \
+	-c 2 -e ~/.etetoolkit/taxa.sqlite
+	sed -i '1d' kraken2_output_contig_taxid_with_taxonomy.txt # Remove header
+	sed -i 's/Unknown/NA/g' kraken2_output_contig_taxid_with_taxonomy.txt # Change unknown to NA
 
-		# We run a separate script that was initially made to deal with the
-		# SILVA taxonomy of CREST output, by translating SILVA taxonomic paths
-		# into NCBI taxids, and use that script on the formatted kraken2 output:
-    assign_NCBI_staxids_to_CREST_v4.py $ncbi_scientific $ncbi_non_scientific \
-    kraken2_SILVA_formatted.txt kraken2_SILVA_formatted_with_NCBI_taxids.txt
-    mergeFilesOnColumn.pl kraken2_SILVA_formatted_with_NCBI_taxids.txt \
-    kraken2_SILVA_formatted.txt 1 1 | cut -f3 > NCBItaxids.txt # Merge SILVA output with taxids and extract taxids
-		# We use a separate script to assign taxonomy to NCBI taxids:
-    assign_taxonomy_to_NCBI_staxids.sh -b NCBItaxids.txt -c 1	-e $etetoolkit
-    sed -i '1d' NCBItaxids_with_taxonomy.txt # Remove header
-    cut -f2 kraken2_output.txt > contig_names.txt # Get contig names from original kraken2 output
-   	paste contig_names.txt NCBItaxids_with_taxonomy.txt | sed 's/Unknown/NA/g' \
-	 	> contigs_with_NCBItaxids_and_taxonomy.txt # Add contig names to taxonomy file
+	# Turn lowest_hit into species
+	echo -e "sequence_name\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
+	> kraken2_final.txt
+	while read line; do
+		pre=$(cut -f 1-3 <<< $line)
+		spec=$(cut -f 4 <<< $line | cut -f 1-2 -d ' ') # Cut down to first two words
+		post=$(cut -f 5- <<< $line)
+		if [[ "${spec:0:1}" =~ [a-z] ]]; then # if first letter is not capitalized (not in format "Genus species")
+			spec="NA"
+		elif [[ $(wc -w <<< "${spec}") != 2 ]]; then # if only one word (not in format "Genus species")
+			spec="NA"
+		fi
+		echo -e "${pre}\t${spec}\t${post}" >> kraken2_final.txt
+	done <kraken2_output_contig_taxid_with_taxonomy.txt
 
-  	# Turn lowest_hit into species
-		echo -e "sequence_name\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
-   	> kraken2_final.txt
-		while read line; do
-			pre=$(cut -f 1-3 <<< $line)
-			spec=$(cut -f 4 <<< $line | cut -f 1-2 -d ' ') # Cut down to first two words
-			post=$(cut -f 5- <<< $line)
-			if [[ "${spec:0:1}" =~ [a-z] ]]; then # if first letter is not capitalized (not in format "Genus species")
-				spec="NA"
-			elif [[ $(wc -w <<< "${spec}") != 2 ]]; then # if only one word (not in format "Genus species")
-				spec="NA"
-			fi
-			echo -e "${pre}\t${spec}\t${post}" >> kraken2_final.txt
-		done <contigs_with_NCBItaxids_and_taxonomy.txt
-
-    # Sort files
-   	mkdir intermediate_files
-    mv kraken2_output.txt kraken2_taxids.txt merged* names.txt \
-		kraken2_SILVA_formatted* NCBItaxids* contig* intermediate_files/
-
-	else # NCBI_NT
-		cut -f 2-3 kraken2_output.txt > kraken2_output_contig_taxid.txt # Isolate contig names and taxids
-		# We use a separate script to assign taxonomy to NCBI taxids:
-		assign_taxonomy_to_NCBI_staxids.sh -b kraken2_output_contig_taxid.txt \
-		-c 2 -e ~/.etetoolkit/taxa.sqlite
-		sed -i '1d' kraken2_output_contig_taxid_with_taxonomy.txt # Remove header
-		sed -i 's/Unknown/NA/g' kraken2_output_contig_taxid_with_taxonomy.txt # Change unknown to NA
-
-		# Turn lowest_hit into species
-		echo -e "sequence_name\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
-		> kraken2_final.txt
-		while read line; do
-			pre=$(cut -f 1-3 <<< $line)
-			spec=$(cut -f 4 <<< $line | cut -f 1-2 -d ' ') # Cut down to first two words
-			post=$(cut -f 5- <<< $line)
-			if [[ "${spec:0:1}" =~ [a-z] ]]; then # if first letter is not capitalized (not in format "Genus species")
-				spec="NA"
-			elif [[ $(wc -w <<< "${spec}") != 2 ]]; then # if only one word (not in format "Genus species")
-				spec="NA"
-			fi
-			echo -e "${pre}\t${spec}\t${post}" >> kraken2_final.txt
-		done <kraken2_output_contig_taxid_with_taxonomy.txt
-
-		# Sort files
-		mkdir intermediate_files
-		mv kraken2_output* intermediate_files/
-	fi
+	# Sort files
+	mkdir intermediate_files
+	mv kraken2_output* intermediate_files/
 
 step_description_and_time_first "KRAKEN2 WITH DATABASE $krakenDB DONE"
 fi
