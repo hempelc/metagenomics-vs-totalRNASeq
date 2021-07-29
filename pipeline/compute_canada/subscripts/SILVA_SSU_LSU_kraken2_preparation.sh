@@ -60,7 +60,7 @@ mergeFilesOnColumn.pl SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_edited.tab acc
 # NCBI (like names.dmp, nodes.dmp, and seqid2taxid from NCBI). We're going to do
 # that in python:
 
-python - << EOF # switch to python
+python3 - << EOF # switch to python
 
 import sys,re,pandas as pd, numpy as np, csv
 

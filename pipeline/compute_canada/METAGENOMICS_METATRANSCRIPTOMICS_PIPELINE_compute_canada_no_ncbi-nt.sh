@@ -603,7 +603,7 @@ elif [[ $classification == "kraken2" ]]; then
 
     # Sort files
    	mkdir intermediate_files
-    mv kraken2_output.txt kraken2_taxids.txt merged* names.txt \
+    mv kraken2_output.txt merged* names.txt \
 		kraken2_SILVA_formatted* NCBItaxids* contig* intermediate_files/
 
 	else # NCBI_NT

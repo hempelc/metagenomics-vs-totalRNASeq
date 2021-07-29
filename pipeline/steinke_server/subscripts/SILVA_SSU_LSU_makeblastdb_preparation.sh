@@ -19,12 +19,18 @@ unzip taxdmp.zip
 # Edit SILVA taxonomy file:
 # SILVA taxonomy file needs to have two columns, first one with accession number
 # and second one with taxonomy path
-tail -n +2 taxmap_slv_ssu_ref_nr_138.1.txt > taxmap_slv_ssu_lsu_ref_nr_138.1.txt
-tail -n +2 taxmap_slv_lsu_ref_nr_138.1.txt >> taxmap_slv_ssu_lsu_ref_nr_138.1.txt
+cat taxmap_slv_ssu_ref_nr_138.1.txt > taxmap_slv_ssu_lsu_ref_nr_138.1.txt
+tail -n +2 taxmap_slv_ssu_ref_nr_138.1.txt | cut -f1 > grep_list.txt
+tail -n +2 taxmap_slv_lsu_ref_nr_138.1.txt | grep -v -f grep_list.txt >> taxmap_slv_ssu_lsu_ref_nr_138.1.txt
 sed "s/ <[a-zA-Z -,.&:'0-9]*>//g" taxmap_slv_ssu_lsu_ref_nr_138.1.txt \
 | sed 's/;\t/;/g' | cut -f 1,4 \
 > taxmap_slv_ssu_lsu_ref_nr_138_edited_for_NCBI_staxid_script.txt
   # 1. concatenate ssu and lsu taxmap files into one ssu_lsu file with one header
+	#		 note: as of 04 Sep 2020, the available SILVA LSU and SSU taxmap files contain
+	# 	 duplicate accession IDs with different taxids in the SSU and LSU files. We're
+	#		 going to use all accession IDs from the SSU file, check which additional ones
+  # 	 are in the LSU file (about 23,000 are not in the SSU file) and just take these
+	# 	 extra ones from the LSU taxmap file to not overwrite SSU taxids with LSU taxids:
   # 2. removes <genus>, <family> etc. from taxonomic paths (otherwise the SILVA
   #    taxonomy won't match the NCBI taxonomy)
   # 3. removes the last tab of each line so that taxonomy path is in one column

@@ -554,7 +554,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
 			    # Sort files
 			   	mkdir intermediate_files
-		      mv kraken2_output.txt kraken2_taxids.txt SILVA_paths_and_taxids.txt merged* \
+		      mv kraken2_output.txt SILVA_paths_and_taxids.txt merged* \
 		      names.txt kraken2_SILVA_formatted* NCBItaxids* contig* intermediate_files/
 
 	      else # NCBI_NT

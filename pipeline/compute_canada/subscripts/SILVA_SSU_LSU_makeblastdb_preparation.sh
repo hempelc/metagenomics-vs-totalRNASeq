@@ -75,7 +75,7 @@ sed "s/ <[a-zA-Z -,.&:'0-9]*>//g" names.dmp | grep -v 'scientific name' \
 # If SILVA taxonomy is not in exact scientific names, then we match against these
 # to check for synonyms etc.
 
-python - << EOF # switch to python
+python3 - << EOF # switch to python
 
 print("Processing files in python...")
 
