@@ -473,7 +473,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				step_description_and_time_second "RUNNING KRAKEN2 WITH DATABASE $DB"
 				mkdir KRAKEN2/
 				cd KRAKEN2/
-	     	# Run kraken2
+			     	# Run kraken2
 				kraken2 --db $krakenDB --threads $threads ../../../../../$scaffolds \
 				> kraken2_output.txt
 
