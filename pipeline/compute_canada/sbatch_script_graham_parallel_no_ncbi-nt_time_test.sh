@@ -1,21 +1,17 @@
 #!/bin/bash
 
 #SBATCH --account=def-dsteinke
-#SBATCH --ntasks-per-node=16
-#SBATCH --mem=24G
-#SBATCH --array=1-140
-#SBATCH --time=35:00:00
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=0
+#SBATCH --time=4:00:00
 
 # A script to run Chris Hempel's METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE in
 # parallel on graham
 
 # Uses full graham nodes with 32 cores and all available memory (903 nodes available)
 
-# --array=1-64 is set to 64 to generate 64 jobs for 64 bundled pipeline combinations
-
-# --time=35:00:00 is set to 35h because each pipeline runs about 3h (max) and I
-# give it 1h buffer, we run 8 pipelines per bundle, and I give the DB copying 3h
-# with buffer, equalling 4x8+3=35h
+# Record env
+parallel --record-env
 
 # Load modules
 module load StdEnv/2020 gcc/9.3.0 openmpi/4.0.3 trimmomatic/0.39 fastqc/0.11.9 \
@@ -26,20 +22,16 @@ leveldb/1.22 trans-abyss/2.0.1 megahit/1.2.9 bedtools/2.29.2
 
 # Set some general variables
 memory="$((${SLURM_MEM_PER_NODE} / 1024))G" # $SLURM_MEM_PER_NODE is in Megabyte
-threads=${SLURM_NTASKS_PER_NODE}
 BASE="/home/hempelc/projects/def-dsteinke/hempelc/pilot_project"
 start=$(date +%s)
 
-# Echo array ID
-echo -e "Job array ID is ${SLURM_ARRAY_TASK_ID}"
-
-# Copy all necessary DBs and reads to temporary dir on server (SLURM_TMPDIR)
+# Copy all necessary DBs, reads, and files to temporary dir on server (SLURM_TMPDIR)
 echo "[$(date +%H:%M:%S)] Copying started [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 cp -r ${BASE}/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Sep_2020 \
 ${BASE}/databases/NCBI_staxids*_scientific.txt ${BASE}/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020 \
 ${BASE}/databases/SILVA_paths_and_taxids.txt ${BASE}/databases/sortmerna_silva_databases \
 ${BASE}/programs/ete3_env ${HOME}/.etetoolkit \
-${R1} ${R2} ${BASE}/split_files_low/file_chunk_${SLURM_ARRAY_TASK_ID} \
+${R1} ${R2} ${BASE}/split_files/file_chunk13.txt \
 ${BASE}/programs/rRNAFilter ${SLURM_TMPDIR}
 echo "[$(date +%H:%M:%S)] Copying finished [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 
@@ -48,29 +40,37 @@ R1=${SLURM_TMPDIR}/$(basename ${R1})
 R2=${SLURM_TMPDIR}/$(basename ${R2})
 DBS=${SLURM_TMPDIR}/databases
 
-# Activate copies environment
+# Activate copied environment
 source ${SLURM_TMPDIR}/ete3_env/bin/activate
 
 # Assign each job in array to bundle of pipelines
-jobfile=${SLURM_TMPDIR}/file_chunk_${SLURM_ARRAY_TASK_ID}
-
-# Save path for directory in which pipeline was started
-cwd1=${PWD}
+jobfile=${SLURM_TMPDIR}/file_chunk13.txt
 
 # Run pipeline for each line in chunk file, i.e., each bundled pipeline
-echo "[$(date +%H:%M:%S)] Bundled pipelines started [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]"
+echo "[$(date +%H:%M:%S)] Bundled pipelines started [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 echo "Pipelines that are to be run are:"
 cat ${jobfile}
 
-for line in {1..8}; do
-  pipeline=$(sed -n ${line}p ${jobfile})
-  echo -e "\n\n ================ [$(date +%H:%M:%S)] START PIPELINE ${pipeline} [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m] ==============\n\n"
+# Define function to run pipelines in parallel
+run_it(){
+  pipeline=$1
+  R1=$2
+  R2=$3
+  memory=$4
+  threads=$5
+  start=$6
+
+  # Save path for directory in which pipeline was started
+  cwd1=${PWD}
+
+  mkdir -p ${pipeline}
+  cd ${SLURM_TMPDIR}
   mkdir -p ${pipeline}
   cd ${pipeline}
-  cwd2=${PWD}
-  cd ${SLURM_TMPDIR}
 
-  METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_compute_canada.sh \
+  echo -e "\n\n ================ [$(date +%H:%M:%S)] START PIPELINE ${pipeline} [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m] ==============\n\n"
+
+  METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_compute_canada_no_ncbi-nt.sh \
   -1 ${R1} -2 ${R2} -P ${pipeline} \
   -N ${SLURM_TMPDIR}/nt_database_feb_2020_indexed/nt \
   -S ${SLURM_TMPDIR}/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Sep_2020/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta \
@@ -89,13 +89,25 @@ for line in {1..8}; do
   -f ${SLURM_TMPDIR}/NCBI_staxids_non_scientific.txt \
   -t ${SLURM_TMPDIR}/.etetoolkit/taxa.sqlite \
   -T ${EBROOTTRIMMOMATIC}/trimmomatic-0.39.jar \
-  -i ${SLURM_TMPDIR}/rRNAFilter
+  -i ${SLURM_TMPDIR}/rRNAFilter \
   -m ${memory} \
   -p ${threads}
 
-  cp METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/* ${cwd2}
-  rm -r METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
-  cd ${cwd1}
+  cp ${SLURM_TMPDIR}/${pipeline}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/* ${cwd1}/${pipeline}
+  rm -r ${SLURM_TMPDIR}/${pipeline}/
+
   echo -e "\n\n ================ [$(date +%H:%M:%S)] END PIPELINE ${pipeline} [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m] ==============\n\n"
-done
+}
+
+# Set threads specifically before exporting the function
+threads=${SLURM_CPUS_PER_TASK}
+
+# Exporting the function
+export -f run_it
+
+# And dividing the numbers of threads by 8 for 8 parallel processes
+in_threads=$(( ${threads} / 16 ))
+
+parallel --env _ -j 16 run_it {} ${R1} ${R2} ${memory} ${in_threads} ${start} :::: ${jobfile}
+
 echo "[$(date +%H:%M:%S)] Bundled pipelines ended in $((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m"

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # A simple script to merge two files on columns that exist in both files, keeps
 # all rows, and adds 0 for read counts if a contig has no mapped reads.
