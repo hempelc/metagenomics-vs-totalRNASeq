@@ -89,7 +89,7 @@ run_it(){
   -f ${DBS}/NCBI_staxids_non_scientific.txt \
   -t ${SLURM_TMPDIR}/.etetoolkit/taxa.sqlite \
   -T ${EBROOTTRIMMOMATIC}/trimmomatic-0.39.jar \
-  -i ${SLURM_TMPDIR}/rRNAFilter
+  -i ${SLURM_TMPDIR}/rRNAFilter \
   -m ${memory} \
   -p ${threads}
 

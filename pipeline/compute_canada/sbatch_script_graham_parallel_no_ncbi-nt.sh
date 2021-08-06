@@ -27,6 +27,7 @@ leveldb/1.22 trans-abyss/2.0.1 megahit/1.2.9 bedtools/2.29.2
 memory="$((${SLURM_MEM_PER_NODE} / 1024))G" # $SLURM_MEM_PER_NODE is in Megabyte
 BASE="/home/hempelc/projects/def-dsteinke/hempelc/pilot_project"
 start=$(date +%s)
+pip_num="8"
 
 # Echo array ID
 echo -e "Job array ID is ${SLURM_ARRAY_TASK_ID}"
@@ -38,7 +39,7 @@ cp -r ${BASE}/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_J
 ${BASE}/databases/NCBI_staxids*_scientific.txt ${BASE}/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Jul_2021 \
 ${BASE}/databases/SILVA_paths_and_taxids.txt ${BASE}/databases/sortmerna_silva_databases \
 ${BASE}/programs/ete3_env ${HOME}/.etetoolkit \
-${R1} ${R2} ${BASE}/split_files/file_chunk${SLURM_ARRAY_TASK_ID}.txt \
+${R1} ${R2} ${BASE}/split_files_${pip_num}_pips/file_chunk${SLURM_ARRAY_TASK_ID}.txt \
 ${BASE}/programs/rRNAFilter ${SLURM_TMPDIR}
 echo "[$(date +%H:%M:%S)] Copying finished [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 
@@ -113,8 +114,8 @@ threads=${SLURM_CPUS_PER_TASK}
 export -f run_it
 
 # And dividing the numbers of threads by 8 for 8 parallel processes
-in_threads=$(( ${threads} / 16 ))
+in_threads=$(( ${threads} / ${pip_num} ))
 
-parallel --env _ -j 16 run_it {} ${R1} ${R2} ${memory} ${in_threads} ${start} :::: ${jobfile}
+parallel --env _ -j ${pip_num} run_it {} ${R1} ${R2} ${memory} ${in_threads} ${start} :::: ${jobfile}
 
 echo "[$(date +%H:%M:%S)] Bundled pipelines ended in $((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m"
