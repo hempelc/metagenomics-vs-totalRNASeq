@@ -30,9 +30,8 @@ start=$(date +%s)
 # Copy all necessary DBs and reads to temporary dir on server (SLURM_TMPDIR)
 echo "[$(date +%H:%M:%S)] Copying started [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 cp -r ${BASE}/databases ${BASE}/programs/ete3_env ${HOME}/.etetoolkit \
-${R1} ${R2} ${BASE}/split_files_ncbi/file_chunk13 \
-${BASE}/programs/rRNAFilter ${pipeline}/*.fa* ${pipeline}/merge_input_mapped_* \
-${SLURM_TMPDIR}
+${R1} ${R2} ${BASE}/split_files_8_pips_just_ncbi-nt/file_chunk13.txt \
+${BASE}/programs/rRNAFilter ${SLURM_TMPDIR}
 echo "[$(date +%H:%M:%S)] Copying finished [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 
 # Set some directory-specific variables
@@ -67,6 +66,7 @@ run_it(){
   cd ${SLURM_TMPDIR}
   mkdir -p ${pipeline}
   cd ${pipeline}
+  ${cwd1}/${pipeline}/*.fa* ${cwd1}/${pipeline}/merge_input_mapped_* .
 
   echo -e "\n\n ================ [$(date +%H:%M:%S)] START PIPELINE ${pipeline} [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m] ==============\n\n"
 
