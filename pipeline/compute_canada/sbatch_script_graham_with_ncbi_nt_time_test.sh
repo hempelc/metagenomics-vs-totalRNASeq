@@ -43,7 +43,12 @@ DBS=${SLURM_TMPDIR}/databases
 source ${SLURM_TMPDIR}/ete3_env/bin/activate
 
 # Assign each job in array to bundle of pipelines
-jobfile=${SLURM_TMPDIR}/file_chunk13
+jobfile=${SLURM_TMPDIR}/file_chunk13.txt
+
+# Copy pipeline results over
+while read pipeline; do
+  cp -r ${pipeline} ${SLURM_TMPDIR}
+done < $jobfile
 
 # Run pipeline for each line in chunk file, i.e., each bundled pipeline
 echo "[$(date +%H:%M:%S)] Bundled pipelines started [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]"
@@ -66,7 +71,6 @@ run_it(){
   cd ${SLURM_TMPDIR}
   mkdir -p ${pipeline}
   cd ${pipeline}
-  ${cwd1}/${pipeline}/*.fa* ${cwd1}/${pipeline}/merge_input_mapped_* .
 
   echo -e "\n\n ================ [$(date +%H:%M:%S)] START PIPELINE ${pipeline} [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m] ==============\n\n"
 
@@ -89,7 +93,7 @@ run_it(){
   -f ${DBS}/NCBI_staxids_non_scientific.txt \
   -t ${SLURM_TMPDIR}/.etetoolkit/taxa.sqlite \
   -T ${EBROOTTRIMMOMATIC}/trimmomatic-0.39.jar \
-  -i ${SLURM_TMPDIR}/rRNAFilter
+  -i ${SLURM_TMPDIR}/rRNAFilter \
   -m ${memory} \
   -p ${threads}
 
