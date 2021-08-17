@@ -528,6 +528,10 @@ elif [[ $db == 'ncbi_nt' ]]; then
 	blastDB=$ncbi_nt_blast_db
 fi
 
+echo "CLASSIFICATION: ${classification}"
+ls
+ls ${base_directory}
+
 if [[ $classification == "blast_first_hit" || $classification == "blast_filtered" ]]; then
 	step_description_and_time_first "RUNNING BLAST WITH DATABASE $blastDB"
 	blastn -query ${base_directory}/${scaffolds} -db $blastDB -out blast_output.txt \
