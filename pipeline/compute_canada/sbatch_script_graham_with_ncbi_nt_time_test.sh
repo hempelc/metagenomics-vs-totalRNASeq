@@ -109,9 +109,14 @@ threads=${SLURM_CPUS_PER_TASK}
 # Exporting the function
 export -f run_it
 
-# And dividing the numbers of threads by 8 for 8 parallel processes
-in_threads=$(( ${threads} / 16 ))
+# We don't run the function in parallel but after another
+while read pipeline; do
+  run_it ${pipeline} ${R1} ${R2} ${memory} ${threads} ${start}
+done < ${jobfile}
 
-parallel --env _ -j 16 run_it {} ${R1} ${R2} ${memory} ${in_threads} ${start} :::: ${jobfile}
+# # And dividing the numbers of threads by 8 for 8 parallel processes
+# in_threads=$(( ${threads} / 16 ))
+#
+# parallel --env _ -j 16 run_it {} ${R1} ${R2} ${memory} ${in_threads} ${start} :::: ${jobfile}
 
 echo "[$(date +%H:%M:%S)] Bundled pipelines ended in $((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m"
