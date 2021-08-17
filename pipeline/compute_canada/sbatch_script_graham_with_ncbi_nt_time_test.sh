@@ -76,21 +76,21 @@ run_it(){
 
   METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_compute_canada_with_ncbi-nt.sh \
   -1 ${R1} -2 ${R2} -P ${pipeline} \
-  -N ${DBS}/nt_database_feb_2020_indexed/nt \
-  -S ${DBS}/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Jul_2021/blastdb \
-  -s ${DBS}/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Jul_2021 \
-  -n ${DBS}/kraken2_nt_DB \
-  -a ${DBS}/sortmerna_silva_databases/silva-arc-16s-id95.fasta \
-  -b ${DBS}/sortmerna_silva_databases/silva-bac-16s-id90.fasta \
-  -e ${DBS}/sortmerna_silva_databases/silva-euk-18s-id95.fasta \
-  -E ${DBS}/sortmerna_silva_databases/silva-euk-28s-id98.fasta \
-  -A ${DBS}/sortmerna_silva_databases/silva-arc-23s-id98.fasta \
-  -B ${DBS}/sortmerna_silva_databases/silva-bac-23s-id98.fasta \
-  -R ${DBS}/sortmerna_silva_databases/rfam-5.8s-database-id98.fasta \
-  -r ${DBS}/sortmerna_silva_databases/rfam-5s-database-id98.fasta \
-  -x ${DBS}/SILVA_paths_and_taxids.txt \
-  -F ${DBS}/NCBI_staxids_scientific.txt \
-  -f ${DBS}/NCBI_staxids_non_scientific.txt \
+  -N ${SLURM_TMPDIR}/databases/nt_database_feb_2020_indexed/nt \
+  -S ${SLURM_TMPDIR}/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Jul_2021/blastdb \
+  -s ${SLURM_TMPDIR}/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Jul_2021 \
+  -n ${SLURM_TMPDIR}/databases/kraken2_nt_DB \
+  -a ${SLURM_TMPDIR}/databases/sortmerna_silva_databases/silva-arc-16s-id95.fasta \
+  -b ${SLURM_TMPDIR}/databases/sortmerna_silva_databases/silva-bac-16s-id90.fasta \
+  -e ${SLURM_TMPDIR}/databases/sortmerna_silva_databases/silva-euk-18s-id95.fasta \
+  -E ${SLURM_TMPDIR}/databases/sortmerna_silva_databases/silva-euk-28s-id98.fasta \
+  -A ${SLURM_TMPDIR}/databases/sortmerna_silva_databases/silva-arc-23s-id98.fasta \
+  -B ${SLURM_TMPDIR}/databases/sortmerna_silva_databases/silva-bac-23s-id98.fasta \
+  -R ${SLURM_TMPDIR}/databases/sortmerna_silva_databases/rfam-5.8s-database-id98.fasta \
+  -r ${SLURM_TMPDIR}/databases/sortmerna_silva_databases/rfam-5s-database-id98.fasta \
+  -x ${SLURM_TMPDIR}/databases/SILVA_paths_and_taxids.txt \
+  -F ${SLURM_TMPDIR}/databases/NCBI_staxids_scientific.txt \
+  -f ${SLURM_TMPDIR}/databases/NCBI_staxids_non_scientific.txt \
   -t ${SLURM_TMPDIR}/.etetoolkit/taxa.sqlite \
   -T ${EBROOTTRIMMOMATIC}/trimmomatic-0.39.jar \
   -i ${SLURM_TMPDIR}/rRNAFilter \
