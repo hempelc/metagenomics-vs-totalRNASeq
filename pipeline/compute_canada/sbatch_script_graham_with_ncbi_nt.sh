@@ -1,9 +1,10 @@
 #!/bin/bash
 
 #SBATCH --account=def-dsteinke
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=8
 #SBATCH --mem=124G
-#SBATCH --time=1:00:00
+#SBATCH --time=8:00:00
+#SBATCH --array=1-84
 
 # A script to run Chris Hempel's METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE in
 # parallel on graham
