@@ -18,7 +18,7 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
 # Set dirs
-workdir = "/Users/christopherhempel/Desktop/mock_community_RNA/" # Full path to directory that contains samples, HAS TO END WITH "/"
+workdir = "/Users/christopherhempel/Desktop/pipeline_results_mock_community/" # Full path to directory that contains samples, HAS TO END WITH "/"
 statsdir=os.path.join(workdir, "stats_exports")
 
 # Import metics df
@@ -31,7 +31,7 @@ with open(os.path.join(statsdir, "TN.pkl"), 'rb') as f:
 # 1 PCA (from https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
 ## 1.1 Perform initial PCA
 ###Grab columns we need
-pca_df=metrics_df.iloc[:, 0:-6]
+pca_df=metrics_df.iloc[:, 0:-7]
 ### Drop subceed and exceed metrics (decided to not use them)
 pca_df=pca_df.drop(["subceed_reads", "exceed_reads", "subceed_reads_aad", "exceed_reads_aad"], axis=1)
 ### Standardize data
@@ -51,7 +51,7 @@ print("PC1: " + str(pca_graph.explained_variance_ratio_[0]) + ", PC2: " + str(pc
 ## 1.2 Add dummy and predict coordinates in PCA with all pipelines and expected dummy
 #### Add a dummy column with expected outcome (the expected outcome for TN is the number of all taxa - the number of expected taxa)
 metrics_df_exp=metrics_df.drop(["subceed_reads", "exceed_reads", "subceed_reads_aad", "exceed_reads_aad"], axis=1).transpose()
-metrics_df_exp["expected_dummy"]=[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10.0, float(TN), 0.0, 0.0, 0.0, 0.0, "expected", "expected", "expected", "expected", "expected", "expected"]
+metrics_df_exp["expected_dummy"]=[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10.0, float(TN), 0.0, 0.0, 0.0, 0.0, "expected", "expected", "expected", "expected", "expected", "expected", "expected"]
 metrics_df_exp=metrics_df_exp.transpose()
 
 ### Add column to indicate which pipeline is the expected dummy
@@ -60,7 +60,7 @@ col.append("expected")
 metrics_df_exp["exp"]=col
 
 ### Predict the coordinates in the PCA for all pipelines plus the expected (that way, the expected doesn't affect the PCA itself)
-pca_df_with_exp=metrics_df_exp.iloc[:, 0:-7]
+pca_df_with_exp=metrics_df_exp.iloc[:, 0:-8]
 pca_df_with_exp_std=StandardScaler().fit_transform(pca_df_with_exp)
 pcs_with_exp=pca_graph.transform(pca_df_with_exp_std)
 pc_df = pd.DataFrame(data = pcs_with_exp, columns = ['PC1', 'PC2'], index=pca_df_with_exp.index.to_list())
@@ -72,7 +72,7 @@ plotdir=os.path.join(workdir, "plots")
 if not os.path.exists(plotdir):
     os.mkdir(plotdir)
 ## Make df from PC1+2 coordinates and tools per pipeline to plot
-plot_df=pd.concat([pc_df, metrics_df_exp.iloc[:, -7:]], axis = 1).rename_axis("pipeline").reset_index()
+plot_df=pd.concat([pc_df, metrics_df_exp.iloc[:, -8:]], axis = 1).rename_axis("pipeline").reset_index()
 
 fig1 = px.scatter(plot_df, x="PC1", y="PC2", color="exp", hover_data=["pipeline"])
 fig1.show()
@@ -102,11 +102,15 @@ fig7 = px.scatter(plot_df, x="PC1", y="PC2", color="classifier", hover_data=["pi
 fig7.show()
 fig7.write_image(os.path.join(plotdir, "classifier.png"))
 
+fig8 = px.scatter(plot_df, x="PC1", y="PC2", color="type", hover_data=["pipeline"])
+fig8.show()
+fig8.write_image(os.path.join(plotdir, "type.png"))
+
 
 # 3 Linear regression (following https://datatofish.com/statsmodels-linear-regression/)
 ## 3.1 Set up X and y
 y = pc_lr
-X_no_dummies=metrics_df_exp.drop("expected_dummy").drop("exp", axis=1).iloc[:, -6:]
+X_no_dummies=metrics_df_exp.drop("expected_dummy").drop("exp", axis=1).iloc[:, -7:]
 X_no_intercept=pd.get_dummies(data=X_no_dummies)
 X = sm.add_constant(X_no_intercept) # This adds a constant as a column which is needed to calculate the intercept of the model
 
@@ -157,7 +161,7 @@ fig_k_silhouette.show()
 fig_k_silhouette.write_image(os.path.join(plotdir, "kmean_silhouette.png"))
 
 # Based on both tests, we define k
-k=4
+k=6
 
 ## 4.2 Actual kmeans
 kmeans = KMeans(n_clusters=k)
