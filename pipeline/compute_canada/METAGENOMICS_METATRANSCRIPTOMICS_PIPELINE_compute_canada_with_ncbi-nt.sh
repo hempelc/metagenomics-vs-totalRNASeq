@@ -198,7 +198,7 @@ fi
 mkdir METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
 mkdir METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/
 
-# Copy scaffolds and mapped fiels into base dir
+# Copy scaffolds and mapped files into base dir
 cp ${scaffolds} merge_input_mapped_${mapping}.txt METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
 cd METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
 
@@ -527,6 +527,10 @@ elif [[ $db == 'ncbi_nt' ]]; then
 	krakenDB=$ncbi_nt_kraken2_db
 	blastDB=$ncbi_nt_blast_db
 fi
+
+echo "CLASSIFICATION: ${classification}"
+ls
+ls ${base_directory}
 
 if [[ $classification == "blast_first_hit" || $classification == "blast_filtered" ]]; then
 	step_description_and_time_first "RUNNING BLAST WITH DATABASE $blastDB"

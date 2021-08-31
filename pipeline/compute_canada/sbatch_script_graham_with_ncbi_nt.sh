@@ -3,8 +3,7 @@
 #SBATCH --account=def-dsteinke
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=124G
-#SBATCH --time=5:30:00
-#SBATCH --array=1-768
+#SBATCH --time=1:00:00
 
 # A script to run Chris Hempel's METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE in
 # parallel on graham
@@ -28,15 +27,11 @@ memory="$((${SLURM_MEM_PER_NODE} / 1024))G" # $SLURM_MEM_PER_NODE is in Megabyte
 BASE="/home/hempelc/projects/def-dsteinke/hempelc/pilot_project"
 start=$(date +%s)
 
-# Echo array ID
-echo -e "Job array ID is ${SLURM_ARRAY_TASK_ID}"
-
 # Copy all necessary DBs and reads to temporary dir on server (SLURM_TMPDIR)
 echo "[$(date +%H:%M:%S)] Copying started [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 cp -r ${BASE}/databases ${BASE}/programs/ete3_env ${HOME}/.etetoolkit \
-${R1} ${R2} ${BASE}/split_files_ncbi/file_chunk${SLURM_ARRAY_TASK_ID} \
-${BASE}/programs/rRNAFilter ${pipeline}/*.fa* ${pipeline}/merge_input_mapped_* \
-${SLURM_TMPDIR}
+${R1} ${R2} ${BASE}/split_files_8_pips_just_ncbi_nt/file_chunk${SLURM_ARRAY_TASK_ID}.txt \
+${BASE}/programs/rRNAFilter ${SLURM_TMPDIR}
 echo "[$(date +%H:%M:%S)] Copying finished [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 
 # Set some directory-specific variables
@@ -48,7 +43,12 @@ DBS=${SLURM_TMPDIR}/databases
 source ${SLURM_TMPDIR}/ete3_env/bin/activate
 
 # Assign each job in array to bundle of pipelines
-jobfile=${SLURM_TMPDIR}/file_chunk${SLURM_ARRAY_TASK_ID}
+jobfile=${SLURM_TMPDIR}/file_chunk${SLURM_ARRAY_TASK_ID}.txt
+
+# Copy pipeline results over
+while read pipeline; do
+  cp -r ${pipeline} ${SLURM_TMPDIR}
+done < $jobfile
 
 # Run pipeline for each line in chunk file, i.e., each bundled pipeline
 echo "[$(date +%H:%M:%S)] Bundled pipelines started [$((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m]"
@@ -76,28 +76,29 @@ run_it(){
 
   METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_compute_canada_with_ncbi-nt.sh \
   -1 ${R1} -2 ${R2} -P ${pipeline} \
-  -N ${DBS}/nt_database_feb_2020_indexed/nt \
-  -S ${DBS}/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Jul_2021/blastdb \
-  -s ${DBS}/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Jul_2021 \
-  -n ${DBS}/kraken2_nt_DB \
-  -a ${DBS}/sortmerna_silva_databases/silva-arc-16s-id95.fasta \
-  -b ${DBS}/sortmerna_silva_databases/silva-bac-16s-id90.fasta \
-  -e ${DBS}/sortmerna_silva_databases/silva-euk-18s-id95.fasta \
-  -E ${DBS}/sortmerna_silva_databases/silva-euk-28s-id98.fasta \
-  -A ${DBS}/sortmerna_silva_databases/silva-arc-23s-id98.fasta \
-  -B ${DBS}/sortmerna_silva_databases/silva-bac-23s-id98.fasta \
-  -R ${DBS}/sortmerna_silva_databases/rfam-5.8s-database-id98.fasta \
-  -r ${DBS}/sortmerna_silva_databases/rfam-5s-database-id98.fasta \
-  -x ${DBS}/SILVA_paths_and_taxids.txt \
-  -F ${DBS}/NCBI_staxids_scientific.txt \
-  -f ${DBS}/NCBI_staxids_non_scientific.txt \
+  -N ${SLURM_TMPDIR}/databases/nt_database_feb_2020_indexed/nt \
+  -S ${SLURM_TMPDIR}/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Jul_2021/blastdb \
+  -s ${SLURM_TMPDIR}/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Jul_2021 \
+  -n ${SLURM_TMPDIR}/databases/kraken2_nt_DB \
+  -a ${SLURM_TMPDIR}/databases/sortmerna_silva_databases/silva-arc-16s-id95.fasta \
+  -b ${SLURM_TMPDIR}/databases/sortmerna_silva_databases/silva-bac-16s-id90.fasta \
+  -e ${SLURM_TMPDIR}/databases/sortmerna_silva_databases/silva-euk-18s-id95.fasta \
+  -E ${SLURM_TMPDIR}/databases/sortmerna_silva_databases/silva-euk-28s-id98.fasta \
+  -A ${SLURM_TMPDIR}/databases/sortmerna_silva_databases/silva-arc-23s-id98.fasta \
+  -B ${SLURM_TMPDIR}/databases/sortmerna_silva_databases/silva-bac-23s-id98.fasta \
+  -R ${SLURM_TMPDIR}/databases/sortmerna_silva_databases/rfam-5.8s-database-id98.fasta \
+  -r ${SLURM_TMPDIR}/databases/sortmerna_silva_databases/rfam-5s-database-id98.fasta \
+  -x ${SLURM_TMPDIR}/databases/SILVA_paths_and_taxids.txt \
+  -F ${SLURM_TMPDIR}/databases/NCBI_staxids_scientific.txt \
+  -f ${SLURM_TMPDIR}/databases/NCBI_staxids_non_scientific.txt \
   -t ${SLURM_TMPDIR}/.etetoolkit/taxa.sqlite \
   -T ${EBROOTTRIMMOMATIC}/trimmomatic-0.39.jar \
-  -i ${SLURM_TMPDIR}/rRNAFilter
+  -i ${SLURM_TMPDIR}/rRNAFilter \
   -m ${memory} \
   -p ${threads}
 
   cp ${SLURM_TMPDIR}/${pipeline}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/* ${cwd1}/${pipeline}
+  cd ${cwd1}
   rm -r ${SLURM_TMPDIR}/${pipeline}/
 
   echo -e "\n\n ================ [$(date +%H:%M:%S)] END PIPELINE ${pipeline} [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m] ==============\n\n"
@@ -109,9 +110,14 @@ threads=${SLURM_CPUS_PER_TASK}
 # Exporting the function
 export -f run_it
 
-# And dividing the numbers of threads by 8 for 8 parallel processes
-in_threads=$(( ${threads} / 16 ))
+# We don't run the function in parallel but after another
+while read pipeline; do
+  run_it ${pipeline} ${R1} ${R2} ${memory} ${threads} ${start}
+done < ${jobfile}
 
-parallel --env _ -j 16 run_it {} ${R1} ${R2} ${memory} ${in_threads} ${start} :::: ${jobfile}
+# # And dividing the numbers of threads by 8 for 8 parallel processes
+# in_threads=$(( ${threads} / 16 ))
+#
+# parallel --env _ -j 16 run_it {} ${R1} ${R2} ${memory} ${in_threads} ${start} :::: ${jobfile}
 
 echo "[$(date +%H:%M:%S)] Bundled pipelines ended in $((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m"
