@@ -4,18 +4,23 @@
 
 # Preprocesses pipeline data and export metrics table
 
+import logging
 import pandas as pd
 import glob
 import os
 import copy
 import pickle
 
-# FUTURE ADAPTATION: "lowest_hit" needs to be adapted to "species" once we rerun pipelines (can simply literatelly be find-replace'd)
+# Activate logging
+logging.basicConfig(level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s')
+
+# FUTURE ADAPTATION: "species" needs to be adapted to "species" once we rerun pipelines (can simply literatelly be find-replace'd)
 
 # Parameters
-workdir = "/Users/christopherhempel/Desktop/mock_community_RNA/" # Full path to directory that contains samples, HAS TO END WITH "/"
-sample_names = ["M4", "M5", "M6", "M_Neg", "M_Ext"] # 3 replicate samples to include into the analysis (must equal names of directories in workdir that contain each sample's pipeline results)
-groupby_rank = "lowest_hit" # Basis for taxa rank to group rows on. Either based on genus (option "genus") or on species (option "lowest_hit" (NOTE later "species"))
+workdir = "/Users/christopherhempel/Desktop/pipeline_results_mock_community/" # Full path to directory that contains samples, HAS TO END WITH "/"
+samples = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA", "M_Neg_DNA", "M_Neg_RNA", "M_Ext_DNA", "M_Ext_RNA"] # 3 replicate samples to include into the analysis (must equal names of directories in workdir that contain each sample's pipeline results)
+groupby_rank = "species" # Basis for taxa rank to group rows on. Either based on genus (option "genus") or on species (option "species" (NOTE later "species"))
 rel_abun_basis = "cell" # Basis for relative abundance calculation of expected mock community taxa abundance. Either based on genomic DNA (option "gen") or on cell number (option "cell")
 
 
@@ -103,7 +108,7 @@ for taxon in expected_dic:
     rep+=1
 
 ### And finally read in the expected mock community dic as pandas df
-expected_df=pd.DataFrame.from_dict(expected_dic, orient="index", columns=["superkingdom", "phylum", "class", "order", "family", "genus", "lowest_hit", "rel_abun"])
+expected_df=pd.DataFrame.from_dict(expected_dic, orient="index", columns=["superkingdom", "phylum", "class", "order", "family", "genus", "species", "rel_abun"])
 
 
 # 2 Read in all pipeline results for every sample as df;
@@ -112,43 +117,42 @@ expected_df=pd.DataFrame.from_dict(expected_dic, orient="index", columns=["super
 master_dfs_raw = {} # Empty dic that will eventually contain all samples' raw pipelines output
 all_taxa = [] # Empty list that will eventually contain all taxa that appear in all samples
 
-for sample_type in ["DNA", "RNA"]:
-    samples=[x + "_" + sample_type for x in sample_names]
-    for sample in samples:
-        ### Make list for all file names:
-        sample_files = glob.glob("{workdir}{sample}/*.txt".format(workdir=workdir, sample=sample))
-        ### Make dic that will eventually contain all dfs and set first entry to expected community:
-        sample_dfs = {"expected": expected_df}
-        ### For each file
-        for file in sample_files:
-            #### Read in file as pandas df and fill NaN with "NA"
-            df = pd.read_table(file).fillna("NA")
-            #### NA check, if NA or NANA in counts, don't do anything, NOTE: note needed later, just temporarily because some pipeline results are wrong      ### TO BE DELETED
-            if df.loc[df['counts'] == "NA"].empty and df.loc[df['counts'] == "NANA"].empty:                                                                  ### TO BE DELETED
-                #### Cut dfs down to relevant columns
-                if groupby_rank == "lowest_hit":
-                    df_small = df[["superkingdom", "phylum", "class", "order", "family", "genus", "lowest_hit", "counts"]]
-                elif groupby_rank == "genus":
-                    df_small = df[["superkingdom", "phylum", "class", "order", "family", "genus", "counts"]]
-                #### Transform all entries in counts to type int
-                #df_small["counts"] =  df_small["counts"].astype(int)
+for sample in samples:
+    ### Make list for all file names:
+    sample_files = glob.glob("{workdir}{sample}/*.txt".format(workdir=workdir, sample=sample))
+    ### Make dic that will eventually contain all dfs and set first entry to expected community:
+    sample_dfs = {"expected": expected_df}
+    ### For each file
+    for file in sample_files:
+        #### Read in file as pandas df and fill NaN with "NA"
+        df = pd.read_table(file).fillna("NA")
+        #### NA check, if NA or NANA in counts, don't do anything, NOTE: note needed later, just temporarily because some pipeline results are wrong      ### TO BE DELETED
+        if df.loc[df['counts'] == "NA"].empty and df.loc[df['counts'] == "NANA"].empty:                                                                  ### TO BE DELETED
+            #### Cut dfs down to relevant columns
+            if groupby_rank == "species":
+                df_small = df[["superkingdom", "phylum", "class", "order", "family", "genus", "species", "counts"]]
+            elif groupby_rank == "genus":
+                df_small = df[["superkingdom", "phylum", "class", "order", "family", "genus", "counts"]]
+            #### Negative controls often have empty dfs, therefore we need to make an exception:
+            if df.empty:
+                df_agg = df_small
+            else:
                 #### Group similar taxonomy hits and sum counts
                 df_agg = df_small.groupby(list(df_small.columns)[:-1]).sum().reset_index()
-                #### Turn counts into relative abundances and rename
+                #### Turn counts into relative abundances
                 df_agg["counts"]=df_agg["counts"]/df_agg["counts"].sum()
-                df_agg.rename(columns = {'counts':'rel_abun'}, inplace = True)
-                #### Add all taxa to list "all taxa"
-                all_taxa.extend(df_agg[groupby_rank].tolist())
-                #### Edit file name so that pipeline name is displayed properly
-                pipeline_name=sample_type + "_" + file.split("/")[-1].split(".")[-2].split("trimmed_at_phred_")[1].split("_pipeline_final")[0].replace("IDBA_", "IDBA-").replace("NCBI_NT", "NCBI-NT").replace("BLAST_FIRST_HIT", "BLAST-FIRST-HIT").replace("BLAST_FILTERED", "BLAST-FILTERED")
-                #### Make dict key with keys = piepline_name and value = edited df
-                sample_dfs[pipeline_name] = df_agg
-            else:                                                                                                                                            ### TO BE DELETED
-                continue                                                                                                                                     ### TO BE DELETED
+            # Rename col
+            df_agg.rename(columns = {'counts':'rel_abun'}, inplace = True)
+            #### Add all taxa to list "all taxa"
+            all_taxa.extend(df_agg[groupby_rank].tolist())
+            #### Edit file name so that pipeline name is displayed properly
+            pipeline_name = file.split("/")[-1].split(".")[-2].split("trimmed_at_phred_")[1].split("_final")[0].replace("idba_", "idba-").replace("ncbi_nt", "ncbi-nt").replace("blast_first_hit", "blast-first-hit").replace("blast_filtered", "blast-filtered")
+            #### Make dict key with keys = piepline_name and value = edited df
+            sample_dfs[pipeline_name] = df_agg
+        else:                                                                                                                                            ### TO BE DELETED
+            continue                                                                                                                                     ### TO BE DELETED
         ### Save sample_df in dic "master_dfs_raw":
         master_dfs_raw[sample] = sample_dfs
-
-
 
 # 3 Make a "unique_taxa" list that contains all taxa that appear in all samples;
 #   generate a "master_df" df from each sample that contains counts for all taxa in all samples and mock community:
@@ -156,7 +160,7 @@ for sample_type in ["DNA", "RNA"]:
 ## 3.1 Add expected taxa to list in case they're not picked up by any pipeline and drop duplicates:
 all_taxa.extend(expected_df[groupby_rank].tolist())
 unique_taxa = list(set(all_taxa))
-
+logging.debug(unique_taxa)
 
 ## 3.2 Generate master df with relative read counts for every sample and save in dic "master_dfs_uniq":
 master_dfs_uniq = {} # Empty dic that will eventually contain all samples' master dfs (dfs with rows = all unique taxa)
@@ -178,17 +182,18 @@ for sample, pipeline_dfs in master_dfs_raw.items():
         #### Make a new column in  master df named after the pipeline and add taxon counts for that pipeline
         master_dfs_uniq[sample][pipeline]=abun
 
-### NOTE: For now, some pipelines didn't work, so we have to make a list of shared pipelines                                                            ### TO BE DELETED
+
+### NOTE: For now, some pipelines didn't work, so we have to make a list of shared pipelines
 shared_pipelines_dupl = []                                                                                                                                   ### TO BE DELETED
 for sample in samples:                                                                                                                                  ### TO BE DELETED
     shared_pipelines_dupl.extend(master_dfs_uniq[sample].columns.tolist())                                                                             ### TO BE DELETED
 shared_pipelines = []                                                                                                                                  ### TO BE DELETED
 for i in shared_pipelines_dupl:                                                                                                                                  ### TO BE DELETED
-    if shared_pipelines_dupl.count(i) > 2:                                                                                                                               ### TO BE DELETED
+    if shared_pipelines_dupl.count(i) == 10:                                                                                                                               ### TO BE DELETED
         if i not in shared_pipelines:                                                                                                                                  ### TO BE DELETED
             shared_pipelines.append(i)                                                                                                                                  ### TO BE DELETED
-                                                                                                                           ### TO BE DELETED
-## And we cut the master df down to these pipelines:                                                                                                                           ### TO BE DELETED
+
+### And we cut the master df down to these pipelines:                                                                                                                           ### TO BE DELETED
 master_dfs_uniq_shared={}                                                                                                                           ### TO BE DELETED
 for sample in samples:                                                                                                                           ### TO BE DELETED
     master_dfs_uniq_shared[sample]={}                                                                                                                           ### TO BE DELETED
@@ -201,27 +206,37 @@ master_dfs_uniq_del={}                                                          
 for sample in samples:                                                                                                                           ### TO BE DELETED
     master_dfs_uniq_del[sample]=pd.DataFrame(master_dfs_uniq_shared[sample])                                                                                                                           ### TO BE DELETED
 
-master_dfs_uniq = copy.deepcopy(master_dfs_uniq_del)                                                                                                                     ### TO BE DELETED
+master_dfs_uniq_shared = copy.deepcopy(master_dfs_uniq_del)                                                                                                                     ### TO BE DELETED
 
-# We'll save that df as "rel"
-master_dfs_uniq_rel = master_dfs_uniq
+### We'll save that df as "rel"
+master_dfs_uniq_rel = master_dfs_uniq_shared
 
-## 3.3 Substract controls from samples
-master_dfs_uniq_rel_sub={}
+
+## 3.3 Add DNA or RNA prefixes
+master_dfs_prefix={}
 for sample_type in ["DNA", "RNA"]:
-    samples=[x + "_" + sample_type for x in ["M4", "M5", "M6"]]
-    for sample in samples:
-        # We substract twice the reads occuring in the extractio and filtration control
-        master_dfs_uniq_rel_sub[sample]=master_dfs_uniq_rel[sample]-(master_dfs_uniq_rel["M_Neg_" + sample_type] + master_dfs_uniq_rel["M_Ext_" + sample_type])*2
-        # And since this sustarction overrides the expected, we replace it with the old expected
-        master_dfs_uniq_rel_sub[sample]["expected"]=master_dfs_uniq_rel[sample]["expected"]
+    for sample in [x + "_" + sample_type for x in ["M4", "M5", "M6", "M_Neg", "M_Ext"]]:
+        master_dfs_prefix[sample]=master_dfs_uniq_rel[sample].add_prefix(sample_type + "_").rename(columns={sample_type + "_expected": "expected"})
 
-## 3.4 Generate master df with presence/absence for every sample and save in dic "master_dfs_uniq_pa":
+
+## 3.4 Substract controls from samples
+master_dfs_sub={}
+for sample_type in ["DNA", "RNA"]:
+    for sample in [x + "_" + sample_type for x in ["M4", "M5", "M6"]]:
+        # We substract twice the reads occuring in the extractio and filtration control
+        master_dfs_sub[sample]=master_dfs_prefix[sample]-(master_dfs_prefix["M_Neg_" + sample_type] + master_dfs_prefix["M_Ext_" + sample_type])*2
+        # And since this substraction overrides the expected, we replace it with the old expected
+        master_dfs_sub[sample]["expected"]=master_dfs_prefix[sample]["expected"]
+### Convert counts below 0 to 0 (happens if negative control contains more reads than original sample)
+for key, value in master_dfs_sub.items():
+    value[value < 0] = 0
+
+## 3.5 Generate master df with presence/absence for every sample and save in dic "master_dfs_uniq_pa":
 ### Deepcopy one of the master dfs
-master_dfs_uniq_pa = copy.deepcopy(master_dfs_uniq_rel_sub)
-### Replace all non-zero values with 1
+master_dfs_uniq_pa = copy.deepcopy(master_dfs_sub)
+### Replace all values above 0 with 1
 for key, value in master_dfs_uniq_pa.items():
-    value[value != 0] = 1
+    value[value > 0] = 1
 
 
 
@@ -229,29 +244,29 @@ for key, value in master_dfs_uniq_pa.items():
 
 ## 4.1 Cut down master_dfs to only expected taxa
 ### Apply cutdown function on absolute, relative, and pa master_dfs
-rel_cutdown_expected = cutdown(master_dfs_uniq_rel_sub, "above_zero")
+rel_cutdown_expected = cutdown(master_dfs_sub, "above_zero")
 pa_cutdown_expected = cutdown(master_dfs_uniq_pa, "above_zero")
 
-rel_cutdown_FP = cutdown(master_dfs_uniq_rel_sub, "equal_zero")
+rel_cutdown_FP = cutdown(master_dfs_sub, "equal_zero")
 pa_cutdown_FP = cutdown(master_dfs_uniq_pa, "equal_zero")
 
 
-## 4.2 Apply confusion_calc function on absolute, relative, and pa cutdown master_dfs
+## 4.2 Apply confusion_calc function on relative and pa cutdown master_dfs
 rel_metrics_reps = confusion_calc(rel_cutdown_expected, rel_cutdown_FP, "rel")
 pa_metrics_reps = confusion_calc(pa_cutdown_expected, pa_cutdown_FP, "pa")
 
 
-## 4.3 Calculate the average between replicates:
+## 4.3 Calculate the average between replicates and the AAD:
 ### Make dics containing each pipeline as key with one list per metric for each pipeline:
-rel_metrics={} # Empty dic that will eventually contain all relative abundance-based metrics for PCA
-pa_metrics={} # Empty dic that will eventually contain all p/a-based metrics for PCA
-for metrics_dic in [rel_metrics, pa_metrics]:
-    for sample in samples:                                                                                                      ### TO BE DELETED since all samples will contain the same pipelines eventually
+rel_metrics_tmp={} # Empty temporary dic
+pa_metrics_tmp={} # Empty temporary dic
+for metrics_dic_tmp in [rel_metrics_tmp, pa_metrics_tmp]:
+    for sample in ["M4_DNA", "M5_DNA", "M6_DNA", "M4_RNA", "M5_RNA", "M6_RNA", ]:
         for pipeline in rel_metrics_reps[sample].keys():
-            if  metrics_dic==rel_metrics:
-                metrics_dic[pipeline]={"subceed_reads": [], "exceed_reads": [], "true_reads": [], "false_reads": []}
-            elif metrics_dic==pa_metrics:
-                metrics_dic[pipeline]={"FN": [], "FP": [], "TP": [], "TN": []}
+            if  metrics_dic_tmp==rel_metrics_tmp:
+                metrics_dic_tmp[pipeline]={"subceed_reads": [], "exceed_reads": [], "true_reads": [], "false_reads": []}
+            elif metrics_dic_tmp==pa_metrics_tmp:
+                metrics_dic_tmp[pipeline]={"FN": [], "FP": [], "TP": [], "TN": []}
 
 ### Fill in dics created above so that every pipeline contains a dic with
 ### metrics as keys and each metric lists its three values across the
@@ -261,61 +276,32 @@ for metric_dic_rep in [rel_metrics_reps, pa_metrics_reps]:
         for pipeline, metrics in pipelines.items():
             for metric, value in metrics.items():
                 if metric_dic_rep==rel_metrics_reps:
-                    rel_metrics[pipeline][metric].append(value)
+                    rel_metrics_tmp[pipeline][metric].append(value)
                 elif metric_dic_rep==pa_metrics_reps:
-                    pa_metrics[pipeline][metric].append(value)
+                    pa_metrics_tmp[pipeline][metric].append(value)
 
-### Calculate the average across the three replicates:
-for metrics_dic in [rel_metrics, pa_metrics]:
-    for pipeline, metrics in metrics_dic.items():
+### Calculate the average across the three replicates and the AAD for each metric:
+metrics_dic={} # Empty dic that will eventually contain all relative abundance-based metrics for PCA
+for pipeline in rel_metrics_tmp.keys():
+        metrics_dic[pipeline]={}
+for metrics_dic_tmp in [rel_metrics_tmp, pa_metrics_tmp]:
+    for pipeline, metrics in metrics_dic_tmp.items():
         for metric, lst in metrics.items():
             metrics_dic[pipeline][metric]=sum(lst)/len(lst)
-
-
-## 4.4 Caluclate the AAD across the three replicates for both types of datasets
-### 4.4.1 For p/a data
-metric_list_pa=["FN", "FP", "TP", "TN"]
-# ideal_vals_pa=[0, 0, 9, len(unique_taxa)-len(expected_df.index)] # for average distance from ecpected
-for pipeline in pa_metrics.keys():
-    for metric in metric_list_pa:
-        metric_rep_values_pa=[]
-        for sample in samples:
-            metric_rep_values_pa.append(float(pa_metrics_reps[sample][pipeline][metric]))
-        pa_metrics[pipeline][metric + "_aad"]=aad(metric_rep_values_pa, sum(metric_rep_values_pa)/len(metric_rep_values_pa))
-        #pa_metrics[pipeline][metric + "_aad"]=aad(metric_rep_values_pa, ideal_vals_pa[metric_list_pa.index(metric)]) # for average distance from ecpected
-
-
-### 4.4.2 For relative data
-metric_list_rel=["subceed_reads", "exceed_reads", "true_reads", "false_reads"]
-# ideal_vals_rel=[0, 0, 1, 0]  # for average distance from ecpected
-for pipeline in rel_metrics.keys():
-    for metric in metric_list_rel:
-        metric_rep_values_rel=[]
-        for sample in samples:
-            metric_rep_values_rel.append(float(rel_metrics_reps[sample][pipeline][metric]))
-        rel_metrics[pipeline][metric + "_aad"]=aad(metric_rep_values_rel, sum(metric_rep_values_rel)/len(metric_rep_values_rel))
-        #pa_metrics[pipeline][metric + "_aad"]=aad(metric_rep_values_rel, ideal_vals_rel[metric_list_rel.index(metric)]) # for average distance from ecpected
+            metrics_dic[pipeline][metric + "_aad"]=aad(lst, sum(lst)/len(lst))
 
 
 
 # 5 Make master metrics df
-## Merge separate metric dics into one
-master_metrics_df={} # Empty dic that will eventually contain all metrics for PCA
-for pipeline in shared_pipelines[1:len(shared_pipelines)]:                                                                                                                ### TO BE DELETED
-    master_metrics_df[pipeline]={}
-    for metrics_dic in [rel_metrics, pa_metrics]:
-        for metric in metrics_dic[pipeline].keys():
-            master_metrics_df[pipeline][metric]=metrics_dic[pipeline][metric]
 
 ## Add info on tools used in each step for each pipeline
-step_list=["trimming_score", "rRNA_sorting_tool", "assembly_tool", "mapper", "database", "classifier"]
+step_list=["type", "trimming_score", "rRNA_sorting_tool", "assembly_tool", "mapper", "database", "classifier"]
 for step in step_list:
-    for pipeline in master_metrics_df.keys():
-        master_metrics_df[pipeline][step]=pipeline.split("_")[step_list.index(step)]
-
+    for pipeline in metrics_dic.keys():
+        metrics_dic[pipeline][step]=pipeline.split("_")[step_list.index(step)]
 
 ## Make the df
-metrics_df=pd.DataFrame(master_metrics_df)
+metrics_df=pd.DataFrame(metrics_dic)
 metrics_df=metrics_df.transpose()
 
 ## Save the df
