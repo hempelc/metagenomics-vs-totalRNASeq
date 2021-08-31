@@ -531,6 +531,7 @@ if [[ $classification == "blast_first_hit" ]]; then
 	step_description_and_time_first "RUNNING BLAST FIRST HIT"
 	# We run a separate script to filter the BLAST results:
 	blast_filtering.bash -i blast_output.txt -f blast -t soft -T $threads -e $etetoolkit
+	sed -i 's/Unknown/NA/g' blast_output.txt
 	mv blast_output.txt blast_filtering_results/
 	step_description_and_time_first "BLAST FIRST HIT DONE"
 
@@ -538,6 +539,7 @@ elif [[ $classification == "blast_filtered" ]]; then
 	step_description_and_time_first "RUNNING BLAST FILTERED"
 	# We run a separate script to filter the BLAST results:
 	blast_filtering.bash -i blast_output.txt -f blast -t strict -T $threads -e $etetoolkit
+  sed -i 's/Unknown/NA/g' blast_output.txt
 	mv blast_output.txt blast_filtering_results/
 	step_description_and_time_first "BLAST FILTERED DONE"
 

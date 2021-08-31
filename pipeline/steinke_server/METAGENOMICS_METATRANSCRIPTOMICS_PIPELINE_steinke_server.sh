@@ -459,6 +459,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				step_description_and_time_second "RUNNING BLAST FIRST HIT"
 				# We run a separate script to filter the BLAST results:
 				blast_filtering.bash -i blast_output.txt -f blast -t soft -e ~/.etetoolkit/taxa.sqlite -T $threads
+				sed -i 's/Unknown/NA/g' blast_output.txt
 				cp blast_output.txt blast_filtering_results/
 				mv blast_filtering_results/ BLAST_FIRST_HIT/
         step_description_and_time_second "BLAST FIRST HIT DONE"
@@ -466,6 +467,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				step_description_and_time_second "RUNNING BLAST FILTERED"
 				# We run a separate script to filter the BLAST results:
 				blast_filtering.bash -i blast_output.txt -f blast -t strict -e ~/.etetoolkit/taxa.sqlite -T $threads
+				sed -i 's/Unknown/NA/g' blast_output.txt
 				mv blast_output.txt blast_filtering_results/
 				mv blast_filtering_results/ BLAST_FILTERED/
         step_description_and_time_second "BLAST FILTERED DONE"
