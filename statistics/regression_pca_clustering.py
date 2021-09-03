@@ -2,15 +2,14 @@
 
 # Written by Christopher Hempel (hempelc@uoguelph.ca) on 22 Jul 2021
 
+# This script processes the output from the script "processing_and_metrics.py"
+
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import glob
-import os
-import csv
-import copy
-import pickle
 import statsmodels.api as sm
+import os
+import pickle
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from kneed import KneeLocator
@@ -18,26 +17,29 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
 # Set dirs
-workdir = "/Users/christopherhempel/Desktop/pipeline_results_mock_community/" # Full path to directory that contains samples, HAS TO END WITH "/"
+## Full path to directory that contains samples, same as in script "processing_and_metrics.py"
+workdir = "/Users/christopherhempel/Desktop/pipeline_results_mock_community"
 statsdir=os.path.join(workdir, "stats_exports")
 
 # Import metics df
 metrics_df=pd.read_csv(os.path.join(statsdir, "metrics_df.csv"), index_col=0)
+## Drop subceed and exceed metrics (decided to not use them)
+metrics_df=metrics_df.drop(["subceed_reads", "exceed_reads",
+    "subceed_reads_aad", "exceed_reads_aad"], axis=1)
 
 # Import value for expected TN
 with open(os.path.join(statsdir, "TN.pkl"), 'rb') as f:
     TN = pickle.load(f)
 
-# 1 PCA (from https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
+# 1 PCA (following https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
 ## 1.1 Perform initial PCA
-###Grab columns we need
+### Grab columns we need
 pca_df=metrics_df.iloc[:, 0:-7]
-### Drop subceed and exceed metrics (decided to not use them)
-pca_df=pca_df.drop(["subceed_reads", "exceed_reads", "subceed_reads_aad", "exceed_reads_aad"], axis=1)
+
 ### Standardize data
 pca_df_std=StandardScaler().fit_transform(pca_df)
 ### Perform PCA
-#### On one component for linear regression
+#### On one component for linear regression (later in script)
 pca_lr = PCA(n_components=1)
 pc_lr = pca_lr.fit_transform(pca_df_std)
 print("PC1: " + str(pca_lr.explained_variance_ratio_[0]))
@@ -45,25 +47,32 @@ print("PC1: " + str(pca_lr.explained_variance_ratio_[0]))
 #### On two components for graphical visualization
 pca_graph = PCA(n_components=2)
 pcs_no_exp = pca_graph.fit_transform(pca_df_std)
-print("PC1: " + str(pca_graph.explained_variance_ratio_[0]) + ", PC2: " + str(pca_graph.explained_variance_ratio_[1]))
+print("PC1: " + str(pca_graph.explained_variance_ratio_[0]) + ", PC2: "
+    + str(pca_graph.explained_variance_ratio_[1]))
 
 
-## 1.2 Add dummy and predict coordinates in PCA with all pipelines and expected dummy
-#### Add a dummy column with expected outcome (the expected outcome for TN is the number of all taxa - the number of expected taxa)
-metrics_df_exp=metrics_df.drop(["subceed_reads", "exceed_reads", "subceed_reads_aad", "exceed_reads_aad"], axis=1).transpose()
-metrics_df_exp["expected_dummy"]=[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10.0, float(TN), 0.0, 0.0, 0.0, 0.0, "expected", "expected", "expected", "expected", "expected", "expected", "expected"]
+## 1.2 Add a dummy variable respresenting an ideal pipeline and predict the
+##     coordinates of all pipelines and the expected dummy in the PCA
+#### Add a dummy column with expected outcome (the expected outcome for TN is
+#### the number of all taxa - the number of expected taxa, generated in previous script)
+metrics_df_exp=metrics_df.transpose()
+metrics_df_exp["expected_dummy"]=[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10.0, float(TN),
+    0.0, 0.0, 0.0, 0.0, "expected", "expected", "expected", "expected",
+    "expected", "expected", "expected"]
 metrics_df_exp=metrics_df_exp.transpose()
 
-### Add column to indicate which pipeline is the expected dummy
+### Add a column to indicate which pipeline is the expected dummy
 col=["pipeline"] * (len(metrics_df_exp)-1)
 col.append("expected")
 metrics_df_exp["exp"]=col
 
-### Predict the coordinates in the PCA for all pipelines plus the expected (that way, the expected doesn't affect the PCA itself)
+### Predict the coordinates in the PCA for all pipelines plus the expected
+### (that way, the expected doesn't affect the PCA itself)
 pca_df_with_exp=metrics_df_exp.iloc[:, 0:-8]
 pca_df_with_exp_std=StandardScaler().fit_transform(pca_df_with_exp)
 pcs_with_exp=pca_graph.transform(pca_df_with_exp_std)
-pc_df = pd.DataFrame(data = pcs_with_exp, columns = ['PC1', 'PC2'], index=pca_df_with_exp.index.to_list())
+pc_df = pd.DataFrame(data = pcs_with_exp, columns = ['PC1', 'PC2'],
+    index=pca_df_with_exp.index.to_list())
 
 
 # 2 Plot
@@ -72,39 +81,14 @@ plotdir=os.path.join(workdir, "plots")
 if not os.path.exists(plotdir):
     os.mkdir(plotdir)
 ## Make df from PC1+2 coordinates and tools per pipeline to plot
-plot_df=pd.concat([pc_df, metrics_df_exp.iloc[:, -8:]], axis = 1).rename_axis("pipeline").reset_index()
+plot_df=pd.concat([pc_df, metrics_df_exp.iloc[:, -8:]],
+    axis = 1).rename_axis("pipeline").reset_index()
+## Make plot for each tool column and save plots
+for col in plot_df.columns[4:]:
+    fig = px.scatter(plot_df, x="PC1", y="PC2", color=col, hover_data=["pipeline"])
+    fig.show()
+    fig.write_image(os.path.join(plotdir, "PCA_" + col + ".png"))
 
-fig1 = px.scatter(plot_df, x="PC1", y="PC2", color="exp", hover_data=["pipeline"])
-fig1.show()
-fig1.write_image(os.path.join(plotdir, "raw.png"))
-
-fig2 = px.scatter(plot_df, x="PC1", y="PC2", color="trimming_score", hover_data=["pipeline"])
-fig2.show()
-fig2.write_image(os.path.join(plotdir, "trimming_score.png"))
-
-fig3 = px.scatter(plot_df, x="PC1", y="PC2", color="rRNA_sorting_tool", hover_data=["pipeline"])
-fig3.show()
-fig3.write_image(os.path.join(plotdir, "rRNA_sorting_tool.png"))
-
-fig4 = px.scatter(plot_df, x="PC1", y="PC2", color="assembly_tool", hover_data=["pipeline"])
-fig4.show()
-fig4.write_image(os.path.join(plotdir, "assembly_tool.png"))
-
-fig5 = px.scatter(plot_df, x="PC1", y="PC2", color="mapper", hover_data=["pipeline"])
-fig5.show()
-fig5.write_image(os.path.join(plotdir, "mapper.png"))
-
-fig6 = px.scatter(plot_df, x="PC1", y="PC2", color="database", hover_data=["pipeline"])
-fig6.show()
-fig6.write_image(os.path.join(plotdir, "database.png"))
-
-fig7 = px.scatter(plot_df, x="PC1", y="PC2", color="classifier", hover_data=["pipeline"])
-fig7.show()
-fig7.write_image(os.path.join(plotdir, "classifier.png"))
-
-fig8 = px.scatter(plot_df, x="PC1", y="PC2", color="type", hover_data=["pipeline"])
-fig8.show()
-fig8.write_image(os.path.join(plotdir, "type.png"))
 
 
 # 3 Linear regression (following https://datatofish.com/statsmodels-linear-regression/)
@@ -112,14 +96,18 @@ fig8.write_image(os.path.join(plotdir, "type.png"))
 y = pc_lr
 X_no_dummies=metrics_df_exp.drop("expected_dummy").drop("exp", axis=1).iloc[:, -7:]
 X_no_intercept=pd.get_dummies(data=X_no_dummies)
-X = sm.add_constant(X_no_intercept) # This adds a constant as a column which is needed to calculate the intercept of the model
+### Add a constant as a column which is needed to calculate the intercept of the model
+X = sm.add_constant(X_no_intercept)
 
 
 ## 3.2 Fit an ordinary least squares regression model
 lr_model = sm.OLS(y, X).fit()
 
-# 3.3 Check out the coefficients and p-values
-pd.set_option('display.float_format', lambda x: '%.3f' % x) # Only show last 3 decimal digits
+# 3.3 Check out the coefficients and p-values and save them
+## Set pd so that it only shows the last 3 decimal digits in the editor, which
+## is easier for manual inspection
+pd.set_option('display.float_format', lambda x: '%.3f' % x)
+## Use the summary function, which automatically summarizes the output
 summary = lr_model.summary2().tables[1][['Coef.', 'P>|t|']]
 summary.rename(columns={"Coef.": "Coefficient", "P>|t|": "p-value"})
 summary.to_csv(os.path.join(statsdir, "lr_coeff_pval.csv"), index_label="tool")
@@ -129,50 +117,56 @@ summary.to_csv(os.path.join(statsdir, "lr_coeff_pval.csv"), index_label="tool")
 # 4 k-means clustering (following https://realpython.com/k-means-clustering-python/)
 kmean_table_std = pca_df_std
 
-## 4.1 Estimate best kluster number k
+## 4.1 Estimate the best kluster number k
 ## 4.1.1 Elbow method based on SSE
-#### List sse holds the SSE values for each k
+#### The list sse holds the SSE values for each k
 sse = []
 for k in range(1, 20):
     kmeans = KMeans(n_clusters=k)
     kmeans.fit(kmean_table_std)
     sse.append(kmeans.inertia_)
 
-### Plot SSEs to choose best k
-fig_k_sse = px.line(pd.DataFrame(list(zip(range(1, 20), sse)), columns =['Number of Clusters', 'SSE']), x="Number of Clusters", y="SSE")
+### Plot SSEs to choose the best k
+fig_k_sse = px.line(pd.DataFrame(list(zip(range(1, 20), sse)),
+    columns = ['Number of Clusters', 'SSE']), x="Number of Clusters", y="SSE")
 fig_k_sse.show()
-fig_k_sse.write_image(os.path.join(plotdir, "kmean_sse.png"))
+fig_k_sse.write_image(os.path.join(plotdir, "KMeans_sse.png"))
 
-### 4.1.2 Or calculate using KneeLocator
+### 4.1.2 Or automatically calculate the best k using KneeLocator
 kl = KneeLocator(range(1, 20), sse, curve="convex", direction="decreasing")
-print(kl.elbow)
+print("The best k based on KneeLocator is " + str(kl.elbow))
 
 ## 4.1.3 Silhouette coefficient
 silhouette_coefficients = []
-### start at 2 clusters for silhouette coefficient
+### Start at k=2 when using the silhouette coefficient
 for k in range(2, 20):
     kmeans = KMeans(n_clusters=k)
     kmeans.fit(kmean_table_std)
     score = silhouette_score(kmean_table_std, kmeans.labels_)
     silhouette_coefficients.append(score)
 
-fig_k_silhouette = px.line(pd.DataFrame(list(zip(range(2, 20), silhouette_coefficients)), columns =['Number of Clusters', 'Silhouette Coefficients']), x="Number of Clusters", y="Silhouette Coefficients")
+### Plot the scores and manually pick the k with the highest score close to
+### the k estimated with SSE
+fig_k_silhouette = px.line(pd.DataFrame(list(zip(range(2, 20),
+    silhouette_coefficients)), columns =['Number of Clusters', 'Silhouette Coefficients']),
+    x="Number of Clusters", y="Silhouette Coefficients")
 fig_k_silhouette.show()
-fig_k_silhouette.write_image(os.path.join(plotdir, "kmean_silhouette.png"))
+fig_k_silhouette.write_image(os.path.join(plotdir, "KMeans_silhouette.png"))
 
-# Based on both tests, we define k
+## 4.1.2 Based on both tests, we manually define k
 k=6
 
-## 4.2 Actual kmeans
+## 4.2 Perform the actual kmeans with the estimated k
 kmeans = KMeans(n_clusters=k)
 kmeans.fit(kmean_table_std)
 
-# Plot soem stats of the model
-print(kmeans.inertia_) # The lowest SSE value
-print(kmeans.n_iter_) # The number of iterations required to converge
+# Plot some stats of the model
+print("The lowest SSE value of the KMeans model was " + str(kmeans.inertia_))
+print("The number of iterations required to converge the model was " + str(kmeans.n_iter_))
 
 # 4.3 Make kmeans df and plot
-kmean_df=pd.DataFrame(pcs_no_exp, columns = ['PC1', 'PC2'], index=pca_df.index.to_list()).rename_axis("pipeline").reset_index()
+kmean_df=pd.DataFrame(pcs_no_exp, columns = ['PC1', 'PC2'],
+    index=pca_df.index.to_list()).rename_axis("pipeline").reset_index()
 kmean_df['cluster']=[str(x) for x in kmeans.labels_.tolist()]
 exp_kmeans=pc_df.iloc[-1:].reset_index()
 exp_kmeans.rename(columns = {'index':'pipeline'}, inplace = True)
@@ -180,355 +174,360 @@ exp_kmeans['cluster']=["expected"]
 kmean_df=kmean_df.append(exp_kmeans)
 fig_kmean = px.scatter(kmean_df, x="PC1", y="PC2", color="cluster", hover_data=["pipeline"])
 fig_kmean.show()
-fig_kmean.write_image(os.path.join(plotdir, "kmean_plot.png"))
+fig_kmean.write_image(os.path.join(plotdir, "KMeans_plot.png"))
 
 
-######## INSERT: PCA with rel abun
 
-## Calculate the average across the three replicates for rel abundances:
-rel_df = pd.DataFrame()
-for pipeline in master_dfs_uniq_rel[sample].columns:
-    ave_df_rel=pd.DataFrame()
-    for sample in samples:
-        ave_df_rel[sample]=master_dfs_uniq_rel[sample][pipeline]
-    rel_df[pipeline]=ave_df_rel.mean(axis=1)
-rel_df = rel_df.transpose().add_suffix('_rel')
 
-## Calculate the average across the three replicates for rel abundances:
-pa_df = pd.DataFrame()
-for pipeline in master_dfs_uniq_pa[sample].columns:
-    ave_df_pa=pd.DataFrame()
-    for sample in samples:
-        ave_df_pa[sample]=master_dfs_uniq_pa[sample][pipeline]
-    pa_df[pipeline]=ave_df_pa.mean(axis=1)
-pa_df = pa_df.transpose().add_suffix('_pa')
 
-combined_df = pd.concat([rel_df, pa_df], axis=1)
-## PCA (from https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
-## 1.1 Perform initial PCA
-###Grab columns we need
-pca_df=combined_df.iloc[1:,:]
-### Standardize data
-pca_df_std=StandardScaler().fit_transform(pca_df)
-### Perform PCA
-#### On one component for linear regression
-pca_lr = PCA(n_components=1)
-pc_lr = pca_lr.fit_transform(pca_df_std)
-print("PC1: " + str(pca_lr.explained_variance_ratio_[0]))
 
-#### On two components for graphical visualization
-pca_graph = PCA(n_components=2)
-pcs_no_exp = pca_graph.fit_transform(pca_df_std)
-print("PC1: " + str(pca_graph.explained_variance_ratio_[0]) + ", PC2: " + str(pca_graph.explained_variance_ratio_[1]))
 
-## 1.2 Add dummy and predict coordinates in PCA with all pipelines and expected dummy
-#### Add a dummy column with expected outcome (the expected outcome for TN is the number of all taxa - the number of expected taxa)
-pca_df_t=pca_df.transpose()
-pca_df_t["expected_dummy"]=combined_df.iloc[0,:]
-pca_df_with_exp=pca_df_t.transpose()
-
+# ######## INSERT: PCA with rel abun
+#
+# ## Calculate the average across the three replicates for rel abundances:
+# rel_df = pd.DataFrame()
+# for pipeline in master_dfs_uniq_rel[sample].columns:
+#     ave_df_rel=pd.DataFrame()
+#     for sample in samples:
+#         ave_df_rel[sample]=master_dfs_uniq_rel[sample][pipeline]
+#     rel_df[pipeline]=ave_df_rel.mean(axis=1)
+# rel_df = rel_df.transpose().add_suffix('_rel')
+#
+# ## Calculate the average across the three replicates for rel abundances:
+# pa_df = pd.DataFrame()
+# for pipeline in master_dfs_uniq_pa[sample].columns:
+#     ave_df_pa=pd.DataFrame()
+#     for sample in samples:
+#         ave_df_pa[sample]=master_dfs_uniq_pa[sample][pipeline]
+#     pa_df[pipeline]=ave_df_pa.mean(axis=1)
+# pa_df = pa_df.transpose().add_suffix('_pa')
+#
+# combined_df = pd.concat([rel_df, pa_df], axis=1)
+# ## PCA (from https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
+# ## 1.1 Perform initial PCA
+# ###Grab columns we need
+# pca_df=combined_df.iloc[1:,:]
+# ### Standardize data
+# pca_df_std=StandardScaler().fit_transform(pca_df)
+# ### Perform PCA
+# #### On one component for linear regression
+# pca_lr = PCA(n_components=1)
+# pc_lr = pca_lr.fit_transform(pca_df_std)
+# print("PC1: " + str(pca_lr.explained_variance_ratio_[0]))
+#
+# #### On two components for graphical visualization
+# pca_graph = PCA(n_components=2)
+# pcs_no_exp = pca_graph.fit_transform(pca_df_std)
+# print("PC1: " + str(pca_graph.explained_variance_ratio_[0]) + ", PC2: " + str(pca_graph.explained_variance_ratio_[1]))
+#
+# ## 1.2 Add dummy and predict coordinates in PCA with all pipelines and expected dummy
+# #### Add a dummy column with expected outcome (the expected outcome for TN is the number of all taxa - the number of expected taxa)
+# pca_df_t=pca_df.transpose()
+# pca_df_t["expected_dummy"]=combined_df.iloc[0,:]
+# pca_df_with_exp=pca_df_t.transpose()
+#
+# # ### Add column to indicate which pipeline is the expected dummy
+# # col=["pipeline"] * (len(pca_df_with_exp)-1)
+# # col.append("expected")
+# # pca_df_with_exp["exp"]=col
+#
+# ### Predict the coordinates in the PCA for all pipelines plus the expected (that way, the expected doesn't affect the PCA itself)
+# pca_df_with_exp_std=StandardScaler().fit_transform(pca_df_with_exp)
+# pcs_with_exp=pca_graph.transform(pca_df_with_exp_std)
+# pc_df = pd.DataFrame(data = pcs_with_exp, columns = ['PC1', 'PC2'], index=pca_df_with_exp.index)
+#
+# plot_df=pd.concat([pc_df, metrics_df.iloc[:, 16:23]], axis = 1).rename_axis("pipeline").reset_index()
+#
+# fig1 = px.scatter(plot_df, x="PC1", y="PC2", color="exp", hover_data=["pipeline"])
+# fig1.show()
+#
+# fig2 = px.scatter(plot_df, x="PC1", y="PC2", color="trimming_score", hover_data=["pipeline"])
+# fig2.show()
+#
+# fig3 = px.scatter(plot_df, x="PC1", y="PC2", color="rRNA_sorting_tool", hover_data=["pipeline"])
+# fig3.show()
+#
+# fig4 = px.scatter(plot_df, x="PC1", y="PC2", color="assembly_tool", hover_data=["pipeline"])
+# fig4.show()
+#
+# fig5 = px.scatter(plot_df, x="PC1", y="PC2", color="mapper", hover_data=["pipeline"])
+# fig5.show()
+#
+# fig6 = px.scatter(plot_df, x="PC1", y="PC2", color="database", hover_data=["pipeline"])
+# fig6.show()
+#
+# fig7 = px.scatter(plot_df, x="PC1", y="PC2", color="classifier", hover_data=["pipeline"])
+# fig7.show()
+#
+#
+# ########## INSERT END
+#
+#
+#
+#
+# # Exports
+# summary.to_csv('lr.csv')
+# # Export tables to csv
+# metrics_df.iloc[:, 16:22].to_csv('tools.csv')
+# metrics_df.iloc[:, 0:16].to_csv('metrics.csv')
+#
+# ###################### FOR PCA WITHOUT AAD METRICS:
+#
+# ## Make the df
+# metrics_df=pd.DataFrame(master_metrics_df)
+# metrics_df=metrics_df.transpose()
+# metrics_df=metrics_df.drop(["subceed_reads", "exceed_reads", "true_reads", "false_reads", "FN", "FP", "TP", "TN"], axis=1)
+# ############################################ Loop over DNA and RNA samples would go until here
+#
+# # 6 PCA (from https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
+# ## 2.1 Perform initial PCA
+# ###Grab columns we need
+# pca_df=metrics_df.iloc[:, 0:8]
+# ### Standardize data
+# pca_df_std=StandardScaler().fit_transform(pca_df)
+# ### Perform PCA
+# pca = PCA(n_components=2)
+# pcs_no_exp = pca.fit_transform(pca_df_std)
+# print("PC1: " + str(pca.explained_variance_ratio_[0]) + ", PC2: " + str(pca.explained_variance_ratio_[1]))
+#
+#
+# ## 2.2 Add dummy and predict coordinates in PCA with all pipelines and expected dummy
+# #### Add a dummy column with expected outcome (the expected outcome for TN is the number of all taxa - the number of expected taxa)
+# metrics_df=metrics_df.transpose()
+# metrics_df["expected_dummy"]=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, len(unique_taxa)-len(expected_df.index), "expected", "expected", "expected", "expected", "expected", "expected"]
+# metrics_df=metrics_df.transpose()
+#
 # ### Add column to indicate which pipeline is the expected dummy
-# col=["pipeline"] * (len(pca_df_with_exp)-1)
+# col=["pipeline"] * (len(metrics_df)-1)
 # col.append("expected")
-# pca_df_with_exp["exp"]=col
-
-### Predict the coordinates in the PCA for all pipelines plus the expected (that way, the expected doesn't affect the PCA itself)
-pca_df_with_exp_std=StandardScaler().fit_transform(pca_df_with_exp)
-pcs_with_exp=pca_graph.transform(pca_df_with_exp_std)
-pc_df = pd.DataFrame(data = pcs_with_exp, columns = ['PC1', 'PC2'], index=pca_df_with_exp.index)
-
-plot_df=pd.concat([pc_df, metrics_df.iloc[:, 16:23]], axis = 1).rename_axis("pipeline").reset_index()
-
-fig1 = px.scatter(plot_df, x="PC1", y="PC2", color="exp", hover_data=["pipeline"])
-fig1.show()
-
-fig2 = px.scatter(plot_df, x="PC1", y="PC2", color="trimming_score", hover_data=["pipeline"])
-fig2.show()
-
-fig3 = px.scatter(plot_df, x="PC1", y="PC2", color="rRNA_sorting_tool", hover_data=["pipeline"])
-fig3.show()
-
-fig4 = px.scatter(plot_df, x="PC1", y="PC2", color="assembly_tool", hover_data=["pipeline"])
-fig4.show()
-
-fig5 = px.scatter(plot_df, x="PC1", y="PC2", color="mapper", hover_data=["pipeline"])
-fig5.show()
-
-fig6 = px.scatter(plot_df, x="PC1", y="PC2", color="database", hover_data=["pipeline"])
-fig6.show()
-
-fig7 = px.scatter(plot_df, x="PC1", y="PC2", color="classifier", hover_data=["pipeline"])
-fig7.show()
-
-
-########## INSERT END
-
-
-
-
-# Exports
-summary.to_csv('lr.csv')
-# Export tables to csv
-metrics_df.iloc[:, 16:22].to_csv('tools.csv')
-metrics_df.iloc[:, 0:16].to_csv('metrics.csv')
-
-###################### FOR PCA WITHOUT AAD METRICS:
-
-## Make the df
-metrics_df=pd.DataFrame(master_metrics_df)
-metrics_df=metrics_df.transpose()
-metrics_df=metrics_df.drop(["subceed_reads", "exceed_reads", "true_reads", "false_reads", "FN", "FP", "TP", "TN"], axis=1)
-############################################ Loop over DNA and RNA samples would go until here
-
-# 6 PCA (from https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
-## 2.1 Perform initial PCA
-###Grab columns we need
-pca_df=metrics_df.iloc[:, 0:8]
-### Standardize data
-pca_df_std=StandardScaler().fit_transform(pca_df)
-### Perform PCA
-pca = PCA(n_components=2)
-pcs_no_exp = pca.fit_transform(pca_df_std)
-print("PC1: " + str(pca.explained_variance_ratio_[0]) + ", PC2: " + str(pca.explained_variance_ratio_[1]))
-
-
-## 2.2 Add dummy and predict coordinates in PCA with all pipelines and expected dummy
-#### Add a dummy column with expected outcome (the expected outcome for TN is the number of all taxa - the number of expected taxa)
-metrics_df=metrics_df.transpose()
-metrics_df["expected_dummy"]=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, len(unique_taxa)-len(expected_df.index), "expected", "expected", "expected", "expected", "expected", "expected"]
-metrics_df=metrics_df.transpose()
-
-### Add column to indicate which pipeline is the expected dummy
-col=["pipeline"] * (len(metrics_df)-1)
-col.append("expected")
-metrics_df["exp"]=col
-
-### Predict the coordinates in the PCA for all pipelines plus the expected (that way, the expected doesn't affekt the PCA itself)
-pca_df_with_exp=metrics_df.iloc[:, 0:8]
-pca_df_with_exp_std=StandardScaler().fit_transform(pca_df_with_exp)
-pcs_with_exp=pca.transform(pca_df_with_exp_std)
-pc_df = pd.DataFrame(data = pcs_with_exp, columns = ['PC1', 'PC2'], index=pca_df_with_exp.index)
-
-
-
-# 7 Plot
-## Make df from PC1+2 coordinates and tools per pipeline to plot
-plot_df=pd.concat([pc_df, metrics_df.iloc[:, 8:15]], axis = 1).rename_axis("pipeline").reset_index()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="exp", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="trimming_score", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="rRNA_sorting_tool", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="assembly_tool", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="mapper", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="database", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="classifier", hover_data=["pipeline"])
-fig.show()
-
-
-###################### FOR PCA WITHOUT ACCURACY METRICS:
-
-## Make the df
-metrics_df=pd.DataFrame(master_metrics_df)
-metrics_df=metrics_df.transpose()
-metrics_df=metrics_df.drop(["subceed_reads_aad", "exceed_reads_aad", "true_reads_aad", "false_reads_aad", "FN_aad", "FP_aad", "TP_aad", "TN_aad"], axis=1)
-############################################ Loop over DNA and RNA samples would go until here
-
-# 6 PCA (from https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
-## 2.1 Perform initial PCA
-###Grab columns we need
-pca_df=metrics_df.iloc[:, 0:8]
-### Standardize data
-pca_df_std=StandardScaler().fit_transform(pca_df)
-### Perform PCA
-pca = PCA(n_components=2)
-pcs_no_exp = pca.fit_transform(pca_df_std)
-print("PC1: " + str(pca.explained_variance_ratio_[0]) + ", PC2: " + str(pca.explained_variance_ratio_[1]))
-
-
-## 2.2 Add dummy and predict coordinates in PCA with all pipelines and expected dummy
-#### Add a dummy column with expected outcome (the expected outcome for TN is the number of all taxa - the number of expected taxa)
-metrics_df=metrics_df.transpose()
-metrics_df["expected_dummy"]=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, len(unique_taxa)-len(expected_df.index), "expected", "expected", "expected", "expected", "expected", "expected"]
-metrics_df=metrics_df.transpose()
-
-### Add column to indicate which pipeline is the expected dummy
-col=["pipeline"] * (len(metrics_df)-1)
-col.append("expected")
-metrics_df["exp"]=col
-
-### Predict the coordinates in the PCA for all pipelines plus the expected (that way, the expected doesn't affekt the PCA itself)
-pca_df_with_exp=metrics_df.iloc[:, 0:8]
-pca_df_with_exp_std=StandardScaler().fit_transform(pca_df_with_exp)
-pcs_with_exp=pca.transform(pca_df_with_exp_std)
-pc_df = pd.DataFrame(data = pcs_with_exp, columns = ['PC1', 'PC2'], index=pca_df_with_exp.index)
-
-
-
-# 7 Plot
-## Make df from PC1+2 coordinates and tools per pipeline to plot
-plot_df=pd.concat([pc_df, metrics_df.iloc[:, 8:15]], axis = 1).rename_axis("pipeline").reset_index()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="exp", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="trimming_score", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="rRNA_sorting_tool", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="assembly_tool", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="mapper", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="database", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="classifier", hover_data=["pipeline"])
-fig.show()
-
-###################### FOR PCA WITHOUT RELATIVE READS:
-
-## Make the df
-metrics_df=pd.DataFrame(master_metrics_df)
-metrics_df=metrics_df.transpose()
-metrics_df=metrics_df.drop(["subceed_reads_aad", "exceed_reads_aad", "true_reads_aad", "false_reads_aad", "subceed_reads", "exceed_reads", "true_reads", "false_reads"], axis=1)
-############################################ Loop over DNA and RNA samples would go until here
-
-# 6 PCA (from https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
-## 2.1 Perform initial PCA
-###Grab columns we need
-pca_df=metrics_df.iloc[:, 0:8]
-### Standardize data
-pca_df_std=StandardScaler().fit_transform(pca_df)
-### Perform PCA
-pca = PCA(n_components=2)
-pcs_no_exp = pca.fit_transform(pca_df_std)
-print("PC1: " + str(pca.explained_variance_ratio_[0]) + ", PC2: " + str(pca.explained_variance_ratio_[1]))
-
-
-## 2.2 Add dummy and predict coordinates in PCA with all pipelines and expected dummy
-#### Add a dummy column with expected outcome (the expected outcome for TN is the number of all taxa - the number of expected taxa)
-metrics_df=metrics_df.transpose()
-metrics_df["expected_dummy"]=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, len(unique_taxa)-len(expected_df.index), "expected", "expected", "expected", "expected", "expected", "expected"]
-metrics_df=metrics_df.transpose()
-
-### Add column to indicate which pipeline is the expected dummy
-col=["pipeline"] * (len(metrics_df)-1)
-col.append("expected")
-metrics_df["exp"]=col
-
-### Predict the coordinates in the PCA for all pipelines plus the expected (that way, the expected doesn't affekt the PCA itself)
-pca_df_with_exp=metrics_df.iloc[:, 0:8]
-pca_df_with_exp_std=StandardScaler().fit_transform(pca_df_with_exp)
-pcs_with_exp=pca.transform(pca_df_with_exp_std)
-pc_df = pd.DataFrame(data = pcs_with_exp, columns = ['PC1', 'PC2'], index=pca_df_with_exp.index)
-
-
-
-# 7 Plot
-## Make df from PC1+2 coordinates and tools per pipeline to plot
-plot_df=pd.concat([pc_df, metrics_df.iloc[:, 8:15]], axis = 1).rename_axis("pipeline").reset_index()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="exp", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="trimming_score", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="rRNA_sorting_tool", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="assembly_tool", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="mapper", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="database", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="classifier", hover_data=["pipeline"])
-fig.show()
-
-###################### FOR PCA WITHOUT P/A DATA:
-
-## Make the df
-metrics_df=pd.DataFrame(master_metrics_df)
-metrics_df=metrics_df.transpose()
-metrics_df=metrics_df.drop(["FP_aad", "TP_aad", "FN_aad", "TN_aad", "FP", "TP", "FN", "TN"], axis=1)
-############################################ Loop over DNA and RNA samples would go until here
-
-# 6 PCA (from https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
-## 2.1 Perform initial PCA
-###Grab columns we need
-pca_df=metrics_df.iloc[:, 0:8]
-### Standardize data
-pca_df_std=StandardScaler().fit_transform(pca_df)
-### Perform PCA
-pca = PCA(n_components=2)
-pcs_no_exp = pca.fit_transform(pca_df_std)
-print("PC1: " + str(pca.explained_variance_ratio_[0]) + ", PC2: " + str(pca.explained_variance_ratio_[1]))
-
-
-## 2.2 Add dummy and predict coordinates in PCA with all pipelines and expected dummy
-#### Add a dummy column with expected outcome (the expected outcome for TN is the number of all taxa - the number of expected taxa)
-metrics_df=metrics_df.transpose()
-metrics_df["expected_dummy"]=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, len(unique_taxa)-len(expected_df.index), "expected", "expected", "expected", "expected", "expected", "expected"]
-metrics_df=metrics_df.transpose()
-
-### Add column to indicate which pipeline is the expected dummy
-col=["pipeline"] * (len(metrics_df)-1)
-col.append("expected")
-metrics_df["exp"]=col
-
-### Predict the coordinates in the PCA for all pipelines plus the expected (that way, the expected doesn't affekt the PCA itself)
-pca_df_with_exp=metrics_df.iloc[:, 0:8]
-pca_df_with_exp_std=StandardScaler().fit_transform(pca_df_with_exp)
-pcs_with_exp=pca.transform(pca_df_with_exp_std)
-pc_df = pd.DataFrame(data = pcs_with_exp, columns = ['PC1', 'PC2'], index=pca_df_with_exp.index)
-
-
-
-# 7 Plot
-## Make df from PC1+2 coordinates and tools per pipeline to plot
-plot_df=pd.concat([pc_df, metrics_df.iloc[:, 8:15]], axis = 1).rename_axis("pipeline").reset_index()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="exp", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="trimming_score", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="rRNA_sorting_tool", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="assembly_tool", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="mapper", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="database", hover_data=["pipeline"])
-fig.show()
-
-fig = px.scatter(plot_df, x="PC1", y="PC2", color="classifier", hover_data=["pipeline"])
-fig.show()
-
+# metrics_df["exp"]=col
+#
+# ### Predict the coordinates in the PCA for all pipelines plus the expected (that way, the expected doesn't affekt the PCA itself)
+# pca_df_with_exp=metrics_df.iloc[:, 0:8]
+# pca_df_with_exp_std=StandardScaler().fit_transform(pca_df_with_exp)
+# pcs_with_exp=pca.transform(pca_df_with_exp_std)
+# pc_df = pd.DataFrame(data = pcs_with_exp, columns = ['PC1', 'PC2'], index=pca_df_with_exp.index)
+#
+#
+#
+# # 7 Plot
+# ## Make df from PC1+2 coordinates and tools per pipeline to plot
+# plot_df=pd.concat([pc_df, metrics_df.iloc[:, 8:15]], axis = 1).rename_axis("pipeline").reset_index()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="exp", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="trimming_score", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="rRNA_sorting_tool", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="assembly_tool", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="mapper", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="database", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="classifier", hover_data=["pipeline"])
+# fig.show()
+#
+#
+# ###################### FOR PCA WITHOUT ACCURACY METRICS:
+#
+# ## Make the df
+# metrics_df=pd.DataFrame(master_metrics_df)
+# metrics_df=metrics_df.transpose()
+# metrics_df=metrics_df.drop(["subceed_reads_aad", "exceed_reads_aad", "true_reads_aad", "false_reads_aad", "FN_aad", "FP_aad", "TP_aad", "TN_aad"], axis=1)
+# ############################################ Loop over DNA and RNA samples would go until here
+#
+# # 6 PCA (from https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
+# ## 2.1 Perform initial PCA
+# ###Grab columns we need
+# pca_df=metrics_df.iloc[:, 0:8]
+# ### Standardize data
+# pca_df_std=StandardScaler().fit_transform(pca_df)
+# ### Perform PCA
+# pca = PCA(n_components=2)
+# pcs_no_exp = pca.fit_transform(pca_df_std)
+# print("PC1: " + str(pca.explained_variance_ratio_[0]) + ", PC2: " + str(pca.explained_variance_ratio_[1]))
+#
+#
+# ## 2.2 Add dummy and predict coordinates in PCA with all pipelines and expected dummy
+# #### Add a dummy column with expected outcome (the expected outcome for TN is the number of all taxa - the number of expected taxa)
+# metrics_df=metrics_df.transpose()
+# metrics_df["expected_dummy"]=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, len(unique_taxa)-len(expected_df.index), "expected", "expected", "expected", "expected", "expected", "expected"]
+# metrics_df=metrics_df.transpose()
+#
+# ### Add column to indicate which pipeline is the expected dummy
+# col=["pipeline"] * (len(metrics_df)-1)
+# col.append("expected")
+# metrics_df["exp"]=col
+#
+# ### Predict the coordinates in the PCA for all pipelines plus the expected (that way, the expected doesn't affekt the PCA itself)
+# pca_df_with_exp=metrics_df.iloc[:, 0:8]
+# pca_df_with_exp_std=StandardScaler().fit_transform(pca_df_with_exp)
+# pcs_with_exp=pca.transform(pca_df_with_exp_std)
+# pc_df = pd.DataFrame(data = pcs_with_exp, columns = ['PC1', 'PC2'], index=pca_df_with_exp.index)
+#
+#
+#
+# # 7 Plot
+# ## Make df from PC1+2 coordinates and tools per pipeline to plot
+# plot_df=pd.concat([pc_df, metrics_df.iloc[:, 8:15]], axis = 1).rename_axis("pipeline").reset_index()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="exp", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="trimming_score", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="rRNA_sorting_tool", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="assembly_tool", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="mapper", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="database", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="classifier", hover_data=["pipeline"])
+# fig.show()
+#
+# ###################### FOR PCA WITHOUT RELATIVE READS:
+#
+# ## Make the df
+# metrics_df=pd.DataFrame(master_metrics_df)
+# metrics_df=metrics_df.transpose()
+# metrics_df=metrics_df.drop(["subceed_reads_aad", "exceed_reads_aad", "true_reads_aad", "false_reads_aad", "subceed_reads", "exceed_reads", "true_reads", "false_reads"], axis=1)
+# ############################################ Loop over DNA and RNA samples would go until here
+#
+# # 6 PCA (from https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
+# ## 2.1 Perform initial PCA
+# ###Grab columns we need
+# pca_df=metrics_df.iloc[:, 0:8]
+# ### Standardize data
+# pca_df_std=StandardScaler().fit_transform(pca_df)
+# ### Perform PCA
+# pca = PCA(n_components=2)
+# pcs_no_exp = pca.fit_transform(pca_df_std)
+# print("PC1: " + str(pca.explained_variance_ratio_[0]) + ", PC2: " + str(pca.explained_variance_ratio_[1]))
+#
+#
+# ## 2.2 Add dummy and predict coordinates in PCA with all pipelines and expected dummy
+# #### Add a dummy column with expected outcome (the expected outcome for TN is the number of all taxa - the number of expected taxa)
+# metrics_df=metrics_df.transpose()
+# metrics_df["expected_dummy"]=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, len(unique_taxa)-len(expected_df.index), "expected", "expected", "expected", "expected", "expected", "expected"]
+# metrics_df=metrics_df.transpose()
+#
+# ### Add column to indicate which pipeline is the expected dummy
+# col=["pipeline"] * (len(metrics_df)-1)
+# col.append("expected")
+# metrics_df["exp"]=col
+#
+# ### Predict the coordinates in the PCA for all pipelines plus the expected (that way, the expected doesn't affekt the PCA itself)
+# pca_df_with_exp=metrics_df.iloc[:, 0:8]
+# pca_df_with_exp_std=StandardScaler().fit_transform(pca_df_with_exp)
+# pcs_with_exp=pca.transform(pca_df_with_exp_std)
+# pc_df = pd.DataFrame(data = pcs_with_exp, columns = ['PC1', 'PC2'], index=pca_df_with_exp.index)
+#
+#
+#
+# # 7 Plot
+# ## Make df from PC1+2 coordinates and tools per pipeline to plot
+# plot_df=pd.concat([pc_df, metrics_df.iloc[:, 8:15]], axis = 1).rename_axis("pipeline").reset_index()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="exp", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="trimming_score", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="rRNA_sorting_tool", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="assembly_tool", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="mapper", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="database", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="classifier", hover_data=["pipeline"])
+# fig.show()
+#
+# ###################### FOR PCA WITHOUT P/A DATA:
+#
+# ## Make the df
+# metrics_df=pd.DataFrame(master_metrics_df)
+# metrics_df=metrics_df.transpose()
+# metrics_df=metrics_df.drop(["FP_aad", "TP_aad", "FN_aad", "TN_aad", "FP", "TP", "FN", "TN"], axis=1)
+# ############################################ Loop over DNA and RNA samples would go until here
+#
+# # 6 PCA (from https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
+# ## 2.1 Perform initial PCA
+# ###Grab columns we need
+# pca_df=metrics_df.iloc[:, 0:8]
+# ### Standardize data
+# pca_df_std=StandardScaler().fit_transform(pca_df)
+# ### Perform PCA
+# pca = PCA(n_components=2)
+# pcs_no_exp = pca.fit_transform(pca_df_std)
+# print("PC1: " + str(pca.explained_variance_ratio_[0]) + ", PC2: " + str(pca.explained_variance_ratio_[1]))
+#
+#
+# ## 2.2 Add dummy and predict coordinates in PCA with all pipelines and expected dummy
+# #### Add a dummy column with expected outcome (the expected outcome for TN is the number of all taxa - the number of expected taxa)
+# metrics_df=metrics_df.transpose()
+# metrics_df["expected_dummy"]=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, len(unique_taxa)-len(expected_df.index), "expected", "expected", "expected", "expected", "expected", "expected"]
+# metrics_df=metrics_df.transpose()
+#
+# ### Add column to indicate which pipeline is the expected dummy
+# col=["pipeline"] * (len(metrics_df)-1)
+# col.append("expected")
+# metrics_df["exp"]=col
+#
+# ### Predict the coordinates in the PCA for all pipelines plus the expected (that way, the expected doesn't affekt the PCA itself)
+# pca_df_with_exp=metrics_df.iloc[:, 0:8]
+# pca_df_with_exp_std=StandardScaler().fit_transform(pca_df_with_exp)
+# pcs_with_exp=pca.transform(pca_df_with_exp_std)
+# pc_df = pd.DataFrame(data = pcs_with_exp, columns = ['PC1', 'PC2'], index=pca_df_with_exp.index)
+#
+#
+#
+# # 7 Plot
+# ## Make df from PC1+2 coordinates and tools per pipeline to plot
+# plot_df=pd.concat([pc_df, metrics_df.iloc[:, 8:15]], axis = 1).rename_axis("pipeline").reset_index()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="exp", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="trimming_score", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="rRNA_sorting_tool", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="assembly_tool", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="mapper", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="database", hover_data=["pipeline"])
+# fig.show()
+#
+# fig = px.scatter(plot_df, x="PC1", y="PC2", color="classifier", hover_data=["pipeline"])
+# fig.show()
+#
 
 
 
