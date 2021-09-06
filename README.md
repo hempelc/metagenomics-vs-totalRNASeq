@@ -1,2 +1,2 @@
-# chrisnatjulia
-A repo for our scripts for microbial community assessments
+# metagenomics-vs-totalRNASeq
+A repo for the first chapter of Chris' PhD comparing metagenomcis to total RNA-Seq and processing pipelines
