@@ -72,7 +72,7 @@ run_it(){
 
   METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_compute_canada_with_ncbi-nt.sh \
   -1 ${R1} -2 ${R2} -P ${pipeline} \
-  -N ${DBS}/nt_database_feb_2020_indexed/nt \
+  -N ${DBS}/nt_database_14_Feb_2021_indexed/nt \
   -S ${DBS}/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Jul_2021/blastdb \
   -s ${DBS}/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Jul_2021 \
   -n ${DBS}/kraken2_nt_DB \
