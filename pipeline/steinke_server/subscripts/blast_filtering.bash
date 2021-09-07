@@ -2,6 +2,8 @@
 
 # Version 0.2, made on 13 Jul 2020 by Chris Hempel (hempelc@uoguelph.ca)
 
+# NOTE: contains bug when using -t fasta (directories and files in it are not referred to correctly)
+
 # Version change: For option -t soft, if several hits have the same best bitscore
 # for a sequence, they're kept and an LCA approach is applied to them
 
@@ -115,7 +117,7 @@ if [[ $format != 'fasta' && $format != 'blast' ]]; then
 fi
 
 if [[ $format == 'fasta' && $db == '' ]]; then
-  echo -e "Option -d must be set when using -f fasta.'\n"
+  echo -e "Option -d must be set when using -f 'fasta'.\n"
   echo -e "$usage\n\n"
   echo -e "Exiting script\n"
   exit
@@ -153,9 +155,10 @@ if [[ $format == 'fasta' ]] ; then
   -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
   -evalue 1e-05 -num_threads $threads
   assign_taxonomy_input="blast_filtering_results/blast_output.txt"
-  echo -e "\n======== JUSTBLAST DONE ========\n"
+  echo -e "\n======== BLASTN DONE ========\n"
 else
-  assign_taxonomy_input=$input
+  cp $input blast_filtering_results/
+  assign_taxonomy_input=blast_filtering_results/${input}
 fi
 
 if [[ $filtering == 'soft' ]] ; then
@@ -164,7 +167,6 @@ if [[ $filtering == 'soft' ]] ; then
   # Using a subscript:
   assign_taxonomy_to_NCBI_staxids.sh -b $assign_taxonomy_input -c 13 \
   -e $etetoolkit
-  mv ${assign_taxonomy_input%.txt}_with_taxonomy.txt blast_filtering_results/
   sed -i '1d' blast_filtering_results/${assign_taxonomy_input%.txt}_with_taxonomy.txt
 
   echo -e "\n======== KEEPING ONLY BEST HIT PER SEQUENCE ========\n"
