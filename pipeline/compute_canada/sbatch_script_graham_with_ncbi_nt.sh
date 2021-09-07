@@ -1,10 +1,10 @@
 #!/bin/bash
 
 #SBATCH --account=def-dsteinke
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=32
 #SBATCH --mem=124G
 #SBATCH --time=8:00:00
-#SBATCH --array=1-84
+#SBATCH --array=1-56
 
 # A script to run Chris Hempel's METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE in
 # parallel on graham
@@ -31,7 +31,7 @@ start=$(date +%s)
 # Copy all necessary DBs and reads to temporary dir on server (SLURM_TMPDIR)
 echo "[$(date +%H:%M:%S)] Copying started [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 cp -r ${BASE}/databases ${BASE}/programs/ete3_env ${HOME}/.etetoolkit \
-${R1} ${R2} ${BASE}/split_files_8_pips_just_ncbi_nt/file_chunk${SLURM_ARRAY_TASK_ID}.txt \
+${R1} ${R2} ${BASE}/split_files_8_pips_just_ncbi_nt_blast/file_chunk${SLURM_ARRAY_TASK_ID}.txt \
 ${BASE}/programs/rRNAFilter ${SLURM_TMPDIR}
 echo "[$(date +%H:%M:%S)] Copying finished [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 
