@@ -20,7 +20,8 @@ logging.basicConfig(level=logging.DEBUG,
 ## Full path to directory that contains samples
 workdir = "/Users/christopherhempel/Desktop/pipeline_results_mock_community/"
 ## List of DNA and RNA samples, replicates of 3 plus filtration controls (Neg) and
-## extraction controls (Ext); must equal names of directories in workdir that contain each sample's pipeline results:
+## extraction controls (Ext); must equal names of directories in workdir that
+## contain each sample's pipeline results:
 samples = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA",
     "M_Neg_DNA", "M_Neg_RNA", "M_Ext_DNA", "M_Ext_RNA"]
 ## Taxonomic rank to group rows on. Either based on genus (option "genus")
@@ -46,14 +47,14 @@ def aad (reps, central):
     return aad
 
 ## Function to cut down master_dfs to only expected taxa,
-## options for type="above_zero" if expected taxa are selected or "equal_zero"
+## options for type="expected" if expected taxa are selected or "FP"
 ## if false positive taxa are selected:
 def cutdown (master_df, type):
     cutdown_dic = {}
     for sample, pipelines in master_df.items():
-        if type == "above_zero":
+        if type == "expected":
             cutdown_dic[sample] = pipelines.loc[pipelines['expected'] != 0]
-        elif type == "equal_zero":
+        elif type == "FP":
             cutdown_dic[sample] = pipelines.loc[pipelines['expected'] == 0]
     return cutdown_dic
 
@@ -70,7 +71,7 @@ def confusion_calc (cutdown_dic_expected, cutdown_dic_FP, type):
             TP=0
             for i in range(len(abundances.tolist())):
                 if abundances.tolist()[i] > expected_list[i]:
-                    FP += (abundances.tolist()[i] - expected_list[i])
+                    FP += abundances.tolist()[i] - expected_list[i]
                 if abundances.tolist()[i] != 0 and abundances.tolist()[i] >= expected_list[i]:
                     TP += expected_list[i]
                 if abundances.tolist()[i] < expected_list[i]:
@@ -79,8 +80,8 @@ def confusion_calc (cutdown_dic_expected, cutdown_dic_FP, type):
                 for i in range(len(abundances.tolist())):
                     if abundances.tolist()[i] < expected_list[i]:
                         FN += (abundances.tolist()[i] - expected_list[i])*-1
-                confusion_values = {"subceed_reads": FN, "exceed_reads": FP, "true_reads":TP}
-                confusion_values["false_reads"]=cutdown_dic_FP[sample][pipeline].sum()
+                confusion_values = {"subceed_reads": FN, "exceed_reads": FP, "reads_expected_taxa": TP+FP}
+                confusion_values["reads_false_taxa"]=cutdown_dic_FP[sample][pipeline].sum()
             elif type == "pa":
                 for i in range(len(abundances.tolist())):
                     if abundances.tolist()[i] - expected_list[i] < 0:
@@ -91,6 +92,8 @@ def confusion_calc (cutdown_dic_expected, cutdown_dic_FP, type):
             confusion_dic[pipeline] = confusion_values
         confusion_master[sample] = confusion_dic
     return confusion_master
+
+
 
 # 1 Make expected mock community
 expected_dic = {} # Empty dic that will eventually contain expected species adn their abundances
@@ -190,7 +193,6 @@ for sample in samples:
         master_dfs_raw[sample] = sample_dfs
 
 
-
 # 3 Generate master dfs with
 
 ## 3.1 Add all expected taxa to list in case they're not picked up by any pipeline
@@ -262,53 +264,43 @@ for key, value in master_dfs_pa.items():
 
 ## 4.1 Cut down master_dfs to only expected taxa and to false positive (FP) taxa
 ### Apply cutdown function on relative, and pa master_dfs
-rel_cutdown_expected = cutdown(master_dfs_rel_sub, "above_zero")
-pa_cutdown_expected = cutdown(master_dfs_pa, "above_zero")
+rel_cutdown_expected = cutdown(master_dfs_rel_sub, "expected")
+pa_cutdown_expected = cutdown(master_dfs_pa, "expected")
 
-rel_cutdown_FP = cutdown(master_dfs_rel_sub, "equal_zero")
-pa_cutdown_FP = cutdown(master_dfs_pa, "equal_zero")
+rel_cutdown_FP = cutdown(master_dfs_rel_sub, "FP")
+pa_cutdown_FP = cutdown(master_dfs_pa, "FP")
 
 
-## 4.2 Apply confusion_calc function on relative and pa cutdown master_dfs
-rel_metrics_reps = confusion_calc(rel_cutdown_expected, rel_cutdown_FP, "rel")
-pa_metrics_reps = confusion_calc(pa_cutdown_expected, pa_cutdown_FP, "pa")
+## 4.2 Use the rel_cutdown_expected dfs as metrics for rel abundances of each
+##     expected taxon and add additional metrics
+metrics_reps=copy.deepcopy(rel_cutdown_expected) # Copy df under different name
+for sample_type in ["DNA", "RNA"]:
+    for sample in [x + "_" + sample_type for x in ["M4", "M5", "M6"]]:
+        FP_rel=rel_cutdown_FP[sample].sum(axis=0)
+        TP=pa_cutdown_expected[sample].sum(axis=0)
+        FP=pa_cutdown_FP[sample].sum(axis=0)
+        TN=len(pa_cutdown_FP[sample])-pa_cutdown_FP[sample].sum(axis=0)
+        FN=len(pa_cutdown_expected[sample])-pa_cutdown_expected[sample].sum(axis=0)
+        metrics_reps[sample].loc['TP'] = TP
+        metrics_reps[sample].loc['FP'] = FP
+        metrics_reps[sample].loc['TN'] = TN
+        metrics_reps[sample].loc['FN'] = FN
+        metrics_reps[sample].loc['FP_rel'] = FP_rel
 
 
 ## 4.3 Calculate the average and AAD between replicates for each metric
+### Concatenate all 3 dfs into one
+concat=pd.DataFrame({})
+for sample in metrics_reps.keys():
+    concat=pd.concat((concat, metrics_reps[sample]), axis=1)
 
-### Make dics containing each pipeline as key with empty dics for metrics per pipeline:
-rel_metrics_tmp={} # Empty temporary dic
-pa_metrics_tmp={} # Empty temporary dic
-for metrics_dic_tmp in [rel_metrics_tmp, pa_metrics_tmp]:
-    for sample in ["M4_DNA", "M5_DNA", "M6_DNA", "M4_RNA", "M5_RNA", "M6_RNA"]:
-        for pipeline in rel_metrics_reps[sample].keys():
-            if  metrics_dic_tmp==rel_metrics_tmp:
-                metrics_dic_tmp[pipeline]={"subceed_reads": [], "exceed_reads": [],
-                    "true_reads": [], "false_reads": []}
-            elif metrics_dic_tmp==pa_metrics_tmp:
-                metrics_dic_tmp[pipeline]={"FN": [], "FP": [], "TP": [], "TN": []}
-
-### Fill in dics created above so that every pipeline contains a dic with
-### metrics as keys and each metric lists its three values across the
-### three replicates:
-for metric_dic_rep in [rel_metrics_reps, pa_metrics_reps]:
-    for sample, pipelines in metric_dic_rep.items():
-        for pipeline, metrics in pipelines.items():
-            for metric, value in metrics.items():
-                if metric_dic_rep==rel_metrics_reps:
-                    rel_metrics_tmp[pipeline][metric].append(value)
-                elif metric_dic_rep==pa_metrics_reps:
-                    pa_metrics_tmp[pipeline][metric].append(value)
-
-### Calculate the average and AAD across the three replicates for each metric:
-metrics_dic={} # Empty dic that will eventually contain all metrics
-for pipeline in rel_metrics_tmp.keys():
-        metrics_dic[pipeline]={}
-for metrics_dic_tmp in [rel_metrics_tmp, pa_metrics_tmp]:
-    for pipeline, metrics in metrics_dic_tmp.items():
-        for metric, lst in metrics.items():
-            metrics_dic[pipeline][metric]=sum(lst)/len(lst)
-            metrics_dic[pipeline][metric + "_aad"]=aad(lst, sum(lst)/len(lst))
+### FIll dic with average and AAD per pipeline
+metrics_dic={}
+for pipeline in list(set(concat.columns)):
+    metrics_dic[pipeline]={}
+    for metric, values in concat[pipeline].iterrows():
+        metrics_dic[pipeline][metric]=sum(values)/len(values)
+        metrics_dic[pipeline][metric + "_aad"]=aad(values, sum(values)/len(values))
 
 
 
@@ -319,14 +311,16 @@ step_list=["type", "trimming_score", "rRNA_sorting_tool", "assembly_tool",
 "mapper", "database", "classifier"]
 for step in step_list:
     for pipeline in metrics_dic.keys():
+        if pipeline=="expected":
+            metrics_dic[pipeline][step]="expected"
+            continue
         metrics_dic[pipeline][step]=pipeline.split("_")[step_list.index(step)]
 
 ## Make the df
-metrics_df=pd.DataFrame(metrics_dic)
-metrics_df=metrics_df.transpose()
+metrics_df=pd.DataFrame(metrics_dic).transpose()
 
 ## Save the df
-statsdir=os.path.join(workdir, "stats_exports")
+statsdir=os.path.join(workdir, "results_" + groupby_rank + "_" + rel_abun_basis, "stats_exports")
 if not os.path.exists(statsdir):
     os.makedirs(statsdir)
 metrics_df.to_csv(os.path.join(statsdir, "metrics_df.csv"), index_label="pipeline")
