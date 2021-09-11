@@ -1,10 +1,10 @@
 #!/bin/bash
 
 #SBATCH --account=def-dsteinke
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=32
 #SBATCH --mem=124G
 #SBATCH --time=8:00:00
-#SBATCH --array=1-84
+#SBATCH --array=1-56
 
 # A script to run Chris Hempel's METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE in
 # parallel on graham
@@ -31,7 +31,7 @@ start=$(date +%s)
 # Copy all necessary DBs and reads to temporary dir on server (SLURM_TMPDIR)
 echo "[$(date +%H:%M:%S)] Copying started [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 cp -r ${BASE}/databases ${BASE}/programs/ete3_env ${HOME}/.etetoolkit \
-${R1} ${R2} ${BASE}/split_files_8_pips_just_ncbi_nt/file_chunk${SLURM_ARRAY_TASK_ID}.txt \
+${R1} ${R2} ${BASE}/split_files_8_pips_just_ncbi_nt_blast/file_chunk${SLURM_ARRAY_TASK_ID}.txt \
 ${BASE}/programs/rRNAFilter ${SLURM_TMPDIR}
 echo "[$(date +%H:%M:%S)] Copying finished [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m]"
 
@@ -77,7 +77,7 @@ run_it(){
 
   METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_compute_canada_with_ncbi-nt.sh \
   -1 ${R1} -2 ${R2} -P ${pipeline} \
-  -N ${SLURM_TMPDIR}/databases/nt_database_feb_2020_indexed/nt \
+  -N ${SLURM_TMPDIR}/databases/nt_database_14_Feb_2021_indexed/nt \
   -S ${SLURM_TMPDIR}/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Jul_2021/blastdb \
   -s ${SLURM_TMPDIR}/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Jul_2021 \
   -n ${SLURM_TMPDIR}/databases/kraken2_nt_DB \
