@@ -10,6 +10,7 @@ import plotly.express as px
 import statsmodels.api as sm
 import rpy2.robjects as ro
 import os
+import copy
 import logging
 import pickle
 from sklearn.preprocessing import StandardScaler
@@ -29,9 +30,9 @@ logging.basicConfig(level=logging.DEBUG,
 
 # Parameters
 ## Full path to directory containing stats_exports from script "processing_and_metrics.py":
-statsdir = "/Users/christopherhempel/Desktop/pipeline_results_mock_community/results_species_cell/stats_exports"
+statsdir = "/Users/christopherhempel/Desktop/pipeline_results_mock_community/results_genus_cell/stats_exports"
 ## Metrics to use, options: "all_metr", "rel_metr", or "pa_metr"
-metr="all_metr"
+metr="pa_metr"
 
 
 # Imports
@@ -46,7 +47,7 @@ metrics_df['trimming_score'] = metrics_df['trimming_score'].astype(str)
 ### Drop metrics that aren't used
 #### Default: drop TN and FN (collinear with TP and FP):
 metrics_df=metrics_df.drop(["FN", "TN", "FN_aad", "TN_aad"], axis=1)
-#### Drop additional ones specified by parameter "metr" and set expected dummy
+### Drop additional ones specified by parameter "metr" and set expected dummy
 #### (=ideal pipeline results):
 if metr not in ["all_metr", "rel_metr", "pa_metr"]:
     logging.critical("Parameter metr not in all_metr, rel_metr, or pa_metr: metr=" + metr)
@@ -57,22 +58,17 @@ elif metr=="rel_metr":
     metrics_df=metrics_df.drop(["FP", "TP", "FP_aad", "TP_aad"], axis=1)
 elif metr=="pa_metr":
     print("Just p/a metrics are used.")
-    metrics_df=metrics_df.drop(["true_taxa", "false_taxa", "true_taxa_aad",
-        "false_taxa_aad"], axis=1)
-
-
-### TO DO: adjust dropped cols
-
-
+    drops=["FP", "TP", "FP_aad", "TP_aad", 'type', 'trimming_score',
+        'rRNA_sorting_tool', 'assembly_tool', 'mapper', 'database', 'classifier']
+    metrics_df=metrics_df.drop([x for x in metrics_df.columns if x not in drops], axis=1)
+### Add expected
 expected_dummy=metrics_df.loc["expected"]
 metrics_df=metrics_df.drop(["expected"], axis=0)
-
-
 
 # 1 PCA (following https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
 ## 1.1 Perform initial PCA
 ### Grab columns we need
-pca_df=metrics_df.iloc[:, 0:-7]
+pca_df=metrics_df.iloc[:, :-7]
 ### Save features=metrics in variable
 pca_features=pca_df.columns
 ### Standardize data
@@ -119,15 +115,42 @@ pc_df = pd.DataFrame(data = pcs_with_exp, columns = ['PC1', 'PC2'],
 
 
 
-# 2 R envfit function - One very helpful function in R, envfit, is not
+# 2 Linear regression (following https://datatofish.com/statsmodels-linear-regression/)
+## 2.1 Set up X and y
+y = pc_lr
+### Parameter to include or exclude type variables ("False" or "True")
+type_included=True
+if type_included:
+    X_no_dummies=metrics_df_exp.drop("expected_dummy").drop("exp", axis=1).iloc[:, -7:]
+    X_no_intercept=pd.get_dummies(X_no_dummies)
+else:
+    X_no_dummies=metrics_df_exp.drop("expected_dummy").drop(["exp", "type"], axis=1).iloc[:, -6:]
+    X_no_intercept=pd.get_dummies(X_no_dummies)
+### Add a constant as a column which is needed to calculate the intercept of the model
+
+X = sm.add_constant(X_no_intercept)
+
+## 2.2 Fit an ordinary least squares regression model
+lr_model = sm.OLS(y, X).fit()
+
+## 2.3 Check out the coefficients and p-values and save them
+### Set pd so that it only shows the last 3 decimal digits in the editor, which
+### is easier for manual inspection
+pd.set_option('display.float_format', lambda x: '%.3f' % x)
+### Use the summary function, which automatically summarizes the output
+summary = lr_model.summary2().tables[1][['Coef.', 'P>|t|']]
+summary.rename(columns={"Coef.": "Coefficient", "P>|t|": "p-value"})
+summary.to_csv(os.path.join(statsdir,  metr + "_lr_coeff_pval.csv"), index_label="tool")
+
+
+
+# 3 R envfit function - One very helpful function in R, envfit, is not
 # reproducible in python. Therefore, we use the rpy2 module to run that R
 # function in python on our PCA and metrics
 
 ## import R packages
 base = importr('base')
 vegan = importr('vegan')
-
-######## !!!!! NOTE: change structure of script (linear regression comes first, or gets replaced btu dummie df is kept)
 
 ## Open localconverter to be able to use pandas df in R function
 with localconverter(ro.default_converter + pandas2ri.converter):
@@ -154,7 +177,7 @@ pvalues_tools.to_csv(os.path.join(statsdir, metr + "_pvalues_tools.csv"), index_
 
 
 
-# 3 Plots
+# 4 Plots
 ## Make saving directory:
 plotdir=os.path.join(os.path.abspath(os.path.join(statsdir, os.pardir)), "plots_" + metr)
 if not os.path.exists(plotdir):
@@ -162,18 +185,18 @@ if not os.path.exists(plotdir):
 ## Make df from PC1+2 coordinates and tools per pipeline to plot:
 plot_df=pd.concat([pc_df, metrics_df_exp.iloc[:, -8:]],
     axis = 1).rename_axis("pipeline").reset_index()
+
 ## Pick scaling multiplier for arrows in PCA biplot to make them more visible:
 scaling=4
 ## Make plot for each tool column and save plots (biplot part taken from
 ## https://plotly.com/python/pca-visualization; arrow part taken from
 ## https://community.plotly.com/t/arrow-heads-at-the-direction-of-line-arrows/32565/3):
 for col in plot_df.columns[3:]:
-    fig = px.scatter(plot_df, x="PC1", y="PC2",
-        labels={"PC1": "PC1 ({0}%)".format(PC1_graph),
-        "PC2": "PC2 ({0}%)".format(PC2_graph)},
-        color=col, hover_data=["pipeline"])
     ### We show different arrows based on the column we colour on:
     if col=="exp":
+        fig = px.scatter(plot_df, x="PC1", y="PC2",
+            labels={"PC1": "PC1 ({0}%)".format(PC1_graph),
+            "PC2": "PC2 ({0}%)".format(PC2_graph)}, color=col, hover_data=["pipeline"])
         #### Loop over features:
         for i, feature in enumerate(pca_features):
             ##### Add lines:
@@ -185,7 +208,26 @@ for col in plot_df.columns[3:]:
             ##### Add labels:
             fig.add_annotation(x=loadings[i, 0]*scaling, y=loadings[i, 1]*scaling, ax=0, ay=0,
                 xanchor="center", yanchor="bottom", text=feature)
+            ##### Highlight one specific point:
+            idx=plot_df.loc[plot_df['pipeline'] == 'RNA_10_rrnafilter_transabyss_bwa_ncbi-nt_kraken2'].index
+            fig.data[0].update(selectedpoints=idx,
+                   selected=dict(marker=dict(color='red')),#color of selected points
+                   unselected=dict(marker=dict(color='rgb(200,200, 200)',#color of unselected pts
+                                   opacity=0.9)));
     else:
+        #### Extract p values fro each tool from p value df and replace tool names
+        #### by tool names + p-value so that p-values are visible in legend
+        plot_df_repl=copy.deepcopy(plot_df)
+        for tool in plot_df[col].unique()[:-1]:
+            tool_rep=tool.replace("-", ".")
+            pval=pvalues_tools.reset_index()[pvalues_tools.reset_index()['index']
+                .str.contains("_" + tool_rep)]["p-value"].to_list()[0]
+            plot_df_repl=plot_df_repl.replace(tool, "{0} (p={1})".format(tool, pval))
+        #### Plot figure with replaced tool names
+        fig = px.scatter(plot_df_repl, x="PC1", y="PC2",
+            labels={"PC1": "PC1 ({0}%)".format(PC1_graph),
+            "PC2": "PC2 ({0}%)".format(PC2_graph), col: "{0} (p={1})".format(col,
+                pvalues_steps.loc[col].to_list()[0])}, color=col, hover_data=["pipeline"])
         #### Cut down scores_tools df to rows per col:
         tools_df=scores_tools.reset_index()[scores_tools.reset_index()['index']
             .str.contains(col)]
@@ -204,7 +246,8 @@ for col in plot_df.columns[3:]:
     fig.show()
     fig.write_image(os.path.join(plotdir, "PCA_{0}_{1}.png".format(metr, col)))
 
-==========
+
+##### !!!!!!!! manual part for now
 df = pd.read_csv("/Users/christopherhempel/Desktop/test.csv")
 import plotly.graph_objects as go
 
@@ -224,8 +267,6 @@ fig = go.Figure(data=go.Scatter3d(
         line_color='rgb(140, 140, 170)'
     )
 ))
-#fig.update_layout(height=800, width=800,
-                  #title='Examining Population and Life Expectancy Over Time')
 fig.show()
 
 # Radar plot
@@ -236,38 +277,12 @@ fig = px.line_polar(df_radar, r='p-value', theta='comb', line_close=True)
 fig.show()
 
 # Heatmap
-df_heat=copy.deepcopy(df)
-df_heat["comb"] = df_heat["metrics"] + "_" + df_heat["level+cell"]
-
-
-==========
-
-# 4 Linear regression (following https://datatofish.com/statsmodels-linear-regression/)
-## 4.1 Set up X and y
-y = pc_lr
-### Parameter to include or exclude type variables ("False" or "True")
-type_included=False
-if type_included:
-    X_no_dummies=metrics_df_exp.drop("expected_dummy").drop("exp", axis=1).iloc[:, -7:]
-    X_no_intercept=pd.get_dummies(X_no_dummies)
-else:
-    X_no_dummies=metrics_df_exp.drop("expected_dummy").drop(["exp", "type"], axis=1).iloc[:, -6:]
-    X_no_intercept=pd.get_dummies(X_no_dummies)
-### Add a constant as a column which is needed to calculate the intercept of the model
-
-X = sm.add_constant(X_no_intercept)
-
-## 4.2 Fit an ordinary least squares regression model
-lr_model = sm.OLS(y, X).fit()
-
-# 4.3 Check out the coefficients and p-values and save them
-## Set pd so that it only shows the last 3 decimal digits in the editor, which
-## is easier for manual inspection
-pd.set_option('display.float_format', lambda x: '%.3f' % x)
-## Use the summary function, which automatically summarizes the output
-summary = lr_model.summary2().tables[1][['Coef.', 'P>|t|']]
-summary.rename(columns={"Coef.": "Coefficient", "P>|t|": "p-value"})
-summary.to_csv(os.path.join(statsdir,  metr + "_lr_coeff_pval.csv"), index_label="tool")
+heat_dic={}
+for step in df["step"].unique():
+    heat_dic[step]=df[df['step'].str.contains(step)]["p-value"].to_list()
+heat_df=pd.DataFrame(heat_dic, index=(df["metrics"] + "_" + df["level+cell"]).unique())
+fig_heat = px.imshow(heat_df.sort_index().transpose())
+fig_heat.show()
 
 
 
@@ -311,7 +326,7 @@ fig_k_silhouette.show()
 fig_k_silhouette.write_image(os.path.join(plotdir, "KMeans_"  + metr + "_silhouette.png"))
 
 ## 5.1.2 Based on both tests, we manually define k
-k=4
+k=10
 
 ## 5.2 Perform the actual kmeans with the estimated k
 kmeans = KMeans(n_clusters=k)
@@ -333,8 +348,21 @@ fig_kmean = px.scatter(kmean_df, x="PC1", y="PC2", color="cluster", hover_data=[
 fig_kmean.show()
 fig_kmean.write_image(os.path.join(plotdir, "KMeans_"  + metr + "_plot.png"))
 
-# 5 Euclidean distances between pipelines and expected
-euc_dist_df = pca_df
-for index,row in euc_dist_df.iterrows():
-    euc_dist_df.loc[index,'euc_dist'] = euclidean(row, expected_dummy[0:-7])
+
+
+# 6 Euclidean distances between pipelines and expected (note: use standardized columns):
+euc_dist_df = copy.deepcopy(metrics_df)
+for index,row in pd.DataFrame(pca_df_std, index=pca_df.index).iterrows():
+    euc_dist_df.loc[index,'euc_dist'] = euclidean(row, expected_dummy[:-7])
 euc_dist_df.sort_values(by=['euc_dist'])
+mean_euc_dist_lst=[]
+tools=[]
+for step in euc_dist_df.loc[:, 'type':'classifier'].columns:
+    for tool in euc_dist_df[step].unique():
+        #### Cut down df to rows containing tool and take the averge euc_dist:
+        mean_euc_dist=euc_dist_df.reset_index()[euc_dist_df.reset_index()['pipeline']
+            .str.contains(tool)]["euc_dist"].mean()
+        tools.append(tool)
+        mean_euc_dist_lst.append(mean_euc_dist)
+pd.set_option("display.max_rows", 50)
+euc_dist_mean_df=pd.DataFrame({"mean_euc_dist": mean_euc_dist_lst}, index=tools)
