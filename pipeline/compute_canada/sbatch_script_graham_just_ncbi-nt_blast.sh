@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=124G
 #SBATCH --time=4:00:00
-#SBATCH --array=1-56
+
 
 # A script to run Chris Hempel's METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE in
 # parallel on graham

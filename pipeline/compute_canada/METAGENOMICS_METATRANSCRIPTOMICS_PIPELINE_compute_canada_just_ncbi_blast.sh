@@ -42,7 +42,8 @@ usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> \
 -A <SILVA SortMeRNA LSU archaea database> -a <SILVA SortMeRNA SSU archaea database> \
 -E <SILVA SortMeRNA LSU eukaryota database> -e <SILVA SortMeRNA SSU eukaryota database> \
 -R <SILVA SortMeRNA rfam 5.8S database> -r <SILVA SortMeRNA rfam 5S database> \
--x <SILVA path taxid file> -T <PATH/TO/trimmomatic-<version>.jar)> \
+-x <SILVA path taxid file> -F <NCBI staxid scientific file> \
+-f <NCBI staxid non-scientific file> -T <PATH/TO/trimmomatic-<version>.jar)> \
 -t <PATH/TO/.etetoolkit/taxa.sqlite> -m <nnnG>[-p <n>]
 
 Usage:
@@ -61,34 +62,20 @@ Usage:
 	-e Path to eukaryota SSU SILVA database for SortMeRNA (comes with SortMeRNA, silva-euk-18s-id95.fasta)
 	-R Path to rfam 5.8S database for SortMeRNA (comes with SortMeRNA, rfam-5.8s-database-id98.fasta)
 	-r Path to rfam 5S database for SortMeRNA (comes with SortMeRNA, rfam-5s-database-id98.fasta)
+	-x Path to SILVA_paths_and_taxids.txt
+	-F Path to NCBI_staxids_scientific.txt
+	-f Path to NCBI_staxids_non_scientific.txt
 	-T Path to trimmomatic application (trimmomatic-<version>.jar)
 	-t Path to .etetoolkit/taxa.sqlite
-	-m Maximum memory (format: XXXG, where XXX is a numerical value in Gigabyte)
+	-m Maximum memory (format: XXXG, where XXX is a numerical value for teh emmory in Gigabyte)
 	-p Number of threads (default:16)
 	-h Display this help and exit"
 
-  # Set default options:
-  threads='16'
-  pipeline="20-unsorted-spades-bwa-silva-kraken2"
-  ncbi_nt_blast_db="/hdd2/databases/nt_database_feb_2020_indexed/nt"
-  silva_blast_db="/hdd2/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Jul_2021/blastdb"
-  ncbi_nt_kraken2_db="/hdd2/databases/kraken2_nt_DB"
-  silva_kraken2_db="/hdd2/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Jul_2021/"
-  silva_sortmerna_bac_lsu="/hdd2/databases/sortmerna_silva_databases/silva-bac-23s-id98.fasta"
-  silva_sortmerna_bac_ssu="/hdd2/databases/sortmerna_silva_databases/silva-bac-16s-id90.fasta"
-  silva_sortmerna_arc_lsu="/hdd2/databases/sortmerna_silva_databases/silva-arc-23s-id98.fasta"
-  silva_sortmerna_arc_ssu="/hdd2/databases/sortmerna_silva_databases/silva-arc-16s-id95.fasta"
-  silva_sortmerna_euk_lsu="/hdd2/databases/sortmerna_silva_databases/silva-euk-28s-id98.fasta"
-  silva_sortmerna_euk_ssu="/hdd2/databases/sortmerna_silva_databases/silva-euk-18s-id95.fasta"
-  silva_sortmerna_rfam_5="/hdd2/databases/sortmerna_silva_databases/rfam-5s-database-id98.fasta"
-  silva_sortmerna_rfam_5_8="/hdd2/databases/sortmerna_silva_databases/rfam-5.8s-database-id98.fasta"
-  trimmomatic="/hdd1/programs_for_pilot/Trimmomatic-0.39/trimmomatic-0.39.jar"
-  etetoolkit="/hdd1/chempel/.etetoolkit/taxa.sqlite"
-  rrnafil="/hdd1/programs_for_pilot/rRNAFilter"
-  memory="120G"
+# Set default options:
+threads='16'
 
 # Set specified options:
-while getopts ':1:2:P:N:S:n:s:B:b:A:a:E:e:R:r:T:t:i:m:p:h' opt; do
+while getopts ':1:2:P:N:S:n:s:B:b:A:a:E:e:R:r:x:F:f:T:t:i:m:p:h' opt; do
  	case "${opt}" in
 		1) forward_reads="${OPTARG}" ;;
 		2) reverse_reads="${OPTARG}" ;;
@@ -105,6 +92,9 @@ while getopts ':1:2:P:N:S:n:s:B:b:A:a:E:e:R:r:T:t:i:m:p:h' opt; do
 		e) silva_sortmerna_euk_ssu="${OPTARG}" ;;
 		R) silva_sortmerna_rfam_5="${OPTARG}" ;;
 		r) silva_sortmerna_rfam_5_8="${OPTARG}" ;;
+		x) silva_path_taxid="${OPTARG}" ;;
+		F) ncbi_scientific="${OPTARG}" ;;
+		f) ncbi_non_scientific="${OPTARG}" ;;
 		T) trimmomatic="${OPTARG}" ;;
 		t) etetoolkit="${OPTARG}" ;;
 		i) rrnafil="${OPTARG}" ;;
@@ -129,10 +119,10 @@ if [[ -z $forward_reads || -z $reverse_reads || -z $pipeline \
 || -z $silva_sortmerna_bac_ssu || -z $silva_sortmerna_arc_lsu \
 || -z $silva_sortmerna_arc_ssu || -z $silva_sortmerna_euk_lsu \
 || -z $silva_sortmerna_euk_ssu || -z $silva_sortmerna_rfam_5 \
-|| -z $silva_sortmerna_rfam_5_8 \
-|| -z $trimmomatic || -z $etetoolkit || -z $rrnafil \
+|| -z $silva_sortmerna_rfam_5_8 || -z $silva_path_taxid || -z $ncbi_scientific \
+|| -z $ncbi_non_scientific || -z $trimmomatic || -z $etetoolkit || -z $rrnafil \
 || -z $memory ]]; then
-   echo -e "-1, -2, -P, -N, -S, -n, -s, -B, -b, -A, -a, -E, -e, -R, -r, -T, -t, -i, -m, and -p must be set.\n"
+   echo -e "-1, -2, -P, -N, -S, -n, -s, -B, -b, -A, -a, -E, -e, -R, -r, -x, -F, -f, -T, -t, -i, -m, and -p must be set.\n"
    echo -e "$usage\n\n"
    echo -e "Exiting script.\n"
    exit
@@ -204,13 +194,12 @@ elif [[ $assembly == 'transabyss' ]]; then
 	scaffolds='transabyss-final_edited.fa'
 fi
 
-init_dir=$(pwd)
 # Make output directory and directory for final files:
 mkdir METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
 mkdir METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/
 
 # Copy scaffolds and mapped files into base dir
-cp ${scaffolds} kraken2_output.txt merge_input_mapped_${mapping}.txt METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
+cp blast_output.txt METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
 cd METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
 
 # Save full current path in variable to make navigation between directories easier:
@@ -529,7 +518,7 @@ mkdir step_5_reference_DB/$(echo $db | tr '[:lower:]' '[:upper:]')/
 mkdir step_5_reference_DB/$(echo $db | tr '[:lower:]' '[:upper:]')/step_6_classification/
 mkdir step_5_reference_DB/$(echo $db | tr '[:lower:]' '[:upper:]')/step_6_classification/$(echo $classification | tr '[:lower:]' '[:upper:]')/
 cd step_5_reference_DB/$(echo $db | tr '[:lower:]' '[:upper:]')/step_6_classification/$(echo $classification | tr '[:lower:]' '[:upper:]')/
-
+cp ${base_directory}/blast_output.txt $(pwd)
 
 if [[ $db == "silva" ]]; then
 	krakenDB=$silva_kraken2_db
@@ -539,13 +528,13 @@ elif [[ $db == 'ncbi_nt' ]]; then
 	blastDB=$ncbi_nt_blast_db
 fi
 
-if [[ $classification == "blast_first_hit" || $classification == "blast_filtered" ]]; then
-	step_description_and_time_first "RUNNING BLAST WITH DATABASE $blastDB"
-	blastn -query ${base_directory}/${scaffolds} -db $blastDB -out blast_output.txt \
-	-outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
-	-evalue 1e-05 -num_threads $threads
-	step_description_and_time_first "BLAST WITH DATABASE $blastDB DONE"
-fi
+# if [[ $classification == "blast_first_hit" || $classification == "blast_filtered" ]]; then
+# 	step_description_and_time_first "RUNNING BLAST WITH DATABASE $blastDB"
+# 	blastn -query ${base_directory}/${scaffolds} -db $blastDB -out blast_output.txt \
+# 	-outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
+# 	-evalue 1e-05 -num_threads $threads
+# 	step_description_and_time_first "BLAST WITH DATABASE $blastDB DONE"
+# fi
 
 if [[ $classification == "blast_first_hit" ]]; then
 	step_description_and_time_first "RUNNING BLAST FIRST HIT"
@@ -554,6 +543,10 @@ if [[ $classification == "blast_first_hit" ]]; then
 	-e $etetoolkit
 	sed -i 's/Unknown/NA/g' blast_output_with_taxonomy.txt
 	blast_filter.py blast_output_with_taxonomy.txt soft
+	if [ ! -f "blast_filtered.txt" ]; then
+		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies" \
+		> blast_filtered.txt
+	fi
 	step_description_and_time_first "BLAST FIRST HIT DONE"
 
 elif [[ $classification == "blast_filtered" ]]; then
@@ -563,17 +556,19 @@ elif [[ $classification == "blast_filtered" ]]; then
 	-e $etetoolkit
 	sed -i 's/Unknown/NA/g' blast_output_with_taxonomy.txt
 	blast_filter.py blast_output_with_taxonomy.txt strict
+	if [ ! -f "blast_filtered.txt" ]; then
+		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies" \
+		> blast_filtered.txt
+	fi
 	step_description_and_time_first "BLAST FILTERED DONE"
 
 elif [[ $classification == "kraken2" ]]; then
 	step_description_and_time_first "RUNNING KRAKEN2 WITH DATABASE $krakenDB"
 	# Run kraken2
-	#kraken2 --db $krakenDB --threads $threads ${base_directory}/${scaffolds} \
-	#> kraken2_output.txt
-  ls ${base_directory}
-  echo "test"
-  ls
-	cut -f 2-3 ${base_directory}/kraken2_output.txt > kraken2_output_contig_taxid.txt # Isolate contig names and taxids
+	kraken2 --db $krakenDB --threads $threads ${base_directory}/${scaffolds} \
+	> kraken2_output.txt
+
+	cut -f 2-3 kraken2_output.txt > kraken2_output_contig_taxid.txt # Isolate contig names and taxids
 	# We use a separate script to assign taxonomy to NCBI taxids:
 	assign_taxonomy_to_NCBI_staxids.sh -b kraken2_output_contig_taxid.txt \
 	-c 2 -e $etetoolkit
@@ -919,8 +914,6 @@ elif [[ $classification == 'kraken2' ]]; then
 
 	step_description_and_time_first "DONE FINALIZING KRAKEN2 FILES"
 fi
-
-cp ${base_directory}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/* $init_dir
 
 # Display runtime
 echo -e "=================================================================\n"

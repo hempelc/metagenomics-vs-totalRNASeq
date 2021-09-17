@@ -457,20 +457,20 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				step_description_and_time_second "BLAST WITH DATABASE $DB DONE"
 
 				step_description_and_time_second "RUNNING BLAST FIRST HIT"
-				# We run a separate script to filter the BLAST results:
-				blast_filtering.bash -i blast_output.txt -f blast -t soft -e ~/.etetoolkit/taxa.sqlite -T $threads
-				sed -i 's/Unknown/NA/g' blast_output.txt
-				cp blast_output.txt blast_filtering_results/
-				mv blast_filtering_results/ BLAST_FIRST_HIT/
-        step_description_and_time_second "BLAST FIRST HIT DONE"
+				# We run a separate script to add taxonomy and filter the BLAST results:
+				assign_taxonomy_to_NCBI_staxids.sh -b blast_output.txt -c 13 \
+				-e $etetoolkit
+				sed -i 's/Unknown/NA/g' blast_output_with_taxonomy.txt
+				blast_filter.py blast_output_with_taxonomy.txt soft
+				step_description_and_time_second "BLAST FIRST HIT DONE"
 
 				step_description_and_time_second "RUNNING BLAST FILTERED"
-				# We run a separate script to filter the BLAST results:
-				blast_filtering.bash -i blast_output.txt -f blast -t strict -e ~/.etetoolkit/taxa.sqlite -T $threads
-				sed -i 's/Unknown/NA/g' blast_output.txt
-				mv blast_output.txt blast_filtering_results/
-				mv blast_filtering_results/ BLAST_FILTERED/
-        step_description_and_time_second "BLAST FILTERED DONE"
+				# We run a separate script to add taxonomy and filter the BLAST results:
+				assign_taxonomy_to_NCBI_staxids.sh -b blast_output.txt -c 13 \
+				-e $etetoolkit
+				sed -i 's/Unknown/NA/g' blast_output_with_taxonomy.txt
+				blast_filter.py blast_output_with_taxonomy.txt strict
+				step_description_and_time_second "BLAST FILTERED DONE"
 
 				step_description_and_time_second "RUNNING KRAKEN2 WITH DATABASE $DB"
 				mkdir KRAKEN2/
@@ -590,7 +590,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
 							# We run a simple python script because we need to merge on "outer":
 							merge_on_outer.py \
-							${classification_tool}/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt \
+							${classification_tool}/blast_filtered.txt \
 							${classification_tool}/FINAL_FILES/intermediate_files/${assembly_results}_final_${mapper}_merge_ready.txt \
 							${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt
 
@@ -668,7 +668,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 						elif [[ $classification_tool == 'BLAST_FIRST_HIT' ]]; then
 
 							# We run a simple python script because we need to merge on "outer":
-							merge_on_outer.py ${classification_tool}/blast_output_with_taxonomy_and_best_hit.txt \
+							merge_on_outer.py ${classification_tool}/blast_filtered.txt \
 							${classification_tool}/FINAL_FILES/intermediate_files/${assembly_results}_final_${mapper}_merge_ready.txt \
 							${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt
 

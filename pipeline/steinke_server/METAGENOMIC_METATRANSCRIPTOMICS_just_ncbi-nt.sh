@@ -548,18 +548,20 @@ fi
 
 if [[ $classification == "blast_first_hit" ]]; then
 	step_description_and_time_first "RUNNING BLAST FIRST HIT"
-	# We run a separate script to filter the BLAST results:
-	blast_filtering.bash -i blast_output.txt -f blast -t soft -T $threads -e $etetoolkit
-  sed -i 's/Unknown/NA/g' blast_output.txt
-	mv blast_output.txt blast_filtering_results/
+	# We run a separate script to add taxonomy and filter the BLAST results:
+	assign_taxonomy_to_NCBI_staxids.sh -b blast_output.txt -c 13 \
+	-e $etetoolkit
+	sed -i 's/Unknown/NA/g' blast_output_with_taxonomy.txt
+	blast_filter.py blast_output_with_taxonomy.txt soft
 	step_description_and_time_first "BLAST FIRST HIT DONE"
 
 elif [[ $classification == "blast_filtered" ]]; then
 	step_description_and_time_first "RUNNING BLAST FILTERED"
-	# We run a separate script to filter the BLAST results:
-	blast_filtering.bash -i blast_output.txt -f blast -t strict -T $threads -e $etetoolkit
-	sed -i 's/Unknown/NA/g' blast_output.txt
-	mv blast_output.txt blast_filtering_results/
+	# We run a separate script to add taxonomy and filter the BLAST results:
+	assign_taxonomy_to_NCBI_staxids.sh -b blast_output.txt -c 13 \
+	-e $etetoolkit
+	sed -i 's/Unknown/NA/g' blast_output_with_taxonomy.txt
+	blast_filter.py blast_output_with_taxonomy.txt strict
 	step_description_and_time_first "BLAST FILTERED DONE"
 
 elif [[ $classification == "kraken2" ]]; then
@@ -670,8 +672,7 @@ fi
 if [[ $classification == 'blast_filtered' ]]; then
 
 	# We run a simple python script because we need to merge on "outer":
-	merge_on_outer.py \
-	../../blast_filtering_results/blast_output_with_taxonomy_and_bitscore_threshold_and_bitscore_filter_and_pident_cutoff_and_LCA.txt \
+	merge_on_outer.py ../../blast_filtered.txt \
 	${assembly}_final_${mapping}_merge_ready.txt \
 	trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt
 
@@ -747,7 +748,7 @@ if [[ $classification == 'blast_filtered' ]]; then
 elif [[ $classification == 'blast_first_hit' ]]; then
 
 	# We run a simple python script because we need to merge on "outer":
-	merge_on_outer.py ../../blast_filtering_results/blast_output_with_taxonomy_and_best_hit.txt \
+	merge_on_outer.py ../../blast_filtered.txt \
 	${assembly}_final_${mapping}_merge_ready.txt \
 	trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt
 
