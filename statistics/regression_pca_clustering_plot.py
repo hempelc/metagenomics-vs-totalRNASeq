@@ -28,38 +28,52 @@ logging.basicConfig(level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-# Parameters
-## Loop over all dirs and all metrics (True or False)
-## Note: section 6 (clustering) requires manual adjustment for k so these have
-## to be run manually:
-looping=True
+# Parameters manual setting
+## Full path to directory that contains samples:
+workdir="/Users/christopherhempel/Desktop/pipeline_results_mock_community/"
+## Set if you want to loop over all result combinations of parameters in script
+## "processing_and_metrics.py" and all metrics (True or False)
+### Note: section 6 (clustering) requires manual adjustment for k so these have
+### to be run manually:
+looping=False
+## If you set looping to False, then define what combination and metrics you
+## want to process:
+combination="genus_cell"
+metrics="pa"
 
-## If false, set your working dir and target metrics here:
-### Full path to directory containing stats_exports from script "processing_and_metrics.py":
-statsdir_lst=["/Users/christopherhempel/Desktop/pipeline_results_mock_community/results_genus_cell/stats_exports"]
-### Metrics to use, options: "all", "rel", or "pa"
-metr_list=["pa"]
 
+
+# Parameters automatic setting
 if looping:
-    statsdir_lst=["/Users/christopherhempel/Desktop/pipeline_results_mock_community/results_{0}/stats_exports".format(x) for x in ["genus_cell", "genus_gen", "species_cell", "species_gen"]]
+    statsdir_lst=[os.path.join(workdir, "results_{0}/stats_exports".format(x)) \
+        for x in ["genus_cell", "genus_gen", "species_cell", "species_gen"]]
     metr_list=["all", "rel", "pa"]
+else:
+    statsdir_lst=[os.path.join(workdir, "results_" + combination, "stats_exports")]
+    metr_list=[metrics]
 
+
+
+# 1 Import data
 for statsdir in statsdir_lst:
     for metr in metr_list:
-        # Imports
+
         ## Import value for expected TN
         with open(os.path.join(statsdir, "TN.pkl"), 'rb') as f:
             TN = pickle.load(f)
 
         ## Import metics df
         metrics_df=pd.read_csv(os.path.join(statsdir, "metrics_df.csv"), index_col=0)
-        ### Convert trimming score column type into str
+
+        ## Convert trimming score column type into str
         metrics_df['trimming_score'] = metrics_df['trimming_score'].astype(str)
-        ### Drop metrics that aren't used
-        #### Default: drop TN and FN (collinear with TP and FP):
+
+        ## Drop metrics that aren't used
+        ### Default: drop TN and FN (collinear with TP and FP):
         metrics_df=metrics_df.drop(["FN", "TN", "FN_aad", "TN_aad"], axis=1)
+
         ### Drop additional ones specified by parameter "metr" and set expected dummy
-        #### (=ideal pipeline results):
+        ### (=ideal pipeline results):
         if metr not in ["all", "rel", "pa"]:
             logging.critical("Parameter metr not in all_metr, rel_metr, or pa_metr: metr=" + metr)
         if metr=="all":
@@ -72,14 +86,17 @@ for statsdir in statsdir_lst:
             drops=["FP", "TP", "FP_aad", "TP_aad", 'type', 'trimming_score',
                 'rRNA_sorting_tool', 'assembly_tool', 'mapper', 'database', 'classifier']
             metrics_df=metrics_df.drop([x for x in metrics_df.columns if x not in drops], axis=1)
-        ### Add expected
+
+        ## Add expected
         expected_dummy=metrics_df.loc["expected"]
         metrics_df=metrics_df.drop(["expected"], axis=0)
 
-        # 1 PCA (following https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
-        ## 1.1 Perform initial PCA
+        # 2 PCA (following https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
+
+        ## 2.1 Perform initial PCA
         ### Grab columns we need
         pca_df=metrics_df.iloc[:, :-7]
+
         ### Save features=metrics in variable
         pca_features=pca_df.columns
         ### Standardize data
@@ -100,10 +117,11 @@ for statsdir in statsdir_lst:
         PC1_graph = str(round(pca_graph.explained_variance_ratio_[0] * 100, 2))
         PC2_graph = str(round(pca_graph.explained_variance_ratio_[1] * 100, 2))
         print("Graph PC1: {0}%, Graph PC2: {1}%".format(PC1_graph, PC2_graph))
-        ##### Save the loadings=arrowhead coordinates of each feature in variable
+
+        #### Save the loadings=arrowhead coordinates of each feature in variable
         loadings = pca_graph.components_.T * np.sqrt(pca_graph.explained_variance_)
 
-        ## 1.2 Add a dummy variable respresenting an ideal pipeline and predict the
+        ## 2.2 Add a dummy variable respresenting an ideal pipeline and predict the
         ##     coordinates of all pipelines and the expected dummy in the PCA
         #### Add a dummy column with expected outcome (the expected outcome for TN is
         #### the number of all taxa - the number of expected taxa, generated in previous script)
@@ -120,7 +138,7 @@ for statsdir in statsdir_lst:
         ### (that way, the expected doesn't affect the PCA itself)
         pca_df_with_exp=metrics_df_exp.iloc[:, 0:-8]
         pca_df_with_exp_std=StandardScaler().fit_transform(pca_df_with_exp)
-        # Extract the expected standardized values for calculation of euc dist:
+        ### Extract the expected standardized values for calculation of euc dist:
         exp_std=pca_df_with_exp_std[len(pca_df_with_exp_std)-1]
         pcs_with_exp=pca_graph.transform(pca_df_with_exp_std)
         pc_df = pd.DataFrame(data = pcs_with_exp, columns = ['PC1', 'PC2'],
@@ -128,8 +146,9 @@ for statsdir in statsdir_lst:
 
 
 
-        # # 2 Linear regression (following https://datatofish.com/statsmodels-linear-regression/)
-        # ## 2.1 Set up X and y
+        # # 3 Linear regression (following https://datatofish.com/satsmodels-linear-regression/)
+        # Note: replaced by envfit in next section, @ RAMI! you don't ened to check this
+        # ## 3.1 Set up X and y
         # y = pc_lr
         # ### Parameter to include or exclude type variables ("False" or "True")
         # type_included=True
@@ -143,10 +162,10 @@ for statsdir in statsdir_lst:
         #
         # X = sm.add_constant(X_no_intercept)
         #
-        # ## 2.2 Fit an ordinary least squares regression model
+        # ## 3.2 Fit an ordinary least squares regression model
         # lr_model = sm.OLS(y, X).fit()
         #
-        # ## 2.3 Check out the coefficients and p-values and save them
+        # ## 3.3 Check out the coefficients and p-values and save them
         # ### Set pd so that it only shows the last 3 decimal digits in the editor, which
         # ### is easier for manual inspection
         # pd.set_option('display.float_format', lambda x: '%.3f' % x)
@@ -157,7 +176,7 @@ for statsdir in statsdir_lst:
 
 
 
-        # 3 R envfit function - One very helpful function in R, envfit, is not
+        # 4 R envfit function - One very helpful function in R, envfit, is not
         # reproducible in python. Therefore, we use the rpy2 module to run that R
         # function in python on our PCA and metrics
 
@@ -194,14 +213,16 @@ for statsdir in statsdir_lst:
 
 
 
-        # 4 Euclidean distances between pipelines and expected (note: use standardized columns):
+        # 5 Euclidean distances between pipelines and expected (note: use standardized columns):
         euc_dist_df = copy.deepcopy(metrics_df)
+
         ## Calculate euc dist for each pipeline
         for index,row in pd.DataFrame(pca_df_std, index=pca_df.index).iterrows():
             euc_dist_df.loc[index,'euc_dist'] = euclidean(row, exp_std)
         #euc_dist_df.sort_values(by=['euc_dist'])
         mean_euc_dist_lst=[]
         tools=[]
+
         ## Calculate average euc dist for each tool in each step
         for step in euc_dist_df.loc[:, 'type':'classifier'].columns:
             for tool in euc_dist_df[step].unique():
@@ -210,17 +231,20 @@ for statsdir in statsdir_lst:
                     .str.contains(tool)]["euc_dist"].mean()
                 tools.append(tool)
                 mean_euc_dist_lst.append(mean_euc_dist)
+
         ## Make and save df
         mean_euc_dist_df=pd.DataFrame({"mean_euc_dist": mean_euc_dist_lst}, index=tools)
         mean_euc_dist_df.to_csv(os.path.join(statsdir, metr + "_mean_euc_dist_steps.csv"), index_label="tools")
 
 
 
-        # 5 Plots
+        # 6 Plots
+
         ## Make saving directory:
         plotdir=os.path.join(os.path.abspath(os.path.join(statsdir, os.pardir)), "plots_" + metr)
         if not os.path.exists(plotdir):
             os.mkdir(plotdir)
+
         ## Make df from PC1+2 coordinates and tools per pipeline to plot:
         plot_df=pd.concat([pc_df, metrics_df_exp.iloc[:, -8:]],
             axis = 1).rename_axis("pipeline").reset_index()
@@ -231,11 +255,13 @@ for statsdir in statsdir_lst:
         ## https://plotly.com/python/pca-visualization; arrow part taken from
         ## https://community.plotly.com/t/arrow-heads-at-the-direction-of-line-arrows/32565/3):
         for col in plot_df.columns[3:]:
+
             ### We show different arrows based on the column we colour on:
             if col=="exp":
                 fig = px.scatter(plot_df, x="PC1", y="PC2",
                     labels={"PC1": "PC1 ({0}%)".format(PC1_graph),
                     "PC2": "PC2 ({0}%)".format(PC2_graph)}, color=col, hover_data=["pipeline"])
+
                 #### Loop over features:
                 for i, feature in enumerate(pca_features):
                     ##### Add lines:
@@ -289,11 +315,11 @@ for statsdir in statsdir_lst:
 
 
 
-        # 6 k-means clustering (following https://realpython.com/k-means-clustering-python/)
+        # 7 k-means clustering (following https://realpython.com/k-means-clustering-python/)
         kmean_df_std = pca_df_std
 
-        ## 6.1 Estimate the best kluster number k
-        ## 6.1.1 Elbow method based on SSE
+        ## 7.1 Estimate the best kluster number k
+        ## 7.1.1 Elbow method based on SSE
         #### The list sse holds the SSE values for each k
         sse = []
         for k in range(1, 20):
@@ -307,11 +333,11 @@ for statsdir in statsdir_lst:
         fig_k_sse.show()
         fig_k_sse.write_image(os.path.join(plotdir, "KMeans_" + metr + "_sse.png"))
 
-        ### 6.1.2 Or automatically calculate the best k using KneeLocator
+        ### 7.1.2 Or automatically calculate the best k using KneeLocator
         kl = KneeLocator(range(1, 20), sse, curve="convex", direction="decreasing")
         print("The best k based on KneeLocator is " + str(kl.elbow))
 
-        ## 6.1.3 Silhouette coefficient
+        ## 7.1.3 Silhouette coefficient
         silhouette_coefficients = []
         ### Start at k=2 when using the silhouette coefficient
         for k in range(2, 20):
@@ -328,10 +354,10 @@ for statsdir in statsdir_lst:
         fig_k_silhouette.show()
         fig_k_silhouette.write_image(os.path.join(plotdir, "KMeans_"  + metr + "_silhouette.png"))
 
-        ## 6.1.2 Based on both tests, we manually define k
+        ## 7.1.2 Based on both tests, we manually define k
         k=10
 
-        ## 6.2 Perform the actual kmeans with the estimated k
+        ## 7.2 Perform the actual kmeans with the estimated k
         kmeans = KMeans(n_clusters=k)
         kmeans.fit(kmean_df_std)
 
@@ -339,7 +365,7 @@ for statsdir in statsdir_lst:
         print("The lowest SSE value of the KMeans model was " + str(kmeans.inertia_))
         print("The number of iterations required to converge the model was " + str(kmeans.n_iter_))
 
-        # 6.3 Make kmeans df and plot
+        # 7.3 Make kmeans df and plot
         kmean_df=pd.DataFrame(pcs_no_exp, columns = ['PC1', 'PC2'],
             index=pca_df.index.to_list()).rename_axis("pipeline").reset_index()
         kmean_df['cluster']=[str(x) for x in kmeans.labels_.tolist()]

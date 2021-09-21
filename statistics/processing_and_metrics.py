@@ -60,38 +60,42 @@ def cutdown (master_df, type):
 
 ## Function to calculate metrics for all samples; input=dics from cutdown function with both types,
 ## options for type="rel" for realtive abundance data or "pa" for p/a data:
-def confusion_calc (cutdown_dic_expected, cutdown_dic_FP, type):
-    confusion_master={}
-    for sample, pipelines in cutdown_dic_expected.items():
-        expected_list=pipelines['expected'].tolist()
-        confusion_dic = {}
-        for pipeline, abundances in pipelines.iloc[:, 1:].iteritems():
-            FN=0
-            FP=0
-            TP=0
-            for i in range(len(abundances.tolist())):
-                if abundances.tolist()[i] > expected_list[i]:
-                    FP += abundances.tolist()[i] - expected_list[i]
-                if abundances.tolist()[i] != 0 and abundances.tolist()[i] >= expected_list[i]:
-                    TP += expected_list[i]
-                if abundances.tolist()[i] < expected_list[i]:
-                    TP += abundances.tolist()[i]
-            if type == "rel":
-                for i in range(len(abundances.tolist())):
-                    if abundances.tolist()[i] < expected_list[i]:
-                        FN += (abundances.tolist()[i] - expected_list[i])*-1
-                confusion_values = {"subceed_reads": FN, "exceed_reads": FP, "reads_expected_taxa": TP+FP}
-                confusion_values["reads_false_taxa"]=cutdown_dic_FP[sample][pipeline].sum()
-            elif type == "pa":
-                for i in range(len(abundances.tolist())):
-                    if abundances.tolist()[i] - expected_list[i] < 0:
-                        FN += (abundances.tolist()[i] - expected_list[i])*-1
-                confusion_values = {"FN": FN, "TP":TP}
-                confusion_values["FP"]=cutdown_dic_FP[sample][pipeline].sum()
-                confusion_values["TN"]=len(cutdown_dic_FP[sample][pipeline])-cutdown_dic_FP[sample][pipeline].tolist().count(1)
-            confusion_dic[pipeline] = confusion_values
-        confusion_master[sample] = confusion_dic
-    return confusion_master
+
+# @ RAMI!: I don;t use this fucntion anymore but left it in here just in case.
+# You don't need to look through it
+
+# def confusion_calc (cutdown_dic_expected, cutdown_dic_FP, type):
+#     confusion_master={}
+#     for sample, pipelines in cutdown_dic_expected.items():
+#         expected_list=pipelines['expected'].tolist()
+#         confusion_dic = {}
+#         for pipeline, abundances in pipelines.iloc[:, 1:].iteritems():
+#             FN=0
+#             FP=0
+#             TP=0
+#             for i in range(len(abundances.tolist())):
+#                 if abundances.tolist()[i] > expected_list[i]:
+#                     FP += abundances.tolist()[i] - expected_list[i]
+#                 if abundances.tolist()[i] != 0 and abundances.tolist()[i] >= expected_list[i]:
+#                     TP += expected_list[i]
+#                 if abundances.tolist()[i] < expected_list[i]:
+#                     TP += abundances.tolist()[i]
+#             if type == "rel":
+#                 for i in range(len(abundances.tolist())):
+#                     if abundances.tolist()[i] < expected_list[i]:
+#                         FN += (abundances.tolist()[i] - expected_list[i])*-1
+#                 confusion_values = {"subceed_reads": FN, "exceed_reads": FP, "reads_expected_taxa": TP+FP}
+#                 confusion_values["reads_false_taxa"]=cutdown_dic_FP[sample][pipeline].sum()
+#             elif type == "pa":
+#                 for i in range(len(abundances.tolist())):
+#                     if abundances.tolist()[i] - expected_list[i] < 0:
+#                         FN += (abundances.tolist()[i] - expected_list[i])*-1
+#                 confusion_values = {"FN": FN, "TP":TP}
+#                 confusion_values["FP"]=cutdown_dic_FP[sample][pipeline].sum()
+#                 confusion_values["TN"]=len(cutdown_dic_FP[sample][pipeline])-cutdown_dic_FP[sample][pipeline].tolist().count(1)
+#             confusion_dic[pipeline] = confusion_values
+#         confusion_master[sample] = confusion_dic
+#     return confusion_master
 
 
 
