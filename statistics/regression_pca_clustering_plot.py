@@ -22,27 +22,25 @@ from sklearn.metrics import silhouette_score
 from rpy2.robjects.packages import importr
 from rpy2.robjects import pandas2ri
 from rpy2.robjects.conversion import localconverter
+from collections import Counter
 
 # Activate logging for debugging
 logging.basicConfig(level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-# Parameters manual setting
+# Parameters set manually
 ## Full path to directory that contains samples:
 workdir="/Users/christopherhempel/Desktop/pipeline_results_mock_community/"
-
 ## Set if you want to include AAD metrics:
 aad=False
-
 ## Set if you want to loop over all result combinations of parameters in script
 ## "processing_and_metrics.py" and all metrics (True or False)
 ### Note: section 6 (clustering) requires manual adjustment for k so these have
 ### to be run manually:
 looping=True
-
-## If you set looping to False, then define what combination and metrics you
-## want to process:
+## If you set looping to False, then define what specific combination and metrics
+## you want to process:
 ### ("genus_cell", "genus_gen", "species_cell", "species_gen")
 combination="species_cell"
 ### ("all", "rel", "pa")
@@ -50,7 +48,7 @@ metrics="all"
 
 
 
-# Parameters automatic setting
+# Parameters set automatically
 if looping:
     statsdir_lst=[os.path.join(workdir, "results_{0}/stats_exports".format(x)) \
         for x in ["genus_cell", "genus_gen", "species_cell", "species_gen"]]
@@ -64,21 +62,16 @@ else:
 # 1 Import data
 for statsdir in statsdir_lst:
     for metr in metr_list:
-
         ## Import value for expected TN
         with open(os.path.join(statsdir, "TN.pkl"), 'rb') as f:
             TN = pickle.load(f)
-
-        ## Import metics df
+        ## Import metrics df
         metrics_df=pd.read_csv(os.path.join(statsdir, "metrics_df.csv"), index_col=0)
-
         ## Convert trimming score column type into str
         metrics_df['trimming_score'] = metrics_df['trimming_score'].astype(str)
-
         ## Drop metrics that aren't used
         ### Default: drop TN and FN (collinear with TP and FP):
         metrics_df=metrics_df.drop(["FN", "TN", "FN_aad", "TN_aad"], axis=1)
-
         ### Drop additional ones specified by parameter "metr" and set expected dummy
         ### (=ideal pipeline results):
         if metr not in ["all", "rel", "pa"]:
@@ -102,10 +95,11 @@ for statsdir in statsdir_lst:
             ## If AAD should not be used, drop all cols containing aad:
             if not aad:
                 metrics_df=metrics_df.drop([ x for x in metrics_df.columns if "aad" in x ], axis=1)
-
         ## Add expected
         expected_dummy=metrics_df.loc["expected"]
         metrics_df=metrics_df.drop(["expected"], axis=0)
+
+
 
         # 2 PCA (following https://towardsdatascience.com/pca-using-python-scikit-learn-e653f8989e60)
 
@@ -412,7 +406,9 @@ for statsdir in statsdir_lst:
         fig_k_silhouette.write_image(os.path.join(plotdir, "KMeans_"  + metr + "_silhouette.png"))
 
         ## 7.1.2 Based on both tests, we manually define k
-        k=14
+        ### Actually, for automatization purposes, we define k based on
+        ### KneeLocator and double check the chosen k afterwards
+        k=(kl.elbow)
 
         ## 7.2 Perform the actual kmeans with the estimated k
         kmeans = KMeans(n_clusters=k)
@@ -431,5 +427,30 @@ for statsdir in statsdir_lst:
         exp_kmeans['cluster']=["expected"]
         kmean_df=kmean_df.append(exp_kmeans)
         fig_kmean = px.scatter(kmean_df, x="PC1", y="PC2", color="cluster", hover_data=["pipeline"])
+        fig_kmean = px.scatter(kmean_df, x="PC1", y="PC2",
+            labels={"PC1": "PC1 ({0}%)".format(PC1_graph),
+            "PC2": "PC2 ({0}%)".format(PC2_graph)}, symbol="cluster",
+                color="cluster", hover_data=["pipeline"])
         fig_kmean.show()
         fig_kmean.write_image(os.path.join(plotdir, "KMeans_"  + metr + "_plot.png"))
+
+        # 7.4 Determine closest cluster to expected based on centroid
+        pip_cluster_df = metrics_df.iloc[:, -7:]
+        pip_cluster_df["cluster"]=[str(x) for x in kmeans.labels_.tolist()]
+        ## Determine euclidean distance of each cluster centroid to expected:
+        cluster_centroid_dist=[euclidean(i, exp_std) for i in kmeans.cluster_centers_]
+        cluster_dist_df = pd.DataFrame({"cluster": [str(x) for x in list(range(0, len(cluster_centroid_dist)))],
+            "centroid_euc_dist":cluster_centroid_dist})
+        ## Merge pipeline info with cluster info:
+        pip_cluster_dist_df = pd.merge(pip_cluster_df, cluster_dist_df, on="cluster")
+        ## Determine closest cluster and cut df down to pipelines from closest cluster:
+        best_cluster=cluster_dist_df.sort_values("centroid_euc_dist").reset_index().iloc[[0]]["cluster"].to_list()[0]
+        best_cluster_df=pip_cluster_dist_df.loc[pip_cluster_dist_df["cluster"] == best_cluster]
+        ## Count occurence of each tool for each step and save in dict:
+        counts_dic={}
+        for col in best_cluster_df.columns[:7]:
+            counts_dic[col]=Counter(best_cluster_df[col])
+        ## Save the dict as pickle object, which is needed for the
+        ## next step of code in the script "stats_summary_plot.py":
+        with open(os.path.join(statsdir, metr + "_closest_cluster_tool_counts" + ".pkl"), 'wb') as f:
+            pickle.dump(counts_dic, f)
