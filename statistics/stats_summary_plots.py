@@ -23,13 +23,11 @@ levels=["genus_cell", "genus_gen", "species_cell", "species_gen"]
 metr_lst=["all", "rel", "pa"]
 steps=["type", "trimming_score", "rRNA_sorting_tool", "assembly_tool", "mapper", "database", "classifier"]
 
-# Import dfs and concatenate them, creating columsn to separate them:
+# Import dfs and concatenate them, creating columns to separate them:
 master_df=pd.DataFrame()
 for level in levels:
-    #level=levels[1]
     statsdir=os.path.join(workdir, "results_{0}/stats_exports".format(level))
     for metr in metr_lst:
-        #metr=metr_lst[0]
         df_eucdist=pd.read_csv(os.path.join(statsdir, "{0}_euc_dist_steps.csv".format(metr)))
         df_pval=pd.read_csv(os.path.join(statsdir, "{0}_pvalues_tools.csv".format(metr)))
         # Merge dfs
@@ -64,7 +62,7 @@ master_df.loc[(master_df["mean_euc_dist_lowest"] == "no") & (master_df["min_euc_
 
 # Graph v1
 fig = px.scatter(master_df, x="combination", y="tool",
-	         size="min_euc_dist", color="significance",
+	         size="p-value", color="significance",
              hover_name="min_euc_dist", size_max=28, height=1250, width=1050,
              symbol="min_euc_dist_lowest", symbol_sequence=["circle", "circle-dot"],
              category_orders={"tool": master_df["tool"].to_list()},
@@ -83,8 +81,7 @@ fig = px.scatter(master_df, x="combination", y="tool",
              #symbol="mean_euc_dist_lowest", symbol_sequence=["circle", "circle-dot"],
              category_orders={"tool": master_df["tool"].to_list()},
              color_discrete_sequence=["lightgrey", "#00ab56", "#dac751", "#737cd0"])
-fig.update_traces(marker=dict(line=dict(width=0.5,color='black')), selector=dict(mode='markers'))
-fig.show()
+fig.update_traces(marker=dict(line=dict(width=0,color='black')), selector=dict(mode='markers'))
 fig.write_image("/Users/christopherhempel/Desktop/bubbleplot_col2.svg")
 
 
