@@ -26,19 +26,24 @@ samples = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA",
     "M_Neg_DNA", "M_Neg_RNA", "M_Ext_DNA", "M_Ext_RNA"]
 ## Taxonomic rank to group rows on. Either based on genus (option "genus")
 ## or on species (option "species"):
-groupby_rank = "species"
+groupby_rank = "genus"
 ## Basis for relative abundance calculation of expected mock community taxa abundance;
-## either based on genomic DNA (option "gen") or on cell number (option "cell"):
+## either based on genomic DNA/SSU genes (option "gen") or on cell number (option "cell"):
 rel_abun_basis = "cell"
+## Output dir
+statsdir=os.path.join(workdir, "results_" + groupby_rank + "_" + rel_abun_basis, "stats_exports")
+if not os.path.exists(statsdir):
+    os.makedirs(statsdir)
 
 
 # Hardcoded variables
-## Relative abundances of mock community taxa based on genomic DNA:
+## Relative abundances of mock community taxa based on genomic DNA/SSU genes:
 rel_abun_gen = [0.891, 0.089, 0.0089, 0.0089, 0.00089, 0.00089, 0.000089,
     0.0000089, 0.0000089, 0.00000089]
 ## Relative abundances of mock community taxa based on cell number:
 rel_abun_cell = [0.949, 0.042, 0.007, 0.0012, 0.00058, 0.00059, 0.00015,
     0.00001, 0.0000007, 0.000001]
+
 
 # Functions
 ## Function to calculate the average absolute deviation (AAD) from a central point:
@@ -61,7 +66,7 @@ def cutdown (master_df, type):
 ## Function to calculate metrics for all samples; input=dics from cutdown function with both types,
 ## options for type="rel" for realtive abundance data or "pa" for p/a data:
 
-# @ RAMI!: I don;t use this fucntion anymore but left it in here just in case.
+# @Rami: I don't use this function anymore but left it in here just in case.
 # You don't need to look through it
 
 # def confusion_calc (cutdown_dic_expected, cutdown_dic_FP, type):
@@ -99,8 +104,8 @@ def cutdown (master_df, type):
 
 
 
-# 1 Make expected mock community
-expected_dic = {} # Empty dic that will eventually contain expected species adn their abundances
+# 1 Make expected mock community df
+expected_dic = {} # Empty dic that will eventually contain expected species and their abundances
 
 ### To calculate the absolute expected read count for the taxa in the mock community,
 ### we need the hardcoded taxonomic information of each taxon. We save it in a dictionary:
@@ -133,7 +138,7 @@ if rel_abun_basis == "gen":
 elif rel_abun_basis == "cell":
     rel_abun = rel_abun_cell
 
-### We add each taxon's read count to its taxonomic information:
+### We add each taxon's relative abundance to its taxonomic information:
 rep=0
 for taxon in expected_dic:
     expected_dic[taxon].append(rel_abun[rep])
@@ -150,6 +155,10 @@ expected_df=pd.DataFrame.from_dict(expected_dic, orient="index",
 #   contain counts of all taxa from all samples and the expected community):
 master_dfs_raw = {} # Empty dic that will eventually contain all samples' raw pipelines output
 all_taxa = [] # Empty list that will eventually contain all taxa that appear in all samples
+
+# @Rami: if you want to run the next loop with only the one sample I sent you,
+# uncomment and run the next line
+# samples=["M4_RNA"]
 
 for sample in samples:
     ## Make a list for all file names in sample dic:
@@ -196,8 +205,21 @@ for sample in samples:
         ### Save sample_df in dic master_dfs_raw:
         master_dfs_raw[sample] = sample_dfs
 
+# @Rami: I used this code to save the master df dict and the all_taxa list to a
+# pickle file that I sent you, uncomment the second block to load in the files
+#
+# with open(os.path.join(statsdir, "master_dfs_raw_genus_cell.pkl"), 'wb') as f:
+#     pickle.dump(master_dfs_raw, f)
+# with open(os.path.join(statsdir, "all_taxa_genus_cell.pkl"), 'wb') as f:
+#     pickle.dump(all_taxa, f)
+#
+# with open("master_dfs_raw_genus_cell.pkl"), 'rb') as f:
+#     master_dfs_raw = pickle.load(f)
+# with open("all_taxa_genus_cell.pkl"), 'rb') as f:
+#     all_taxa = pickle.load(f)
 
-# 3 Generate master dfs with
+
+# 3 Generate master dfs with relative read counts
 
 ## 3.1 Add all expected taxa to list in case they're not picked up by any pipeline
 ##     and drop duplicates:
@@ -230,7 +252,6 @@ for sample, pipeline_dfs in master_dfs_raw.items():
         #### taxon counts for that pipeline:
         master_dfs_rel[sample][pipeline]=abun
 
-
 ## 3.3 Add DNA or RNA prefixes to pipeline names to distinguish them later
 ## (the name of expected gets stripped off the prefix after):
 master_dfs_prefix={}
@@ -238,7 +259,6 @@ for sample_type in ["DNA", "RNA"]:
     for sample in [x + "_" + sample_type for x in ["M4", "M5", "M6", "M_Neg", "M_Ext"]]:
         master_dfs_prefix[sample]=master_dfs_rel[sample].add_prefix(sample_type
             + "_").rename(columns={sample_type + "_expected": "expected"})
-
 
 ## 3.4 Substract controls from samples
 master_dfs_rel_sub={}
@@ -253,6 +273,7 @@ for sample_type in ["DNA", "RNA"]:
 ### Convert counts below 0 to 0 (happens if negative control contains more reads than original sample):
 for key, value in master_dfs_rel_sub.items():
     value[value < 0] = 0
+
 
 ## 3.5 Generate master df with presence/absence data
 ## (0=not found, 1=found) for every sample and save in dic master_dfs_pa:
@@ -324,9 +345,6 @@ for step in step_list:
 metrics_df=pd.DataFrame(metrics_dic).transpose()
 
 ## Save the df
-statsdir=os.path.join(workdir, "results_" + groupby_rank + "_" + rel_abun_basis, "stats_exports")
-if not os.path.exists(statsdir):
-    os.makedirs(statsdir)
 metrics_df.to_csv(os.path.join(statsdir, "metrics_df.csv"), index_label="pipeline")
 
 ## Also save a pickle object with the value for TN, which is needed for the

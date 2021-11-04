@@ -31,15 +31,22 @@ logging.basicConfig(level=logging.DEBUG,
 # Parameters manual setting
 ## Full path to directory that contains samples:
 workdir="/Users/christopherhempel/Desktop/pipeline_results_mock_community/"
+
+## Set if you want to include AAD metrics:
+aad=False
+
 ## Set if you want to loop over all result combinations of parameters in script
 ## "processing_and_metrics.py" and all metrics (True or False)
 ### Note: section 6 (clustering) requires manual adjustment for k so these have
 ### to be run manually:
-looping=False
+looping=True
+
 ## If you set looping to False, then define what combination and metrics you
 ## want to process:
-combination="genus_cell"
-metrics="pa"
+### ("genus_cell", "genus_gen", "species_cell", "species_gen")
+combination="species_cell"
+### ("all", "rel", "pa")
+metrics="all"
 
 
 
@@ -78,14 +85,23 @@ for statsdir in statsdir_lst:
             logging.critical("Parameter metr not in all_metr, rel_metr, or pa_metr: metr=" + metr)
         if metr=="all":
             print("All metrics are used.")
+            ## If AAD should not be used, drop all cols containing aad:
+            if not aad:
+                metrics_df=metrics_df.drop([ x for x in metrics_df.columns if "aad" in x ], axis=1)
         elif metr=="rel":
             print("Just relative metrics are used.")
             metrics_df=metrics_df.drop(["FP", "TP", "FP_aad", "TP_aad"], axis=1)
+            ## If AAD should not be used, drop all cols containing aad:
+            if not aad:
+                metrics_df=metrics_df.drop([ x for x in metrics_df.columns if "aad" in x ], axis=1)
         elif metr=="pa":
             print("Just p/a metrics are used.")
             drops=["FP", "TP", "FP_aad", "TP_aad", 'type', 'trimming_score',
                 'rRNA_sorting_tool', 'assembly_tool', 'mapper', 'database', 'classifier']
             metrics_df=metrics_df.drop([x for x in metrics_df.columns if x not in drops], axis=1)
+            ## If AAD should not be used, drop all cols containing aad:
+            if not aad:
+                metrics_df=metrics_df.drop([ x for x in metrics_df.columns if "aad" in x ], axis=1)
 
         ## Add expected
         expected_dummy=metrics_df.loc["expected"]
@@ -102,12 +118,13 @@ for statsdir in statsdir_lst:
         ### Standardize data
         pca_df_std=StandardScaler().fit_transform(pca_df)
 
-        ### Perform PCA
-        #### On one component for linear regression (later in script)
-        pca_lr = PCA(n_components=1)
-        pc_lr = pca_lr.fit_transform(pca_df_std)
-        PC1_lr=str(pca_lr.explained_variance_ratio_[0])
-        print("Linear regression PC1: " + PC1_lr)
+        # We don't do linear regression anymore, next block commented out
+        # ### Perform PCA
+        # #### On one component for linear regression (later in script)
+        # pca_lr = PCA(n_components=1)
+        # pc_lr = pca_lr.fit_transform(pca_df_std)
+        # PC1_lr=str(pca_lr.explained_variance_ratio_[0])
+        # print("Linear regression PC1: " + PC1_lr)
 
         #### On two components for graphical visualization
         pca_graph = PCA(n_components=2)
@@ -207,6 +224,9 @@ for statsdir in statsdir_lst:
           pvalues_steps=ro.conversion.rpy2py(pvalues_steps_r).transpose().rename(columns = {'1':'p-value'})
           pvalues_tools=ro.conversion.rpy2py(pvalues_tools_r).transpose().rename(columns = {'1':'p-value'})
 
+        ## Replace . by - in names (R converter automatically changed -)
+        pvalues_tools=pvalues_tools.set_index(pvalues_tools.index.str.replace(".", "-"))
+
         ## Save p-value dfs
         pvalues_steps.to_csv(os.path.join(statsdir, metr + "_pvalues_steps.csv"), index_label="step")
         pvalues_tools.to_csv(os.path.join(statsdir, metr + "_pvalues_tools.csv"), index_label="tool")
@@ -221,20 +241,42 @@ for statsdir in statsdir_lst:
             euc_dist_df.loc[index,'euc_dist'] = euclidean(row, exp_std)
         #euc_dist_df.sort_values(by=['euc_dist'])
         mean_euc_dist_lst=[]
+        min_euc_dist_lst=[]
         tools=[]
 
-        ## Calculate average euc dist for each tool in each step
+        ## Calculate average and minimum euc dist for each tool in each step
         for step in euc_dist_df.loc[:, 'type':'classifier'].columns:
             for tool in euc_dist_df[step].unique():
-                #### Cut down df to rows containing tool and take the averge euc_dist:
+                ### Make sure trimming score 5 doesn't pick up 15 as well
+                if tool=="5":
+                    tool="_5"
+                #### Cut down df to rows containing tool and take the averge and min euc_dist:
                 mean_euc_dist=euc_dist_df.reset_index()[euc_dist_df.reset_index()['pipeline']
                     .str.contains(tool)]["euc_dist"].mean()
-                tools.append(tool)
+                min_euc_dist=euc_dist_df.reset_index()[euc_dist_df.reset_index()['pipeline']
+                    .str.contains(tool)]["euc_dist"].sort_values().min()
+                ### Reverse changes
+                if tool=="_5":
+                    tool="5"
+                tools.append(step + "_" + tool)
                 mean_euc_dist_lst.append(mean_euc_dist)
+                min_euc_dist_lst.append(min_euc_dist)
+
+
+        # ## Check when DNA or RNA pop up first
+        # sorted=euc_dist_df.sort_values(by="euc_dist")
+        # top_DNA_idx=sorted["type"].to_list().index("DNA")
+        # top_RNA_idx=sorted["type"].to_list().index("RNA")
+        # top_DNA_eucdist=sorted.iloc[top_DNA_idx]["euc_dist"]
+        # top_RNA_eucdist=sorted.iloc[top_RNA_idx]["euc_dist"]
+        # print("Rank check for statsdir {0} metr {1}".format(statsdir, metr))
+        # print("DNA appears first on rank {0} with an eucdist of {1}.".format(top_DNA_idx+1, top_DNA_eucdist))
+        # print("RNA appears first on rank {0} with an eucdist of {1}.".format(top_RNA_idx+1, top_RNA_eucdist))
+
 
         ## Make and save df
-        mean_euc_dist_df=pd.DataFrame({"mean_euc_dist": mean_euc_dist_lst}, index=tools)
-        mean_euc_dist_df.to_csv(os.path.join(statsdir, metr + "_mean_euc_dist_steps.csv"), index_label="tools")
+        euc_dist_final_df=pd.DataFrame({"mean_euc_dist": mean_euc_dist_lst, "min_euc_dist": min_euc_dist_lst}, index=tools)
+        euc_dist_final_df.to_csv(os.path.join(statsdir, metr + "_euc_dist_steps.csv"), index_label="tool")
 
 
 
@@ -251,16 +293,24 @@ for statsdir in statsdir_lst:
 
         ## Pick scaling multiplier for arrows in PCA biplot to make them more visible:
         scaling=4
+
+        ## Pick symbols for tools in PCA:
+        symbols_lst=["hexagram", "triangle-down", "triangle-up", "cross",
+            "diamond", "square", "circle", "x"]
+
         ## Make plot for each tool column and save plots (biplot part taken from
         ## https://plotly.com/python/pca-visualization; arrow part taken from
         ## https://community.plotly.com/t/arrow-heads-at-the-direction-of-line-arrows/32565/3):
         for col in plot_df.columns[3:]:
-
+            ### Reverse symbol order so that expected is always "x":
+            symbols=symbols_lst[-len(plot_df[col].unique()):]
             ### We show different arrows based on the column we colour on:
             if col=="exp":
                 fig = px.scatter(plot_df, x="PC1", y="PC2",
                     labels={"PC1": "PC1 ({0}%)".format(PC1_graph),
-                    "PC2": "PC2 ({0}%)".format(PC2_graph)}, color=col, hover_data=["pipeline"])
+                    "PC2": "PC2 ({0}%)".format(PC2_graph)}, color=col,
+                    symbol=col, symbol_sequence=symbols, hover_data=["pipeline"],
+                    template="simple_white")
 
                 #### Loop over features:
                 for i, feature in enumerate(pca_features):
@@ -288,13 +338,18 @@ for statsdir in statsdir_lst:
                     tool_rep=tool.replace("-", ".")
                     pval=pvalues_tools.reset_index()[pvalues_tools.reset_index()['index']\
                         .str.contains("_" + tool_rep)]["p-value"].to_list()[0]
-                    eucdist=round(mean_euc_dist_df.loc[tool].to_list()[0], 2)
-                    plot_df_repl=plot_df_repl.replace(tool, "{0} (p={1}, d={2})".format(tool, pval, eucdist))
+                    eucdist_min=round(euc_dist_final_df.reset_index()[euc_dist_final_df.reset_index()['index']\
+                        .str.contains("_" + tool)]["min_euc_dist"].to_list()[0], 2)
+                    eucdist_mean=round(euc_dist_final_df.reset_index()[euc_dist_final_df.reset_index()['index']\
+                        .str.contains("_" + tool)]["mean_euc_dist"].to_list()[0], 2)
+                    plot_df_repl=plot_df_repl.replace(tool, "{0} (p={1}, dmean={2}, dmin={3})".format(tool, pval, eucdist_mean, eucdist_min))
                 #### Plot figure with replaced tool names
                 fig = px.scatter(plot_df_repl, x="PC1", y="PC2",
                     labels={"PC1": "PC1 ({0}%)".format(PC1_graph),
                     "PC2": "PC2 ({0}%)".format(PC2_graph), col: "{0} (p={1})".format(col,
-                        pvalues_steps.loc[col].to_list()[0])}, color=col, hover_data=["pipeline"])
+                        pvalues_steps.loc[col].to_list()[0])}, symbol=col,
+                        symbol_sequence=symbols, color=col, hover_data=["pipeline"],
+                        template="simple_white")
                 #### Cut down scores_tools df to rows per col:
                 tools_df=scores_tools.reset_index()[scores_tools.reset_index()['index']
                     .str.contains(col)]
@@ -319,28 +374,30 @@ for statsdir in statsdir_lst:
         kmean_df_std = pca_df_std
 
         ## 7.1 Estimate the best kluster number k
+        ### number of k to test
+        ktest=60
         ## 7.1.1 Elbow method based on SSE
         #### The list sse holds the SSE values for each k
         sse = []
-        for k in range(1, 20):
+        for k in range(1, ktest):
             kmeans = KMeans(n_clusters=k)
             kmeans.fit(kmean_df_std)
             sse.append(kmeans.inertia_)
 
         ### Plot SSEs to choose the best k
-        fig_k_sse = px.line(pd.DataFrame(list(zip(range(1, 20), sse)),
+        fig_k_sse = px.line(pd.DataFrame(list(zip(range(1, ktest), sse)),
             columns = ['Number of Clusters', 'SSE']), x="Number of Clusters", y="SSE")
         fig_k_sse.show()
         fig_k_sse.write_image(os.path.join(plotdir, "KMeans_" + metr + "_sse.png"))
 
         ### 7.1.2 Or automatically calculate the best k using KneeLocator
-        kl = KneeLocator(range(1, 20), sse, curve="convex", direction="decreasing")
+        kl = KneeLocator(range(1, ktest), sse, curve="convex", direction="decreasing")
         print("The best k based on KneeLocator is " + str(kl.elbow))
 
         ## 7.1.3 Silhouette coefficient
         silhouette_coefficients = []
         ### Start at k=2 when using the silhouette coefficient
-        for k in range(2, 20):
+        for k in range(2, ktest):
             kmeans = KMeans(n_clusters=k)
             kmeans.fit(kmean_df_std)
             score = silhouette_score(kmean_df_std, kmeans.labels_)
@@ -348,14 +405,14 @@ for statsdir in statsdir_lst:
 
         ### Plot the scores and manually pick the k with the highest score close to
         ### the k estimated with SSE
-        fig_k_silhouette = px.line(pd.DataFrame(list(zip(range(2, 20),
+        fig_k_silhouette = px.line(pd.DataFrame(list(zip(range(2, ktest),
             silhouette_coefficients)), columns =['Number of Clusters', 'Silhouette Coefficients']),
             x="Number of Clusters", y="Silhouette Coefficients")
         fig_k_silhouette.show()
         fig_k_silhouette.write_image(os.path.join(plotdir, "KMeans_"  + metr + "_silhouette.png"))
 
         ## 7.1.2 Based on both tests, we manually define k
-        k=10
+        k=14
 
         ## 7.2 Perform the actual kmeans with the estimated k
         kmeans = KMeans(n_clusters=k)
