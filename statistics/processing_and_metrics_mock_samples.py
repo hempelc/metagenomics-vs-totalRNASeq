@@ -2,7 +2,8 @@
 
 # Written by Christopher Hempel (hempelc@uoguelph.ca) on 16 Jul 2021
 
-# This script processes pipeline data from multiple replicates and exports a metrics table
+# This script processes pipeline data from multiple replicates of mock community
+# samples and exports a metrics table
 
 import pandas as pd
 import glob
@@ -274,7 +275,6 @@ for sample_type in ["DNA", "RNA"]:
 for key, value in master_dfs_rel_sub.items():
     value[value < 0] = 0
 
-
 ## 3.5 Generate master df with presence/absence data
 ## (0=not found, 1=found) for every sample and save in dic master_dfs_pa:
 ### Deepcopy teh relative abundance master dfs:
@@ -319,7 +319,7 @@ concat=pd.DataFrame({})
 for sample in metrics_reps.keys():
     concat=pd.concat((concat, metrics_reps[sample]), axis=1)
 
-### FIll dic with average and AAD per pipeline
+### Fill dic with average and AAD per pipeline
 metrics_dic={}
 for pipeline in list(set(concat.columns)):
     metrics_dic[pipeline]={}
@@ -348,6 +348,6 @@ metrics_df=pd.DataFrame(metrics_dic).transpose()
 metrics_df.to_csv(os.path.join(statsdir, "metrics_df.csv"), index_label="pipeline")
 
 ## Also save a pickle object with the value for TN, which is needed for the
-## next step of code in a different script
+## next step of code in the script "regression_pca_clustering_plot.py":
 with open(os.path.join(statsdir, "TN.pkl"), 'wb') as f:
     pickle.dump(len(unique_taxa)-len(expected_df), f)

@@ -36,15 +36,13 @@ workdir="/Users/christopherhempel/Desktop/pipeline_results_mock_community/"
 aad=False
 ## Set if you want to loop over all result combinations of parameters in script
 ## "processing_and_metrics.py" and all metrics (True or False)
-### Note: section 6 (clustering) requires manual adjustment for k so these have
-### to be run manually:
-looping=True
+looping=False
 ## If you set looping to False, then define what specific combination and metrics
 ## you want to process:
 ### ("genus_cell", "genus_gen", "species_cell", "species_gen")
 combination="species_cell"
 ### ("all", "rel", "pa")
-metrics="all"
+metrics="rel"
 
 
 
@@ -157,36 +155,6 @@ for statsdir in statsdir_lst:
 
 
 
-        # # 3 Linear regression (following https://datatofish.com/satsmodels-linear-regression/)
-        # Note: replaced by envfit in next section, @ RAMI! you don't ened to check this
-        # ## 3.1 Set up X and y
-        # y = pc_lr
-        # ### Parameter to include or exclude type variables ("False" or "True")
-        # type_included=True
-        # if type_included:
-        #     X_no_dummies=metrics_df_exp.drop("expected_dummy").drop("exp", axis=1).iloc[:, -7:]
-        #     X_no_intercept=pd.get_dummies(X_no_dummies)
-        # else:
-        #     X_no_dummies=metrics_df_exp.drop("expected_dummy").drop(["exp", "type"], axis=1).iloc[:, -6:]
-        #     X_no_intercept=pd.get_dummies(X_no_dummies)
-        # ### Add a constant as a column which is needed to calculate the intercept of the model
-        #
-        # X = sm.add_constant(X_no_intercept)
-        #
-        # ## 3.2 Fit an ordinary least squares regression model
-        # lr_model = sm.OLS(y, X).fit()
-        #
-        # ## 3.3 Check out the coefficients and p-values and save them
-        # ### Set pd so that it only shows the last 3 decimal digits in the editor, which
-        # ### is easier for manual inspection
-        # pd.set_option('display.float_format', lambda x: '%.3f' % x)
-        # ### Use the summary function, which automatically summarizes the output
-        # summary = lr_model.summary2().tables[1][['Coef.', 'P>|t|']]
-        # summary.rename(columns={"Coef.": "Coefficient", "P>|t|": "p-value"})
-        # summary.to_csv(os.path.join(statsdir,  metr + "_lr_coeff_pval.csv"), index_label="tool")
-
-
-
         # 4 R envfit function - One very helpful function in R, envfit, is not
         # reproducible in python. Therefore, we use the rpy2 module to run that R
         # function in python on our PCA and metrics
@@ -273,9 +241,50 @@ for statsdir in statsdir_lst:
         euc_dist_final_df.to_csv(os.path.join(statsdir, metr + "_euc_dist_steps.csv"), index_label="tool")
 
 
+        # SIDE Linear regression (following https://datatofish.com/satsmodels-linear-regression/)
+        # Note: replaced by envfit in next section, @ RAMI! you don't ened to check this
+        ## SIDE.1 Set up X and y
+        y = euc_dist_df["euc_dist"].to_list()
+        ### Parameter to include or exclude type variables ("False" or "True")
+        type_included=True
+        if type_included:
+            X_no_dummies=metrics_df_exp.drop("expected_dummy").drop("exp", axis=1).iloc[:, -7:]
+            X_no_intercept=pd.get_dummies(X_no_dummies)
+        else:
+            X_no_dummies=metrics_df_exp.drop("expected_dummy").drop(["exp", "type"], axis=1).iloc[:, -6:]
+            X_no_intercept=pd.get_dummies(X_no_dummies)
+        ### Add a constant as a column which is needed to calculate the intercept of the model
+
+        X = sm.add_constant(X_no_intercept)
+
+        ## SIDE.2 Fit an ordinary least squares regression model
+        lr_model = sm.OLS(y, X).fit()
+
+        ## SIDE.3 Check out the coefficients and p-values and save them
+        ### Set pd so that it only shows the last 3 decimal digits in the editor, which
+        ### is easier for manual inspection
+        pd.set_option('display.float_format', lambda x: '%.3f' % x)
+        ### Use the summary function, which automatically summarizes the output
+        summary = lr_model.summary2().tables[1][['Coef.', 'P>|t|']]
+        summary.rename(columns={"Coef.": "Coefficient", "P>|t|": "p-value"})
+        summary.to_csv(os.path.join(statsdir,  metr + "_lr_coeff_pval.csv"), index_label="tool")
+
+        X_no_intercept["euc"]=y
+
+# from scipy.stats import pearsonr
+#
+# def calculate_pvalues(df):
+#     df = df.dropna()._get_numeric_data()
+#     dfcols = pd.DataFrame(columns=df.columns)
+#     pvalues = dfcols.transpose().join(dfcols, how='outer')
+#     for r in df.columns:
+#         for c in df.columns:
+#             pvalues[r][c] = round(pearsonr(df[r], df[c])[1], 4)
+#     return pvalues
+#
+#         calculate_pvalues(X_no_intercept) ["euc"]
 
         # 6 Plots
-
         ## Make saving directory:
         plotdir=os.path.join(os.path.abspath(os.path.join(statsdir, os.pardir)), "plots_" + metr)
         if not os.path.exists(plotdir):
@@ -434,7 +443,11 @@ for statsdir in statsdir_lst:
         fig_kmean.show()
         fig_kmean.write_image(os.path.join(plotdir, "KMeans_"  + metr + "_plot.png"))
 
-        # 7.4 Determine closest cluster to expected based on centroid
+        # 7.4 Export the clustering information to compare it to env samples
+        cluster_df=pd.DataFrame({"pipeline": pca_df.index.to_list(), "cluster":[str(x) for x in kmeans.labels_.tolist()]})
+        cluster_df.to_csv(os.path.join(statsdir,  metr + "_cluster_info.csv"), index=False)
+
+        # 7.5 Determine closest cluster to expected based on centroid
         pip_cluster_df = metrics_df.iloc[:, -7:]
         pip_cluster_df["cluster"]=[str(x) for x in kmeans.labels_.tolist()]
         ## Determine euclidean distance of each cluster centroid to expected:
@@ -452,5 +465,5 @@ for statsdir in statsdir_lst:
             counts_dic[col]=Counter(best_cluster_df[col])
         ## Save the dict as pickle object, which is needed for the
         ## next step of code in the script "stats_summary_plot.py":
-        with open(os.path.join(statsdir, metr + "_closest_cluster_tool_counts" + ".pkl"), 'wb') as f:
+        with open(os.path.join(statsdir, metr + "_closest_cluster_tool_counts.pkl"), 'wb') as f:
             pickle.dump(counts_dic, f)
