@@ -12,15 +12,15 @@ import pickle
 import numpy as np
 
 # Activate logging for debugging
-logging.basicConfig_tool_eval(level=logging.DEBUG,
+logging.basicConfig(level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 # Parameters manual setting
-workdir="/Users/christopherhempel/Desktop/pipeline_results_mock_community"
+workdir="/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock_samples/"
 
 # Parameters auto setting
-levels=["genus_cell", "genus_gen", "species_cell", "species_gen"]
+levels=["cell_genus", "cell_species", "gen_genus", "gen_species"]
 metr_lst=["all", "rel", "pa"]
 steps=["type", "trimming_score", "rRNA_sorting_tool", "assembly_tool", "mapper", "classifier", "database"]
 tools=['type_DNA', 'type_RNA',
@@ -35,20 +35,19 @@ plotdir=os.path.join(workdir, "stats_summary_plots")
 if not os.path.exists(plotdir):
     os.mkdir(plotdir)
 
-
 # 1 Import dfs to evaluate tools and concatenate them, creating columns to separate
 #   them, and import tools count dics to evaluate clusters:
 tool_eval_master_df=pd.DataFrame()
 cluster_counts_all=pd.DataFrame({'tool':tools})
 cluster_counts_master_df=pd.DataFrame()
 for level in levels:
-    statsdir=os.path.join(workdir, "results_{0}/stats_exports".format(level))
     for metr in metr_lst:
 
         ## Import dfs and count dic
-        df_eucdist=pd.read_csv(os.path.join(statsdir, "{0}_euc_dist_steps.csv".format(metr)))
-        df_pval=pd.read_csv(os.path.join(statsdir, "{0}_pvalues_tools.csv".format(metr)))
-        with open(os.path.join(statsdir, metr + "_closest_cluster_tool_counts" + ".pkl"), 'rb') as f:
+        datadir=os.path.join(workdir, "metrics_" + level, "stats_" + metr)
+        df_eucdist=pd.read_csv(os.path.join(datadir, "{0}_euc_dist_steps.csv".format(metr)))
+        df_pval=pd.read_csv(os.path.join(datadir, "{0}_pvalues_tools.csv".format(metr)))
+        with open(os.path.join(datadir, metr + "_closest_cluster_tool_counts" + ".pkl"), 'rb') as f:
             counts_dic = pickle.load(f)
 
         ## 1.1  Process the dfs
@@ -121,7 +120,7 @@ fig_tool_eval = px.scatter(tool_eval_master_df, x="combination", y="tool",
              hover_name="min_euc_dist", size_max=28, height=1350, width=1050,
              #symbol="mean_euc_dist_lowest", symbol_sequence=["circle", "circle-dot"],
              category_orders={"tool": tools},
-             color_discrete_sequence=["lightgrey","#cb6a49", "#a26fb7","#7ba351"])
+             color_discrete_sequence=["lightgrey","#cc0035", "#0187b3", "#e3c284"])
 fig_tool_eval.update_traces(marker=dict(line=dict(width=0,color='black')), selector=dict(mode='markers'))
 fig_tool_eval.write_image(os.path.join(plotdir, "bubbleplot_tool_eval.svg"))
 fig_tool_eval.write_image(os.path.join(plotdir, "bubbleplot_tool_eval.png"))
