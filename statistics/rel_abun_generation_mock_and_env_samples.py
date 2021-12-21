@@ -10,11 +10,13 @@ import glob
 import os
 import copy
 import logging
+from sklearn.preprocessing import StandardScaler
+from skbio.stats.composition import multiplicative_replacement
+from skbio.stats.composition import clr
 
 # Activate logging for debugging
 logging.basicConfig(level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s')
-
 
 # Parameters set manually
 ## Full path to directory that contains env/mock samples
@@ -33,7 +35,7 @@ looping_sample=False
 ## to process (option "mock" or "env"):
 sample_set_name="env"
 ## Indicate if you want to loop over genus and species (True/False)
-looping_rank=True
+looping_rank=False
 ## If you set looping_rank to False, then define what specific rank you want to process:
 ### Taxonomic rank to group rows on. Either based on genus (option "genus")
 ### or on species (option "species"):
@@ -177,17 +179,17 @@ for sample_set in sample_set_name_lst:
 
 
 
-        ## 3 Calculate the average between replicates for rel and p/a data
+        # 3 Calculate the average between replicates for rel and p/a data
         for master_dfs in [master_dfs_rel_sub, master_dfs_pa]:
             if master_dfs is master_dfs_rel_sub:
                 data_type="rel"
             else:
                 data_type="pa"
-            ### Concatenate all 3 dfs into one
+            ## Concatenate all 3 dfs into one
             concat=pd.DataFrame({})
             for sample in master_dfs.keys():
                 concat=pd.concat((concat, master_dfs[sample]), axis=1)
-            ### Fill dic with average
+            ## Fill dic with average
             master_dic={}
             for pipeline in list(set(concat.columns)):
                 master_dic[pipeline]={}
@@ -195,5 +197,9 @@ for sample_set in sample_set_name_lst:
                     master_dic[pipeline][taxon]=sum(values)/len(values)
             ## Make the df
             master_df=pd.DataFrame(master_dic).transpose()
+            ## Standardize data
+            ### If rel, then replace 0s and determine central log ratio
+            if master_dfs is master_dfs_rel_sub:
+                master_df=pd.DataFrame(clr(multiplicative_replacement(master_df)), index=master_df.index, columns=master_df.columns)
             ## Save the df
             master_df.to_csv(os.path.join(exportdir, "rel_abun_" + groupby_rank + "_" + data_type + ".csv"), index_label="pipeline")

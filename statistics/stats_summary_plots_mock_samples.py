@@ -120,7 +120,7 @@ fig_tool_eval = px.scatter(tool_eval_master_df, x="combination", y="tool",
              hover_name="min_euc_dist", size_max=28, height=1350, width=1050,
              #symbol="mean_euc_dist_lowest", symbol_sequence=["circle", "circle-dot"],
              category_orders={"tool": tools},
-             color_discrete_sequence=["lightgrey","#cc0035", "#0187b3", "#e3c284"])
+             color_discrete_sequence=["#0187b3", "#e3c284", "lightgrey","#cc0035"])
 fig_tool_eval.update_traces(marker=dict(line=dict(width=0,color='black')), selector=dict(mode='markers'))
 fig_tool_eval.write_image(os.path.join(plotdir, "bubbleplot_tool_eval.svg"))
 fig_tool_eval.write_image(os.path.join(plotdir, "bubbleplot_tool_eval.png"))

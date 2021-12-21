@@ -10,6 +10,8 @@ import glob
 import os
 import copy
 import logging
+from skbio.stats.composition import multiplicative_replacement
+from skbio.stats.composition import clr
 
 # Activate logging for debugging
 logging.basicConfig(level=logging.DEBUG,
@@ -24,6 +26,10 @@ workdir = "/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mo
 ## contain each sample's pipeline results:
 samples = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA",
     "M_Neg_DNA", "M_Neg_RNA", "M_Ext_DNA", "M_Ext_RNA"]
+## Dic containing number of reads per sample
+sample_reads={"M4_DNA": 1128425, "M4_RNA": 306047, "M5_DNA": 790808, "M5_RNA": 400780,
+    "M6_DNA": 783841, "M6_RNA": 389552, "M_Neg_DNA": 682, "M_Neg_RNA": 5200,
+    "M_Ext_DNA":  445, "M_Ext_RNA": 2672}
 ## Indicate if you want to loop over all 4 combinations of genus/species and cell/gen (True/False)
 looping=True
 ## If you set looping to False, then define what specific rank and abundance
@@ -43,12 +49,16 @@ if looping:
 else:
     groupby_rank_lst=[rank]
     rel_abun_basis_lst=[abun]
-## Relative abundances of mock community taxa based on genomic DNA/SSU genes:
-rel_abun_gen = [0.891, 0.089, 0.0089, 0.0089, 0.00089, 0.00089, 0.000089,
-    0.0000089, 0.0000089, 0.00000089]
-## Relative abundances of mock community taxa based on cell number:
-rel_abun_cell = [0.949, 0.042, 0.007, 0.0012, 0.00058, 0.00059, 0.00015,
+## Relative abundances of mock community taxa based on genome copy numbers as given by manufacturer:
+rel_abun_gen_manuf = [0.948, 0.042, 0.007, 0.0023, 0.00058, 0.00059, 0.00015,
+    0.00001, 0.0000015, 0.000001]
+## Relative abundances of mock community taxa based on cell number as given by manufacturer:
+rel_abun_cell_manuf = [0.949, 0.042, 0.007, 0.0012, 0.00058, 0.00059, 0.00015,
     0.00001, 0.0000007, 0.000001]
+## These don't add up to 1 for some reason, so we shift the relative abundances
+## so that they sum up to 1:
+rel_abun_gen = [x/sum(rel_abun_gen_manuf) for x in rel_abun_gen_manuf]
+rel_abun_cell = [x/sum(rel_abun_cell_manuf) for x in rel_abun_cell_manuf]
 
 
 # Functions
@@ -110,8 +120,10 @@ for groupby_rank in groupby_rank_lst:
         if not os.path.exists(statsdir):
             os.makedirs(statsdir)
 
-        ### We also need relative abundances per taxon. Therefore, we use the relative
-        ### abundance of each taxon in the mock community, either based on SSU genes or cells:
+        ## We  need absolute abundances of mock community taxa. Therefore, we use the relative
+        ## abundance of each taxon in the mock community, either based on SSU
+        ## genes or cells, and multiply them by the absolute number of reads
+        ## of that sample:
         if rel_abun_basis == "gen":
             expected_df["rel_abun"] = rel_abun_gen
         elif rel_abun_basis == "cell":
@@ -120,10 +132,6 @@ for groupby_rank in groupby_rank_lst:
 
         master_dfs_raw = {} # Empty dic that will eventually contain all samples' raw pipelines output
         all_taxa = [] # Empty list that will eventually contain all taxa that appear in all samples
-
-        # @Rami: if you want to run the next loop with only the one sample I sent you,
-        # uncomment and run the next line
-        # samples=["M4_RNA"]
 
         for sample in samples:
             ## Make a list for all file names in sample dic:
@@ -167,8 +175,8 @@ for groupby_rank in groupby_rank_lst:
                     "blast-first-hit").replace("blast_filtered", "blast-filtered")
                 ### Add df_agg to the sample_dfs dic with key=pipeline_name
                 sample_dfs[pipeline_name] = df_agg
-                ### Save sample_df in dic master_dfs_raw:
-                master_dfs_raw[sample] = sample_dfs
+            ### Save sample_df in dic master_dfs_raw:
+            master_dfs_raw[sample] = sample_dfs
 
 
 
@@ -213,23 +221,33 @@ for groupby_rank in groupby_rank_lst:
                 master_dfs_prefix[sample]=master_dfs_rel[sample].add_prefix(sample_type
                     + "_").rename(columns={sample_type + "_expected": "expected"})
 
+
         ## 3.4 Substract controls from samples
         master_dfs_rel_sub={}
         for sample_type in ["DNA", "RNA"]:
+            neg_readnum=sample_reads["M_Neg_" + sample_type]
+            ext_readnum=sample_reads["M_Ext_" + sample_type]
             for sample in [x + "_" + sample_type for x in ["M4", "M5", "M6"]]:
                 #### We substract twice the reads occuring in the filtration and extraction
                 #### control from the samples, separately for RNA and DNA controls:
-                master_dfs_rel_sub[sample]=master_dfs_prefix[sample]-(master_dfs_prefix["M_Neg_"
-                    + sample_type] + master_dfs_prefix["M_Ext_" + sample_type])*2
+                ##### We're converting counts back to absolute and substract absolute numbers of reads of the negative controls
+                readnum=sample_reads[sample]
+                master_dfs_rel_sub[sample]=master_dfs_prefix[sample]*readnum-(master_dfs_prefix["M_Neg_" + sample_type]*neg_readnum \
+                    + master_dfs_prefix["M_Ext_" + sample_type]*ext_readnum)
+                ### Convert counts below 0 to 0 (happens if negative control contains more reads than original sample):
+                master_dfs_rel_sub[sample][master_dfs_rel_sub[sample] < 0] = 0
+                ### Convert counts back to relative
+                master_dfs_rel_sub[sample]=master_dfs_rel_sub[sample]/master_dfs_rel_sub[sample].sum()
+                ### Some pipelines contain no reads after substraction of controls.
+                ### The relaive abundances are therefore NaNs (divided by 0) so we have to replace the NaNs:
+                master_dfs_rel_sub[sample]=master_dfs_rel_sub[sample].fillna(0)
                 #### And since this substraction overrides the expected, we replace it with the old expected:
                 master_dfs_rel_sub[sample]["expected"]=master_dfs_prefix[sample]["expected"]
-        ### Convert counts below 0 to 0 (happens if negative control contains more reads than original sample):
-        for key, value in master_dfs_rel_sub.items():
-            value[value < 0] = 0
+
 
         ## 3.5 Generate master df with presence/absence data
         ## (0=not found, 1=found) for every sample and save in dic master_dfs_pa:
-        ### Deepcopy teh relative abundance master dfs:
+        ### Deepcopy the relative abundance master dfs:
         master_dfs_pa = copy.deepcopy(master_dfs_rel_sub)
         ### Replace all values above 0 with 1:
         for key, value in master_dfs_pa.items():
@@ -256,12 +274,12 @@ for groupby_rank in groupby_rank_lst:
                 FP_rel=rel_cutdown_FP[sample].sum(axis=0)
                 TP=pa_cutdown_expected[sample].sum(axis=0)
                 FP=pa_cutdown_FP[sample].sum(axis=0)
+                metrics_reps[sample].loc['FP_rel'] = FP_rel
                 metrics_reps[sample].loc['TP'] = TP
                 metrics_reps[sample].loc['FP'] = FP
-                metrics_reps[sample].loc['FP_rel'] = FP_rel
 
 
-        ## 4.3 Calculate the average abetween replicates for each metric
+        ## 4.3 Calculate the average between replicates for each metric
         ### Concatenate all 3 dfs into one
         concat=pd.DataFrame({})
         for sample in metrics_reps.keys():
@@ -276,7 +294,7 @@ for groupby_rank in groupby_rank_lst:
 
 
 
-        # 5 Make final metrics_df
+        # 6 Make final metrics_df and Standardize rel abundances
         ## Add info on tools used in each step for each pipeline
         step_list=["type", "trimming_score", "rRNA_sorting_tool", "assembly_tool",
         "mapper", "database", "classifier"]
@@ -288,5 +306,9 @@ for groupby_rank in groupby_rank_lst:
                 metrics_dic[pipeline][step]=pipeline.split("_")[step_list.index(step)]
         ## Make the df
         metrics_df=pd.DataFrame(metrics_dic).transpose()
+        ## Standardize by replacing 0s and taking the centered log ratio
+        metrics_df_rel_std=pd.DataFrame(clr(multiplicative_replacement(metrics_df.iloc[:, 0:11].to_numpy(dtype="float"))),
+            index=metrics_df.index, columns=metrics_df.columns[0:11])
+        metrics_df_concat=pd.concat([metrics_df_rel_std, metrics_df.iloc[:, 11:20]], axis=1)
         ## Save the df
-        metrics_df.to_csv(os.path.join(statsdir, "metrics_df.csv"), index_label="pipeline")
+        metrics_df_concat.to_csv(os.path.join(statsdir, "metrics_df.csv"), index_label="pipeline")
