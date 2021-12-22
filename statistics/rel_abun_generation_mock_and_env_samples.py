@@ -205,21 +205,12 @@ for sample_set in sample_set_name_lst:
                 data_type="rel"
             else:
                 data_type="pa"
-            ## Concatenate all 3 dfs into one
-            concat=pd.DataFrame({})
-            for sample in master_dfs.keys():
-                concat=pd.concat((concat, master_dfs[sample]), axis=1)
-            ## Fill dic with average
-            master_dic={}
-            for pipeline in list(set(concat.columns)):
-                master_dic[pipeline]={}
-                for taxon, values in concat[pipeline].iterrows():
-                    master_dic[pipeline][taxon]=sum(values)/len(values)
-            ## Make the df
-            master_df=pd.DataFrame(master_dic).transpose()
-            ## Standardize data
-            ### If rel, then replace 0s and determine central log ratio
-            if master_dfs is master_dfs_rel_sub:
-                master_df=pd.DataFrame(clr(multiplicative_replacement(master_df)), index=master_df.index, columns=master_df.columns)
-            ## Save the df
-            master_df.to_csv(os.path.join(exportdir, "rel_abun_" + groupby_rank + "_" + data_type + ".csv"), index_label="pipeline")
+            for rep, df in master_dfs.items():
+                ## Make the df
+                master_df=pd.DataFrame(df).transpose()
+                ## Standardize data
+                ### If rel, then replace 0s and determine central log ratio
+                if master_dfs is master_dfs_rel_sub:
+                    master_df=pd.DataFrame(clr(multiplicative_replacement(master_df)), index=master_df.index, columns=master_df.columns)
+                ## Save the df
+                master_df.to_csv(os.path.join(exportdir, rep + "_rel_abun_" + groupby_rank + "_" + data_type + ".csv"), index_label="pipeline")
