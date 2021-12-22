@@ -228,7 +228,7 @@ for groupby_rank in groupby_rank_lst:
             neg_readnum=sample_reads["M_Neg_" + sample_type]
             ext_readnum=sample_reads["M_Ext_" + sample_type]
             for sample in [x + "_" + sample_type for x in ["M4", "M5", "M6"]]:
-                #### We substract twice the reads occuring in the filtration and extraction
+                #### We substract the reads occuring in the filtration and extraction
                 #### control from the samples, separately for RNA and DNA controls:
                 ##### We're converting counts back to absolute and substract absolute numbers of reads of the negative controls
                 readnum=sample_reads[sample]
@@ -238,9 +238,6 @@ for groupby_rank in groupby_rank_lst:
                 master_dfs_rel_sub[sample][master_dfs_rel_sub[sample] < 0] = 0
                 ### Convert counts back to relative
                 master_dfs_rel_sub[sample]=master_dfs_rel_sub[sample]/master_dfs_rel_sub[sample].sum()
-                ### Some pipelines contain no reads after substraction of controls.
-                ### The relaive abundances are therefore NaNs (divided by 0) so we have to replace the NaNs:
-                master_dfs_rel_sub[sample]=master_dfs_rel_sub[sample].fillna(0)
                 #### And since this substraction overrides the expected, we replace it with the old expected:
                 master_dfs_rel_sub[sample]["expected"]=master_dfs_prefix[sample]["expected"]
 
@@ -278,37 +275,23 @@ for groupby_rank in groupby_rank_lst:
                 metrics_reps[sample].loc['TP'] = TP
                 metrics_reps[sample].loc['FP'] = FP
 
-
-        ## 4.3 Calculate the average between replicates for each metric
-        ### Concatenate all 3 dfs into one
-        concat=pd.DataFrame({})
-        for sample in metrics_reps.keys():
-            concat=pd.concat((concat, metrics_reps[sample]), axis=1)
-
-        ### Fill dic with average per pipeline
-        metrics_dic={}
-        for pipeline in list(set(concat.columns)):
-            metrics_dic[pipeline]={}
-            for metric, values in concat[pipeline].iterrows():
-                metrics_dic[pipeline][metric]=sum(values)/len(values)
-
-
-
-        # 6 Make final metrics_df and Standardize rel abundances
+        # 5 Make final metrics_df and Standardize rel abundances
         ## Add info on tools used in each step for each pipeline
-        step_list=["type", "trimming_score", "rRNA_sorting_tool", "assembly_tool",
-        "mapper", "database", "classifier"]
-        for step in step_list:
-            for pipeline in metrics_dic.keys():
-                if pipeline=="expected":
-                    metrics_dic[pipeline][step]="expected"
-                    continue
-                metrics_dic[pipeline][step]=pipeline.split("_")[step_list.index(step)]
-        ## Make the df
-        metrics_df=pd.DataFrame(metrics_dic).transpose()
-        ## Standardize by replacing 0s and taking the centered log ratio
-        metrics_df_rel_std=pd.DataFrame(clr(multiplicative_replacement(metrics_df.iloc[:, 0:11].to_numpy(dtype="float"))),
-            index=metrics_df.index, columns=metrics_df.columns[0:11])
-        metrics_df_concat=pd.concat([metrics_df_rel_std, metrics_df.iloc[:, 11:20]], axis=1)
-        ## Save the df
-        metrics_df_concat.to_csv(os.path.join(statsdir, "metrics_df.csv"), index_label="pipeline")
+        for rep in metrics_reps.keys():
+            reversed_df=metrics_reps[rep].to_dict()
+            step_list=["type", "trimming_score", "rRNA_sorting_tool", "assembly_tool",
+            "mapper", "database", "classifier"]
+            for step in step_list:
+                for pipeline in reversed_df.keys():
+                    if pipeline=="expected":
+                        reversed_df[pipeline][step]="expected"
+                        continue
+                    reversed_df[pipeline][step]=pipeline.split("_")[step_list.index(step)]
+            ## Make the df
+            metrics_df=pd.DataFrame(reversed_df).transpose()
+            ## Standardize by replacing 0s and taking the centered log ratio
+            metrics_df_rel_std=pd.DataFrame(clr(multiplicative_replacement(metrics_df.iloc[:, 0:11].to_numpy(dtype="float"))),
+                index=metrics_df.index, columns=metrics_df.columns[0:11])
+            metrics_df_concat=pd.concat([metrics_df_rel_std, metrics_df.iloc[:, 11:20]], axis=1)
+            ## Save the df
+            metrics_df_concat.to_csv(os.path.join(statsdir, rep + "_metrics_df.csv"), index_label="pipeline")
