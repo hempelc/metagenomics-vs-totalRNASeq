@@ -29,13 +29,21 @@ samples_mock = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA",
     "M_Neg_DNA", "M_Neg_RNA", "M_Ext_DNA", "M_Ext_RNA"]
 samples_env = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA",
     "M_Neg_DNA", "M_Neg_RNA", "M_Ext_DNA", "M_Ext_RNA"]
+## Dics containing number of reads per sample
+sample_reads_mock={"M4_DNA": 1128425, "M4_RNA": 306047, "M5_DNA": 790808, "M5_RNA": 400780,
+    "M6_DNA": 783841, "M6_RNA": 389552, "M_Neg_DNA": 682, "M_Neg_RNA": 5200,
+    "M_Ext_DNA":  445, "M_Ext_RNA": 2672}
+sample_reads_env={"M4_DNA": 1128425, "M4_RNA": 306047, "M5_DNA": 790808, "M5_RNA": 400780,
+    "M6_DNA": 783841, "M6_RNA": 389552, "M_Neg_DNA": 682, "M_Neg_RNA": 5200,
+    "M_Ext_DNA":  445, "M_Ext_RNA": 2672}
+
 ## Indicate if you want to loop over genus and species (True/False)
-looping_sample=False
+looping_sample=True
 ## If you set looping_rank to False, then define what specific sample set you want
 ## to process (option "mock" or "env"):
 sample_set_name="env"
 ## Indicate if you want to loop over genus and species (True/False)
-looping_rank=False
+looping_rank=True
 ## If you set looping_rank to False, then define what specific rank you want to process:
 ### Taxonomic rank to group rows on. Either based on genus (option "genus")
 ### or on species (option "species"):
@@ -160,14 +168,26 @@ for sample_set in sample_set_name_lst:
         ## 2.4 Substract controls from samples
         master_dfs_rel_sub={}
         for sample_type in ["DNA", "RNA"]:
+            if sample_set=="mock":
+                read_dic=sample_reads_mock
+                neg_readnum=read_dic["M_Neg_" + sample_type]
+                ext_readnum=read_dic["M_Ext_" + sample_type]
+            else:
+                read_dic=sample_reads_env
+                neg_readnum=read_dic["M_Neg_" + sample_type]
+                ext_readnum=read_dic["M_Ext_" + sample_type]
             for sample in [x + "_" + sample_type for x in ["M4", "M5", "M6"]]:
-                #### We substract twice the reads occuring in the filtration and extraction
+                #### We substract the reads occuring in the filtration and extraction
                 #### control from the samples, separately for RNA and DNA controls:
-                master_dfs_rel_sub[sample]=master_dfs_prefix[sample]-(master_dfs_prefix["M_Neg_"
-                    + sample_type] + master_dfs_prefix["M_Ext_" + sample_type])*2
-        ### Convert counts below 0 to 0 (happens if negative control contains more reads than original sample):
-        for key, value in master_dfs_rel_sub.items():
-            value[value < 0] = 0
+                ##### We're converting counts back to absolute and substract absolute numbers of reads of the negative controls
+                readnum=read_dic[sample]
+                master_dfs_rel_sub[sample]=master_dfs_prefix[sample]*readnum-(master_dfs_prefix["M_Neg_" + sample_type]*neg_readnum \
+                    + master_dfs_prefix["M_Ext_" + sample_type]*ext_readnum)
+                ### Convert counts below 0 to 0 (happens if negative control contains more reads than original sample):
+                master_dfs_rel_sub[sample][master_dfs_rel_sub[sample] < 0] = 0
+                ### Convert counts back to relative
+                master_dfs_rel_sub[sample]=master_dfs_rel_sub[sample]/master_dfs_rel_sub[sample].sum()
+
 
         ## 2.5 Generate master df with presence/absence data
         ## (0=not found, 1=found) for every sample and save in dic master_dfs_pa:
