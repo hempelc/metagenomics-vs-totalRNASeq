@@ -14,7 +14,7 @@ import logging
 import pickle
 from sklearn.preprocessing import StandardScaler
 from scipy.spatial.distance import euclidean
-from scipy.stats import pointbiserialr, pearsonr
+from scipy.stats import pointbiserialr
 from kneed import KneeLocator
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
@@ -257,10 +257,7 @@ for combination in combinations:
                     y=np.array(dummies_df[col])
                     # logit_model_result=sm.Logit(y,X).fit()
                     # pval=logit_model_result.summary2().tables[1]['P>|z|'][0]
-                    if metr=="pa":
-                        pval=pointbiserialr(X,y)[1]
-                    elif metr=="rel""
-                        pval=pearsonr(X,y)[1]
+                    pval=pointbiserialr(X,y)[1]
                     pval_dic[col]=pval
                 pval_df=pd.DataFrame(pval_dic, index=["p-value"]).transpose().reset_index()
 
