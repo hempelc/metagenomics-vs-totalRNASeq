@@ -148,7 +148,7 @@ for combination in combinations:
             ## 4.3 Define minima and split data into clusters based on minima
             mi=argrelextrema(e, np.less)[0]
             print("For combination {0}_{1}_{2}, the best number of clusters is {3}."\
-                .format(sample, dir.split("/")[-1], metr, len(mi)+1))
+                .format(sample, combination, metr, len(mi)+1))
             clusters={}
             for i in range(0, len(mi)+1):
                 if i==0:
@@ -157,11 +157,6 @@ for combination in combinations:
                     clusters[i]=list(segmentation_df[segmentation_df >= s[mi][i-1]])
                 else:
                     clusters[i]=list(segmentation_df[(segmentation_df >= s[mi][i-1]) * (segmentation_df <= s[mi][i])])
-
-            ## 4.4 Determine average of clusters
-            cluster_aves=[]
-            for cluster in clusters.keys():
-                cluster_aves.append(sum(clusters[cluster])/len(clusters[cluster]))
 
             ## 4.4 Turn clusters into mergeable dataframe and add them to metrics df
             clusters_inv={}
@@ -174,15 +169,8 @@ for combination in combinations:
 
             ## 4.5 Determine closest cluster to expected based on centroid
             ### Determine euclidean distance of each cluster centroid to expected:
-            cluster_centroid_dist=[euclidean(i, exp) for i in cluster_aves]
-            cluster_dist_df = pd.DataFrame({"cluster": [str(x) for x in list(range(0, len(cluster_centroid_dist)))],
-                "centroid_euc_dist":cluster_centroid_dist})
-            ### Merge pipeline info with cluster info:
-            metrics_df_no_exp = pd.merge(metrics_df_no_exp.reset_index(), cluster_dist_df, on="cluster").set_index('pipeline')
-            ### Determine closest cluster and cut df down to pipelines from closest cluster:
-            best_cluster=cluster_dist_df.sort_values("centroid_euc_dist").reset_index().iloc[[0]]["cluster"].to_list()[0]
-            best_cluster_df=metrics_df_no_exp.loc[metrics_df_no_exp["cluster"] == best_cluster]
-            ### Count occurence of each tool for each step and save in dict:
+            best_cluster_df=metrics_df_no_exp.loc[metrics_df_no_exp["cluster"] == '0']
+            ### Count occurence of each tool for each step in closest cluster (=always cluster 0) and save in dict:
             counts_dic={}
             for col in best_cluster_df.columns[-10:-3]:
                 counts_dic[col]=Counter(best_cluster_df[col])
@@ -277,80 +265,3 @@ for combination in combinations:
                 # Merge dfs
                 merged=pd.merge(euc_dist_final_df, pval_df, on="index").set_index("index")
                 merged.to_csv(os.path.join(exportdir_level2, "eucdist_pvalues_tools_" + combo + ".csv"), index_label="tool")
-
-
-
-# # Correlation for separate replicates with combined sample type:
-# for dir in dir_lst:
-#     for metr in metr_list:
-#         for rep in ["M4", "M5", "M6"]:
-#             ## Make plot export directory:
-#             exportdir_level1=os.path.join(dir, "stats_" + metr)
-#             if not os.path.exists(exportdir_level1):
-#                 os.mkdir(exportdir_level1)
-#
-#             rep_concat=pd.concat([master_dfs["{0}_DNA_{1}_{2}".format(rep, dir.split("/")[-1], metr)], master_dfs["{0}_RNA_{1}_{2}".format(rep, dir.split("/")[-1], metr)]])
-#             dummies_df=pd.get_dummies(rep_concat.iloc[:,-10:-3])
-#             ## Calculate p-values using pearson's correlation coefficient
-#             pval_dic={}
-#             for col in dummies_df.columns:
-#                 X=rep_concat["euc_dist"].to_numpy()
-#                 y=np.array(dummies_df[col])
-#                 # logit_model_result=sm.Logit(y,X).fit()
-#                 # pval=logit_model_result.summary2().tables[1]['P>|z|'][0]
-#                 pval=pointbiserialr(X,y)[1]
-#                 pval_dic[col]=pval
-#             pval_df=pd.DataFrame(pval_dic, index=["p-value"]).transpose()
-#             pval_df.to_csv(os.path.join(exportdir_level1, "{0}_{1}_{2}_pvalues_tools.csv".format(rep, metr, dir.split("/")[-1])), index_label="tool")
-#
-#
-# # Correlation for combined replicates with separate sample type
-# for dir in dir_lst:
-#     for metr in metr_list:
-#         for type in ["DNA", "RNA"]:
-#             ## Make plot export directory:
-#             exportdir_level1=os.path.join(dir, "stats_" + metr)
-#             if not os.path.exists(exportdir_level1):
-#                 os.mkdir(exportdir_level1)
-#
-#             rep_concat=pd.concat([master_dfs["M4_{0}_{1}_{2}".format(type, dir.split("/")[-1], metr)], master_dfs["M5_{0}_{1}_{2}".format(type, dir.split("/")[-1], metr)]\
-#                 , master_dfs["M6_{0}_{1}_{2}".format(type, dir.split("/")[-1], metr)]])
-#             dummies_df=pd.get_dummies(rep_concat.iloc[:,-10:-3])
-#             ## Calculate p-values using pearson's correlation coefficient
-#             pval_dic={}
-#             for col in dummies_df.columns:
-#                 X=rep_concat["euc_dist"].to_numpy()
-#                 y=np.array(dummies_df[col])
-#                 # logit_model_result=sm.Logit(y,X).fit()
-#                 # pval=logit_model_result.summary2().tables[1]['P>|z|'][0]
-#                 pval=pointbiserialr(X,y)[1]
-#                 pval_dic[col]=pval
-#             pval_df=pd.DataFrame(pval_dic, index=["p-value"]).transpose()
-#             pval_df.to_csv(os.path.join(exportdir_level1, "{0}_{1}_{2}_pvalues_tools.csv".format(type, metr, dir.split("/")[-1])), index_label="tool")
-#
-# # Correlation for combined replicates with combined sample type
-# for dir in dir_lst:
-#     for metr in metr_list:
-#             ## Make plot export directory:
-#             exportdir_level1=os.path.join(dir, "stats_" + metr)
-#             if not os.path.exists(exportdir_level1):
-#                 os.mkdir(exportdir_level1)
-#
-#             rep_concat=pd.concat([master_dfs["M4_DNA_{0}_{1}".format(dir.split("/")[-1], metr)]\
-#                 , master_dfs["M5_DNA_{0}_{1}".format(dir.split("/")[-1], metr)]\
-#                 , master_dfs["M6_DNA_{0}_{1}".format(dir.split("/")[-1], metr)]\
-#                 , master_dfs["M4_RNA_{0}_{1}".format(dir.split("/")[-1], metr)]\
-#                 , master_dfs["M5_RNA_{0}_{1}".format(dir.split("/")[-1], metr)]\
-#                 , master_dfs["M6_RNA_{0}_{1}".format(dir.split("/")[-1], metr)]])
-#             dummies_df=pd.get_dummies(rep_concat.iloc[:,-10:-3])
-#             ## Calculate p-values using pearson's correlation coefficient
-#             pval_dic={}
-#             for col in dummies_df.columns:
-#                 X=rep_concat["euc_dist"].to_numpy()
-#                 y=np.array(dummies_df[col])
-#                 # logit_model_result=sm.Logit(y,X).fit()
-#                 # pval=logit_model_result.summary2().tables[1]['P>|z|'][0]
-#                 pval=pointbiserialr(X,y)[1]
-#                 pval_dic[col]=pval
-#             pval_df=pd.DataFrame(pval_dic, index=["p-value"]).transpose()
-#             pval_df.to_csv(os.path.join(exportdir_level1, "{0}_{1}_pvalues_tools.csv".format(metr, dir.split("/")[-1])), index_label="tool")
