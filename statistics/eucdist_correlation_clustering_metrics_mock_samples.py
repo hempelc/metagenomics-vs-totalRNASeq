@@ -50,9 +50,9 @@ metr_list=["rel", "pa"]
 ## If you set looping to False, then define what specific aggregation, combination,
 ## and metrics you want to process:
 ### ("agg_reps_agg_type", "agg_reps_sep_type", "sep_reps_ag_type", "sep_reps_sep_type")
-agg="sep_reps_sep_type"
+agg="agg_reps_sep_type"
 ### ("cell_genus", "cell_species", "gen_genus", "gen_species")
-comb="cell_genus"
+comb="gen_genus"
 ### ("rel", "pa")
 metrics="rel"
 
@@ -64,7 +64,7 @@ if looping:
     metr_list=metr_list
 else:
     aggs=[agg]
-    combinations=[combination]
+    combinations=[comb]
     metr_list=[metrics]
 
 
@@ -84,6 +84,7 @@ def sum_nested_dics(dic1, dic2):
     return summed_dic
 
 
+master_master_counts_dic={}
 
 for combination in combinations:
     for metr in metr_list:
@@ -94,7 +95,6 @@ for combination in combinations:
 
         ### Do the following chunk for all samples separately
         master_eucdist_dfs={}
-        master_counts_dic={}
         for sample in samples:
             # 1 Import data
             ## Import metrics df
@@ -106,10 +106,8 @@ for combination in combinations:
             if metr not in ["rel", "pa"]:
                 logging.critical("Parameter metr not in rel_metr, or pa_metr: metr=" + metr)
             if metr=="rel":
-                print("Just relative metrics are used.")
                 metrics_df=metrics_df.drop(["FP", "TP"], axis=1)
             elif metr=="pa":
-                print("Just p/a metrics are used.")
                 no_drops=["FP", "TP", 'type', 'trimming_score',
                     'rRNA_sorting_tool', 'assembly_tool', 'mapper', 'database', 'classifier']
                 metrics_df=metrics_df.drop([x for x in metrics_df.columns if x not in no_drops], axis=1)
@@ -129,97 +127,46 @@ for combination in combinations:
             master_eucdist_dfs[sample]=metrics_df_no_exp
 
 
-            # 4 "Clustering", or more correctly, segmentation of euclidean distances
-            segmentation_df=metrics_df_no_exp["euc_dist"].array.reshape(-1,1)
 
-            ## 4.1 Evaluation of appropriate number of clusters using Kernel Density estimation
-            ##     by performing a grid search to identify best value for bandwidth
-            grid = GridSearchCV(KernelDensity(kernel = 'gaussian'),{'bandwidth': np.linspace(0.1, 2, 20)})
-            grid_fit=grid.fit(segmentation_df)
-            bandw=list(grid_fit.best_params_.values())[0]
-
-            ## 4.2 Run the actual Kernel Density Estimation
-            kde = KernelDensity(kernel='gaussian', bandwidth=bandw).fit(segmentation_df)
-            s = linspace(min(metrics_df_no_exp["euc_dist"]),max(metrics_df_no_exp["euc_dist"]))
-            e = kde.score_samples(s.reshape(-1,1))
-            fig_kde=px.line(x=s, y=e)
-            fig_kde.show()
-
-            ## 4.3 Define minima and split data into clusters based on minima
-            mi=argrelextrema(e, np.less)[0]
-            print("For combination {0}_{1}_{2}, the best number of clusters is {3}."\
-                .format(sample, combination, metr, len(mi)+1))
-            clusters={}
-            for i in range(0, len(mi)+1):
-                if i==0:
-                    clusters[i]=list(segmentation_df[segmentation_df < s[mi][i]])
-                elif i==len(mi):
-                    clusters[i]=list(segmentation_df[segmentation_df >= s[mi][i-1]])
-                else:
-                    clusters[i]=list(segmentation_df[(segmentation_df >= s[mi][i-1]) * (segmentation_df <= s[mi][i])])
-
-            ## 4.4 Turn clusters into mergeable dataframe and add them to metrics df
-            clusters_inv={}
-            for cluster, eucdist_list in clusters.items():
-                for eucdist in eucdist_list:
-                    clusters_inv[eucdist]=[str(cluster)]
-            cluster_df=pd.DataFrame(clusters_inv).transpose().reset_index()
-            cluster_df.columns = ['euc_dist', 'cluster']
-            metrics_df_no_exp=pd.merge(metrics_df_no_exp.reset_index(), cluster_df, on="euc_dist").set_index('pipeline')
-
-            ## 4.5 Determine closest cluster to expected based on centroid
-            ### Determine euclidean distance of each cluster centroid to expected:
-            best_cluster_df=metrics_df_no_exp.loc[metrics_df_no_exp["cluster"] == '0']
-            ### Count occurence of each tool for each step in closest cluster (=always cluster 0) and save in dict:
-            counts_dic={}
-            for col in best_cluster_df.columns[-10:-3]:
-                counts_dic[col]=Counter(best_cluster_df[col])
-            master_counts_dic[sample]=counts_dic
-
-
-        ## Now do this chunk depending on the aggregation of the separate samples
+        ## Aggregate samples
         for aggregation in aggs:
+            master_counts_dic={}
             exportdir_level2=os.path.join(exportdir_level1, aggregation)
             if not os.path.exists(exportdir_level2):
                 os.mkdir(exportdir_level2)
             aggregation_dic={}
-            master_counts_dic_agg={}
+            #master_counts_dic_agg={}
             if aggregation=="agg_reps_agg_type":
                 agg_df=pd.DataFrame()
-                counts_dic_agg={}
+                #counts_dic_agg={}
                 for sample in samples:
                     agg_df=pd.concat([agg_df, master_eucdist_dfs[sample]])
-                    counts_dic_agg=sum_nested_dics(counts_dic_agg, master_counts_dic[sample])
+                    #counts_dic_agg=sum_nested_dics(counts_dic_agg, master_counts_dic[sample])
                 aggregation_dic["agg"]=agg_df
-                master_counts_dic_agg["agg"]=counts_dic_agg
+                #master_counts_dic_agg["agg"]=counts_dic_agg
             elif aggregation=="agg_reps_sep_type":
                 for type in types:
                     agg_df=pd.DataFrame()
-                    counts_dic_agg={}
+                    #counts_dic_agg={}
                     for rep in reps:
                         agg_df=pd.concat([agg_df, master_eucdist_dfs[rep + "_" + type]])
-                        counts_dic_agg=sum_nested_dics(counts_dic_agg, master_counts_dic[rep + "_" + type])
+                        #counts_dic_agg=sum_nested_dics(counts_dic_agg, master_counts_dic[rep + "_" + type])
                     aggregation_dic[type]=agg_df
-                    master_counts_dic_agg[type]=counts_dic_agg
+                    #master_counts_dic_agg[type]=counts_dic_agg
             elif aggregation=="sep_reps_agg_type":
                 for rep in reps:
                     agg_df=pd.DataFrame()
-                    counts_dic_agg={}
+                    #counts_dic_agg={}
                     for type in types:
                         agg_df=pd.concat([agg_df, master_eucdist_dfs[rep + "_" + type]])
-                        counts_dic_agg=sum_nested_dics(counts_dic_agg, master_counts_dic[rep + "_" + type])
+                        #counts_dic_agg=sum_nested_dics(counts_dic_agg, master_counts_dic[rep + "_" + type])
                     aggregation_dic[rep]=agg_df
-                    master_counts_dic_agg[rep]=counts_dic_agg
+                    #master_counts_dic_agg[rep]=counts_dic_agg
             elif aggregation=="sep_reps_sep_type":
                 aggregation_dic=master_eucdist_dfs
-                master_counts_dic_agg=master_counts_dic
+                #master_counts_dic_agg=master_counts_dic
 
 
-            ### Save the count dict as pickle object, which is needed for the script "stats_summary_plot.py":
-            with open(os.path.join(exportdir_level2, "closest_cluster_tool_counts.pkl"), 'wb') as f:
-                pickle.dump(master_counts_dic_agg, f)
-
-            ### Run the following on all combos
             for combo, df in aggregation_dic.items():
                 ## Calculate average and minimum euc dist for each tool in each step
                 mean_euc_dist_lst=[]
@@ -245,6 +192,59 @@ for combination in combinations:
                 ## Make and save df
                 euc_dist_final_df=pd.DataFrame({"mean_euc_dist": mean_euc_dist_lst, "min_euc_dist": min_euc_dist_lst}, index=tools).reset_index()
 
+
+
+                # 4 "Clustering", or more correctly, segmentation of euclidean distances
+                segmentation_df=df["euc_dist"].array.reshape(-1,1)
+
+                ## 4.1 Evaluation of appropriate number of clusters using Kernel Density estimation
+                ##     by performing a grid search to identify best value for bandwidth
+                grid = GridSearchCV(KernelDensity(kernel = 'gaussian'),{'bandwidth': np.linspace(0.1, 2, 20)})
+                grid_fit=grid.fit(segmentation_df)
+                bandw=list(grid_fit.best_params_.values())[0]
+
+                ## 4.2 Run the actual Kernel Density Estimation
+                kde = KernelDensity(kernel='gaussian', bandwidth=bandw).fit(segmentation_df)
+                s = linspace(min(df["euc_dist"]),max(df["euc_dist"]))
+                e = kde.score_samples(s.reshape(-1,1))
+                fig_kde=px.line(x=s, y=e)
+                fig_kde.show()
+
+                ## 4.3 Define minima and split data into clusters based on minima
+                mi=argrelextrema(e, np.less)[0]
+                print("For combination {0}_{1}_{2}, the best number of clusters is {3}."\
+                    .format(combo, combination, metr, len(mi)+1))
+                clusters={}
+                for i in range(0, len(mi)+1):
+                    if i==0:
+                        clusters[i]=list(segmentation_df[segmentation_df < s[mi][i]])
+                    elif i==len(mi):
+                        clusters[i]=list(segmentation_df[segmentation_df >= s[mi][i-1]])
+                    else:
+                        clusters[i]=list(segmentation_df[(segmentation_df >= s[mi][i-1]) * (segmentation_df <= s[mi][i])])
+
+                ## 4.4 Turn clusters into mergeable dataframe and add them to metrics df
+                clusters_inv={}
+                for cluster, eucdist_list in clusters.items():
+                    for eucdist in eucdist_list:
+                        clusters_inv[eucdist]=[str(cluster)]
+                cluster_df=pd.DataFrame(clusters_inv).transpose().reset_index()
+                cluster_df.columns = ['euc_dist', 'cluster']
+                df_cluster=pd.merge(df.reset_index(), cluster_df, on="euc_dist").set_index('pipeline')
+
+                ## 4.5 Determine closest cluster to expected based on centroid
+                ### Determine euclidean distance of each cluster centroid to expected:
+                best_cluster_df=df_cluster.loc[df_cluster["cluster"] == '0']
+                ### Count occurence of each tool for each step in closest cluster (=always cluster 0) and save in dict:
+                counts_dic={}
+                for col in best_cluster_df.columns[-9:-2]:
+                    counts_dic[col]=Counter(best_cluster_df[col])
+                master_counts_dic["{0}_{1}_{2}".format(combo, combination, metr)]=counts_dic
+                master_master_counts_dic[aggregation + "_" + metr + "_" + combination]=master_counts_dic
+                master_master_counts_dic["sep_reps_sep_type_rel_gen_genus"].keys()
+                ### Save the count dict as pickle object, which is needed for the script "stats_summary_plot.py":
+                with open(os.path.join(exportdir_level2, "closest_cluster_tool_counts.pkl"), 'wb') as f:
+                    pickle.dump(master_counts_dic, f)
 
 
                 # 3 Correlation

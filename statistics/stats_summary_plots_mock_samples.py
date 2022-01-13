@@ -53,12 +53,14 @@ for agg in aggs:
     if not os.path.exists(plotdir_level2):
         os.mkdir(plotdir_level2)
 
+    test=pd.DataFrame()
+
+
     for level in levels:
         for metr in metr_lst:
 
             with open(os.path.join(workdir, "metrics_" + level, "stats_" + metr, agg, "closest_cluster_tool_counts.pkl"), 'rb') as f:
                 counts_dic = pickle.load(f)
-
 
             eucdist_pvalue_files = glob.glob(os.path.join(workdir, "metrics_" + level, "stats_" + metr, agg, "*.csv"))
 
@@ -94,7 +96,7 @@ for agg in aggs:
                 ### Bring in order and add missing tools:
                 counts_df=pd.merge(cluster_counts_all, counts_df, how='outer').fillna(0)
                 ### Add combinations column:
-                counts_df["combination"]=["{0}_{1}_{2}".format(combo, level, metr)]*len(counts_df)
+                counts_df["combination"]=[combo]*len(counts_df)
                 ### Generate relative counts for each step
                 counts_df_rel=pd.DataFrame()
                 for step in steps:
@@ -104,7 +106,8 @@ for agg in aggs:
                     sub_df["step"]=[step]*len(sub_df)
                     counts_df_rel=pd.concat([counts_df_rel, sub_df])
                 ### Add to master df
-                cluster_counts_master_df = pd.concat([cluster_counts_master_df, counts_df_rel])
+                #cluster_counts_master_df = pd.concat([cluster_counts_master_df, counts_df_rel])
+                test = pd.concat([test, counts_df_rel])
 
 
     ## 1.3 Further process tools evaluation master df:
