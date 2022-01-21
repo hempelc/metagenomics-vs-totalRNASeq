@@ -42,7 +42,7 @@ types=["DNA", "RNA"]
 reps=["M4", "M5", "M6"]
 ## Set if you want to loop over all result combinations of parameters in script
 ## "processing_and_metrics.py" and all metrics (True or False)
-looping=True
+looping=False
 ## Set lists for aggregation, combinations, and metrics for looping:
 aggs=["agg_reps_agg_type", "agg_reps_sep_type", "sep_reps_agg_type", "sep_reps_sep_type"]
 combinations=["cell_genus", "cell_species", "gen_genus", "gen_species"]
@@ -52,9 +52,9 @@ metr_list=["rel", "pa"]
 ### ("agg_reps_agg_type", "agg_reps_sep_type", "sep_reps_ag_type", "sep_reps_sep_type")
 agg="agg_reps_sep_type"
 ### ("cell_genus", "cell_species", "gen_genus", "gen_species")
-comb="gen_genus"
+comb="gen_species"
 ### ("rel", "pa")
-metrics="rel"
+metrics="pa"
 
 
 # Parameters set automatically
@@ -111,21 +111,17 @@ for combination in combinations:
                 no_drops=["FP", "TP", 'type', 'trimming_score',
                     'rRNA_sorting_tool', 'assembly_tool', 'mapper', 'database', 'classifier']
                 metrics_df=metrics_df.drop([x for x in metrics_df.columns if x not in no_drops], axis=1)
-                ## Standardize (needed since TP and FP are not standardized)
-                metrics_df_TP_FP_std=pd.DataFrame(StandardScaler().fit_transform(metrics_df.iloc[:, 0:2]), index=metrics_df.index, columns=["TP", "FP"])
-                metrics_df=pd.concat([metrics_df_TP_FP_std, metrics_df.iloc[:, 2:]], axis=1)
             ## Separate expected from dfs
             metrics_df_no_exp=metrics_df.drop(["expected"], axis=0)
             exp=metrics_df.iloc[:, :-7].loc["expected"]
             only_metrics_df_no_exp=metrics_df.iloc[:, :-7].drop(["expected"], axis=0)
 
 
-            # 2 Euclidean distances between pipelines and expected (note: use standardized columns):
+            # 2 Euclidean distances between pipelines and expected:
             ## Calculate euc dist for each pipeline
             for index,row in only_metrics_df_no_exp.iterrows():
                 metrics_df_no_exp.loc[index,'euc_dist'] = euclidean(row, exp)
             master_eucdist_dfs[sample]=metrics_df_no_exp
-
 
 
         ## Aggregate samples
@@ -135,36 +131,25 @@ for combination in combinations:
             if not os.path.exists(exportdir_level2):
                 os.mkdir(exportdir_level2)
             aggregation_dic={}
-            #master_counts_dic_agg={}
             if aggregation=="agg_reps_agg_type":
                 agg_df=pd.DataFrame()
-                #counts_dic_agg={}
                 for sample in samples:
                     agg_df=pd.concat([agg_df, master_eucdist_dfs[sample]])
-                    #counts_dic_agg=sum_nested_dics(counts_dic_agg, master_counts_dic[sample])
                 aggregation_dic["agg"]=agg_df
-                #master_counts_dic_agg["agg"]=counts_dic_agg
             elif aggregation=="agg_reps_sep_type":
                 for type in types:
                     agg_df=pd.DataFrame()
-                    #counts_dic_agg={}
                     for rep in reps:
                         agg_df=pd.concat([agg_df, master_eucdist_dfs[rep + "_" + type]])
-                        #counts_dic_agg=sum_nested_dics(counts_dic_agg, master_counts_dic[rep + "_" + type])
                     aggregation_dic[type]=agg_df
-                    #master_counts_dic_agg[type]=counts_dic_agg
             elif aggregation=="sep_reps_agg_type":
                 for rep in reps:
                     agg_df=pd.DataFrame()
-                    #counts_dic_agg={}
                     for type in types:
                         agg_df=pd.concat([agg_df, master_eucdist_dfs[rep + "_" + type]])
-                        #counts_dic_agg=sum_nested_dics(counts_dic_agg, master_counts_dic[rep + "_" + type])
                     aggregation_dic[rep]=agg_df
-                    #master_counts_dic_agg[rep]=counts_dic_agg
             elif aggregation=="sep_reps_sep_type":
                 aggregation_dic=master_eucdist_dfs
-                #master_counts_dic_agg=master_counts_dic
 
 
             for combo, df in aggregation_dic.items():
@@ -189,7 +174,7 @@ for combination in combinations:
                         mean_euc_dist_lst.append(mean_euc_dist)
                         min_euc_dist_lst.append(min_euc_dist)
 
-                ## Make and save df
+                ## Make df
                 euc_dist_final_df=pd.DataFrame({"mean_euc_dist": mean_euc_dist_lst, "min_euc_dist": min_euc_dist_lst}, index=tools).reset_index()
 
 
