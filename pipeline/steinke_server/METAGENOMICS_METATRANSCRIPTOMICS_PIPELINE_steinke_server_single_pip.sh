@@ -189,10 +189,9 @@ step_description_and_time_first "START RUNNING SCRIPT"
 # Activate the conda ete3 environment within this script to be able to run ete3.
 # I found this solution # to activate conda environments in scripts here:
 # https://github.com/conda/conda/issues/7980.
-#val "$(conda shell.bash hook)" # Without this, the conda environment cannot be
+val "$(conda shell.bash hook)" # Without this, the conda environment cannot be
 # activated within the script
-#conda activate ete3 # ete3 is our conda environment in which we installed ete3
-# NOTE: outcommented to be run on graham, not needed
+conda activate ete3 # ete3 is our conda environemnt in which we installed ete3
 
 # Save full current path in variable to make navigation between directories easier:
 base_directory=$(pwd)

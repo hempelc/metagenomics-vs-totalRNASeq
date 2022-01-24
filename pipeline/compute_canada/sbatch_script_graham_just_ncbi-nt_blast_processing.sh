@@ -123,6 +123,7 @@ elif [[ $classification == "blast_filtered" ]]; then
 		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies" \
 		> blast_filtered.txt
 	fi
+fi
 	step_description_and_time_first "BLAST FILTERED DONE"
 
 ######################### Step 6.2: Generating final putput files ################################
