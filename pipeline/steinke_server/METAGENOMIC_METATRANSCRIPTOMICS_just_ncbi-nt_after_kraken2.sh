@@ -70,7 +70,7 @@ Usage:
   # Set default options:
   threads='16'
   pipeline="20-unsorted-spades-bwa-silva-kraken2"
-  ncbi_nt_blast_db="/hdd2/databases/nt_database_feb_2020_indexed/nt"
+  ncbi_nt_blast_db="/hdd2/databases/nt_database_14_Feb_2021_indexed/nt"
   silva_blast_db="/hdd2/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Jul_2021/blastdb"
   ncbi_nt_kraken2_db="/hdd2/databases/kraken2_nt_DB"
   silva_kraken2_db="/hdd2/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Jul_2021/"
@@ -123,20 +123,20 @@ done
 shift $((OPTIND - 1))
 
 # Check if required options are set:
-if [[ -z $forward_reads || -z $reverse_reads || -z $pipeline \
-|| -z $ncbi_nt_blast_db || -z $silva_blast_db || -z $ncbi_nt_kraken2_db \
-|| -z $silva_kraken2_db || -z $silva_sortmerna_bac_lsu \
-|| -z $silva_sortmerna_bac_ssu || -z $silva_sortmerna_arc_lsu \
-|| -z $silva_sortmerna_arc_ssu || -z $silva_sortmerna_euk_lsu \
-|| -z $silva_sortmerna_euk_ssu || -z $silva_sortmerna_rfam_5 \
-|| -z $silva_sortmerna_rfam_5_8 \
-|| -z $trimmomatic || -z $etetoolkit || -z $rrnafil \
-|| -z $memory ]]; then
-   echo -e "-1, -2, -P, -N, -S, -n, -s, -B, -b, -A, -a, -E, -e, -R, -r, -T, -t, -i, -m, and -p must be set.\n"
-   echo -e "$usage\n\n"
-   echo -e "Exiting script.\n"
-   exit
-fi
+# if [[ -z $forward_reads || -z $reverse_reads || -z $pipeline \
+# || -z $ncbi_nt_blast_db || -z $silva_blast_db || -z $ncbi_nt_kraken2_db \
+# || -z $silva_kraken2_db || -z $silva_sortmerna_bac_lsu \
+# || -z $silva_sortmerna_bac_ssu || -z $silva_sortmerna_arc_lsu \
+# || -z $silva_sortmerna_arc_ssu || -z $silva_sortmerna_euk_lsu \
+# || -z $silva_sortmerna_euk_ssu || -z $silva_sortmerna_rfam_5 \
+# || -z $silva_sortmerna_rfam_5_8 \
+# || -z $trimmomatic || -z $etetoolkit || -z $rrnafil \
+# || -z $memory ]]; then
+#    echo -e "-1, -2, -P, -N, -S, -n, -s, -B, -b, -A, -a, -E, -e, -R, -r, -T, -t, -i, -m, and -p must be set.\n"
+#    echo -e "$usage\n\n"
+#    echo -e "Exiting script.\n"
+#    exit
+# fi
 
 # Set pipeline tools to use
 trimming=$(echo $pipeline | cut -f1 -d-)
@@ -570,9 +570,6 @@ elif [[ $classification == "kraken2" ]]; then
 	# Run kraken2
 	#kraken2 --db $krakenDB --threads $threads ${base_directory}/${scaffolds} \
 	#> kraken2_output.txt
-  ls ${base_directory}
-  echo "test"
-  ls
 	cut -f 2-3 ${base_directory}/kraken2_output.txt > kraken2_output_contig_taxid.txt # Isolate contig names and taxids
 	# We use a separate script to assign taxonomy to NCBI taxids:
 	assign_taxonomy_to_NCBI_staxids.sh -b kraken2_output_contig_taxid.txt \

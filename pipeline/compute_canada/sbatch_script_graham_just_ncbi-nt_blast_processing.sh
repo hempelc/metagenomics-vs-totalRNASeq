@@ -362,6 +362,6 @@ echo "SCRIPT DONE AFTER $((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)
 
 cd ${cwd1}
 cp ${pipeline}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE_FINAL_FILES/* ${pipeline}
-rm -r ${pipeline}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
+#rm -r ${pipeline}/METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
 
 echo -e "\n\n ================ [$(date +%H:%M:%S)] END PIPELINE ${pipeline} [$((($(date +%s)-${start})/3600))h $(((($(date +%s)-${start})%3600)/60))m] ==============\n\n"

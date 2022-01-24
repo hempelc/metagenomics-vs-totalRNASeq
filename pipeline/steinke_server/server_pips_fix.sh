@@ -132,30 +132,30 @@ base_directory=$(pwd)
 step_description_and_time_first "START STEP 1: TRIMMING AND ERROR CORRECTION"
 
 # Trimming is done with a separate subscript:
-fastqc_on_R1_R2_and_optional_trimming.sh \
--T /hdd1/programs_for_pilot/Trimmomatic-0.39/trimmomatic-0.39.jar \
--1 $forward_reads -2 $reverse_reads -t yes -p $threads
-mv fastqc_on_R1_R2_and_optional_trimming_output step_1_trimming/
-
-# Running error correction module of SPAdes on all trimmed reads
-for trimming_results in step_1_trimming/trimmomatic/*; do
-	trim_phred=$(echo ${trimming_results##*/} | sed 's/trimmed_at_phred_//g' | sed 's/_.*$//g')
-	step_description_and_time_second "ERROR-CORRECTING READS IN FOLDER $trimming_results"
-	spades.py -1 $trimming_results/*1P.fastq -2 $trimming_results/*2P.fastq \
-	--only-error-correction --disable-gzip-output -o $trimming_results/error_correction \
-	-t $threads
-	mv $trimming_results/error_correction/corrected/*1P*.fastq \
-	$trimming_results/error_correction/corrected/*2P*.fastq $trimming_results
-	# Rename weird name of error-corrected reads:
-	R1=$(echo $trimming_results/*1P.00.0_0.cor.fastq) \
-  && 	mv $trimming_results/*1P.00.0_0.cor.fastq ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
-  sed -r -i 's/ BH:.{2,6}//g' ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
-	R2=$(echo $trimming_results/*2P.00.0_0.cor.fastq) \
-  && mv $trimming_results/*2P.00.0_0.cor.fastq ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
-  sed -r -i 's/ BH:.{2,6}//g' ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
-	rm -r $trimming_results/error_correction/
-	step_description_and_time_second "FINISHED ERROR-CORRECTING READS IN FOLDER $trimming_results"
-done
+# fastqc_on_R1_R2_and_optional_trimming.sh \
+# -T /hdd1/programs_for_pilot/Trimmomatic-0.39/trimmomatic-0.39.jar \
+# -1 $forward_reads -2 $reverse_reads -t yes -p $threads
+# mv fastqc_on_R1_R2_and_optional_trimming_output step_1_trimming/
+#
+# # Running error correction module of SPAdes on all trimmed reads
+# for trimming_results in step_1_trimming/trimmomatic/*; do
+# 	trim_phred=$(echo ${trimming_results##*/} | sed 's/trimmed_at_phred_//g' | sed 's/_.*$//g')
+# 	step_description_and_time_second "ERROR-CORRECTING READS IN FOLDER $trimming_results"
+# 	spades.py -1 $trimming_results/*1P.fastq -2 $trimming_results/*2P.fastq \
+# 	--only-error-correction --disable-gzip-output -o $trimming_results/error_correction \
+# 	-t $threads
+# 	mv $trimming_results/error_correction/corrected/*1P*.fastq \
+# 	$trimming_results/error_correction/corrected/*2P*.fastq $trimming_results
+# 	# Rename weird name of error-corrected reads:
+# 	R1=$(echo $trimming_results/*1P.00.0_0.cor.fastq) \
+#   && 	mv $trimming_results/*1P.00.0_0.cor.fastq ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
+#   sed -r -i 's/ BH:.{2,6}//g' ${R1%.00.0_0.cor.fastq}_error_corrected.fastq
+# 	R2=$(echo $trimming_results/*2P.00.0_0.cor.fastq) \
+#   && mv $trimming_results/*2P.00.0_0.cor.fastq ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
+#   sed -r -i 's/ BH:.{2,6}//g' ${R2%.00.0_0.cor.fastq}_error_corrected.fastq
+# 	rm -r $trimming_results/error_correction/
+# 	step_description_and_time_second "FINISHED ERROR-CORRECTING READS IN FOLDER $trimming_results"
+# done
 
 step_description_and_time_first "FINISHED STEP 1: TRIMMING AND ERROR CORRECTION"
 
@@ -175,93 +175,93 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	step_description_and_time_first "START STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER $trimming_results"
 
 	step_description_and_time_second "CONVERT READS IN FASTA FORMAT FOR rRNAFILTER AND BARRNAP"
-	mkdir reads_in_fasta_format/
-	fq2fa ../*1P_error_corrected.fastq reads_in_fasta_format/R1.fa
-	fq2fa ../*2P_error_corrected.fastq reads_in_fasta_format/R2.fa
+	# mkdir reads_in_fasta_format/
+	# fq2fa ../*1P_error_corrected.fastq reads_in_fasta_format/R1.fa
+	# fq2fa ../*2P_error_corrected.fastq reads_in_fasta_format/R2.fa
 	step_description_and_time_second "READS TO FASTA CONVERSION DONE"
 
 	step_description_and_time_second "RUNNING SORTMERNA"
 	mkdir SORTMERNA/
-	sortmerna --ref /hdd2/databases/sortmerna_silva_databases/silva-bac-16s-id90.fasta \
-	--ref /hdd2/databases/sortmerna_silva_databases/silva-arc-16s-id95.fasta \
-	--ref /hdd2/databases/sortmerna_silva_databases/silva-euk-18s-id95.fasta \
-  --ref /hdd2/databases/sortmerna_silva_databases/silva-euk-28s-id98.fasta \
-  --ref /hdd2/databases/sortmerna_silva_databases/silva-arc-23s-id98.fasta \
-  --ref /hdd2/databases/sortmerna_silva_databases/silva-bac-23s-id98.fasta \
-  --ref /hdd2/databases/sortmerna_silva_databases/rfam-5.8s-database-id98.fasta \
-  --ref /hdd2/databases/sortmerna_silva_databases/rfam-5s-database-id98.fasta \
-	--reads ../*1P_error_corrected.fastq --reads ../*2P_error_corrected.fastq \
-	--paired_in --out2 -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA/ \
-	--threads 1:1:$threads
+	# sortmerna --ref /hdd2/databases/sortmerna_silva_databases/silva-bac-16s-id90.fasta \
+	# --ref /hdd2/databases/sortmerna_silva_databases/silva-arc-16s-id95.fasta \
+	# --ref /hdd2/databases/sortmerna_silva_databases/silva-euk-18s-id95.fasta \
+  # --ref /hdd2/databases/sortmerna_silva_databases/silva-euk-28s-id98.fasta \
+  # --ref /hdd2/databases/sortmerna_silva_databases/silva-arc-23s-id98.fasta \
+  # --ref /hdd2/databases/sortmerna_silva_databases/silva-bac-23s-id98.fasta \
+  # --ref /hdd2/databases/sortmerna_silva_databases/rfam-5.8s-database-id98.fasta \
+  # --ref /hdd2/databases/sortmerna_silva_databases/rfam-5s-database-id98.fasta \
+	# --reads ../*1P_error_corrected.fastq --reads ../*2P_error_corrected.fastq \
+	# --paired_in --out2 -other -fastx 1 -num_alignments 1 -v -workdir SORTMERNA/ \
+	# --threads 1:1:$threads
 	step_description_and_time_second "SORTMERNA DONE"
 
 	step_description_and_time_second "RUNNING rRNAFILTER"
 	mkdir rRNAFILTER/
 	cd rRNAFILTER/
-	# rRNAFilter only worked for us when we started it within the directory
-	# containing the .jar file. To simplify switching to that directory, we simply
-	# download the small program within the script and delete it after usage:
-	wget http://hulab.ucf.edu/research/projects/rRNAFilter/software/rRNAFilter.zip
-	unzip rRNAFilter.zip
+	# # rRNAFilter only worked for us when we started it within the directory
+	# # containing the .jar file. To simplify switching to that directory, we simply
+	# # download the small program within the script and delete it after usage:
+	# wget http://hulab.ucf.edu/research/projects/rRNAFilter/software/rRNAFilter.zip
+	# unzip rRNAFilter.zip
 	cd rRNAFilter/
 	# We use 7GB for the rRNAFilter .jar, as shown in the rRNAFilter manual:
-	java -jar -Xmx7g rRNAFilter_commandline.jar \
-	-i ../../reads_in_fasta_format/R1.fa -r 0
-	java -jar -Xmx7g rRNAFilter_commandline.jar \
-	-i ../../reads_in_fasta_format/R2.fa -r 0
-	mv ../../reads_in_fasta_format/R*.fa_rRNA ..
+	# java -jar -Xmx7g rRNAFilter_commandline.jar \
+	# -i ../../reads_in_fasta_format/R1.fa -r 0
+	# java -jar -Xmx7g rRNAFilter_commandline.jar \
+	# -i ../../reads_in_fasta_format/R2.fa -r 0
+	# mv ../../reads_in_fasta_format/R*.fa_rRNA ..
 	cd ..
-	rm -r rRNAFilter rRNAFilter.zip
+	# rm -r rRNAFilter rRNAFilter.zip
 	# We want to keep paired reads, so we extract all rRNA read names that were
 	# found in R1 and R2, save them as one list, and extract all reads from both
 	# R1 and R2 reads. That way, even if only one read from a pair was identified
 	# as rRNA, we keep the pair of reads:
-	fasta_to_tab R1.fa_rRNA | cut -f 1 | cut -f1 -d " " > names.txt
-	fasta_to_tab R2.fa_rRNA | cut -f 1 | cut -f1 -d " " >> names.txt
-	sort -u names.txt > names_sorted.txt
-	seqtk subseq ../reads_in_fasta_format/R1.fa names_sorted.txt \
-	> rRNAFilter_paired_R1.fa
-	seqtk subseq ../reads_in_fasta_format/R2.fa names_sorted.txt \
-	> rRNAFilter_paired_R2.fa
-	rm names_sorted.txt names.txt
+	# fasta_to_tab R1.fa_rRNA | cut -f 1 | cut -f1 -d " " > names.txt
+	# fasta_to_tab R2.fa_rRNA | cut -f 1 | cut -f1 -d " " >> names.txt
+	# sort -u names.txt > names_sorted.txt
+	# seqtk subseq ../reads_in_fasta_format/R1.fa names_sorted.txt \
+	# > rRNAFilter_paired_R1.fa
+	# seqtk subseq ../reads_in_fasta_format/R2.fa names_sorted.txt \
+	# > rRNAFilter_paired_R2.fa
+	# rm names_sorted.txt names.txt
 	cd ..
 	step_description_and_time_second "rRNAFILTER DONE"
 
 	step_description_and_time_second "RUNNING BARRNAP"
 	mkdir BARRNAP/
-	for kingdom in euk bac arc; do # barrnap needs to be run on kingdoms separately
-		step_description_and_time_second "RUNNING BARRNAP ON KINGDOM $kingdom AND R1 READS"
-		barrnap --quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
-		--threads $threads --outseq BARRNAP/${kingdom}_reads1.fa \
-		reads_in_fasta_format/R1.fa
-		step_description_and_time_second "RUNNING BARRNAP ON KINGDOM $kingdom AND R2 READS"
-		barrnap --quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
-		--threads $threads --outseq BARRNAP/${kingdom}_reads2.fa \
-		reads_in_fasta_format/R2.fa
-		rm reads_in_fasta_format/*.fai
-		sed 's/.*::/>/g' BARRNAP/${kingdom}_reads1.fa | sed 's/:[^:]*$//g' \
-		> BARRNAP/${kingdom}_reads1_edited.fa
-		sed 's/.*::/>/g' BARRNAP/${kingdom}_reads2.fa | sed 's/:[^:]*$//g' \
-		> BARRNAP/${kingdom}_reads2_edited.fa
-	done
-	# Concatenating results from the three kingdoms and R1 and R2 files
-	cat BARRNAP/*edited.fa > BARRNAP/all_reads.fa
-	# We want to keep paired reads, so we extract all rRNA read names that were
-	# found in R1 and R2 for the three kingdoms (in all_reads.fa), save them as
-	# one list, and extract all reads from both R1 and R2 reads. That way, even if
-	# only one read from a pair was identified as rRNA, we keep the pair of reads:
-	fasta_to_tab BARRNAP/all_reads.fa | cut -f 1 | cut -f1 -d " " | sort -u \
-	> BARRNAP/names_sorted.txt
-	seqtk subseq reads_in_fasta_format/R1.fa BARRNAP/names_sorted.txt \
-	> BARRNAP/barrnap_paired_R1.fa
-	seqtk subseq reads_in_fasta_format/R2.fa BARRNAP/names_sorted.txt \
-	> BARRNAP/barrnap_paired_R2.fa
-	rm BARRNAP/names_sorted.txt
+	# for kingdom in euk bac arc; do # barrnap needs to be run on kingdoms separately
+	# 	step_description_and_time_second "RUNNING BARRNAP ON KINGDOM $kingdom AND R1 READS"
+	# 	barrnap --quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
+	# 	--threads $threads --outseq BARRNAP/${kingdom}_reads1.fa \
+	# 	reads_in_fasta_format/R1.fa
+	# 	step_description_and_time_second "RUNNING BARRNAP ON KINGDOM $kingdom AND R2 READS"
+	# 	barrnap --quiet --lencutoff 0.000001 --reject 0.000001 --kingdom $kingdom \
+	# 	--threads $threads --outseq BARRNAP/${kingdom}_reads2.fa \
+	# 	reads_in_fasta_format/R2.fa
+	# 	rm reads_in_fasta_format/*.fai
+	# 	sed 's/.*::/>/g' BARRNAP/${kingdom}_reads1.fa | sed 's/:[^:]*$//g' \
+	# 	> BARRNAP/${kingdom}_reads1_edited.fa
+	# 	sed 's/.*::/>/g' BARRNAP/${kingdom}_reads2.fa | sed 's/:[^:]*$//g' \
+	# 	> BARRNAP/${kingdom}_reads2_edited.fa
+	# done
+	# # Concatenating results from the three kingdoms and R1 and R2 files
+	# cat BARRNAP/*edited.fa > BARRNAP/all_reads.fa
+	# # We want to keep paired reads, so we extract all rRNA read names that were
+	# # found in R1 and R2 for the three kingdoms (in all_reads.fa), save them as
+	# # one list, and extract all reads from both R1 and R2 reads. That way, even if
+	# # only one read from a pair was identified as rRNA, we keep the pair of reads:
+	# fasta_to_tab BARRNAP/all_reads.fa | cut -f 1 | cut -f1 -d " " | sort -u \
+	# > BARRNAP/names_sorted.txt
+	# seqtk subseq reads_in_fasta_format/R1.fa BARRNAP/names_sorted.txt \
+	# > BARRNAP/barrnap_paired_R1.fa
+	# seqtk subseq reads_in_fasta_format/R2.fa BARRNAP/names_sorted.txt \
+	# > BARRNAP/barrnap_paired_R2.fa
+	# rm BARRNAP/names_sorted.txt
 	step_description_and_time_second "BARRNAP DONE"
 
 	step_description_and_time_second "MAKING FOLDER UNSORTED/ AND COPYING UNSORTED READS IN THERE TO KEEP THE FOLDER STRUCTURE CONSTANT"
 	mkdir UNSORTED/
-	cp ../*1P_error_corrected.fastq ../*2P_error_corrected.fastq UNSORTED/
+	# cp ../*1P_error_corrected.fastq ../*2P_error_corrected.fastq UNSORTED/
 
 	step_description_and_time_first "FINISHED STEP 2: rRNA SORTING OF TRIMMED READS IN FOLDER $trimming_results"
 
@@ -289,20 +289,20 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 		cd $rrna_filter_results/step_3_assembly/
 
 		step_description_and_time_second "RUNNING SPADES"
-		mkdir SPADES/
-		spades.py -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler \
-		-o SPADES/ -t $threads
+		# mkdir SPADES/
+		# spades.py -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler \
+		# -o SPADES/ -t $threads
 		step_description_and_time_second "SPADES DONE"
 
 		step_description_and_time_second "RUNNING METASPADES"
-		mkdir METASPADES/
-		spades.py --meta -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler \
-		-o METASPADES/ -t $threads
+		# mkdir METASPADES/
+		# spades.py --meta -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler \
+		# -o METASPADES/ -t $threads
 		step_description_and_time_second "METASPADES DONE"
 
 		step_description_and_time_second "RUNNING MEGAHIT"
-		megahit --presets meta-large -t $threads -1 ../../$R1_sorted \
-		-2 ../../$R2_sorted -o MEGAHIT/
+		# megahit --presets meta-large -t $threads -1 ../../$R1_sorted \
+		# -2 ../../$R2_sorted -o MEGAHIT/
 		step_description_and_time_second "MEGAHIT DONE"
 
 		step_description_and_time_second "RUNNING IDBA_UD"
@@ -312,22 +312,22 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 		# http://seqanswers.com/forums/showthread.php?t=29109, and see also
 		# https://github.com/loneknightpy/idba/issues/26
 		# IDBA_UD only takes interleaved fasta files
-		fq2fa --merge --filter ../../$R1_sorted ../../$R2_sorted idba_ud_input.fa
-		idba_ud --num_threads $threads -r idba_ud_input.fa -o IDBA_UD/
-		mv idba_ud_input.fa IDBA_UD/
+		# fq2fa --merge --filter ../../$R1_sorted ../../$R2_sorted idba_ud_input.fa
+		# idba_ud --num_threads $threads -r idba_ud_input.fa -o IDBA_UD/
+		# mv idba_ud_input.fa IDBA_UD/
 		step_description_and_time_second "IDBA_UD DONE"
 
 		step_description_and_time_second "RUNNING RNASPADES"
-		mkdir RNASPADES/
-		spades.py --rna -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler \
-		-o RNASPADES/ -t $threads
+		# mkdir RNASPADES/
+		# spades.py --rna -1 ../../$R1_sorted -2 ../../$R2_sorted --only-assembler \
+		# -o RNASPADES/ -t $threads
 		step_description_and_time_second "RNASPADES DONE"
 
 		step_description_and_time_second "RUNNING IDBA_TRAN"
 		# IDBA_TRAN only takes interleaved fasta files
-		fq2fa --merge ../../$R1_sorted ../../$R2_sorted idba_tran_input.fa
-		idba_tran --num_threads $threads -l idba_tran_input.fa -o IDBA_TRAN/
-		mv idba_tran_input.fa IDBA_TRAN/
+		# fq2fa --merge ../../$R1_sorted ../../$R2_sorted idba_tran_input.fa
+		# idba_tran --num_threads $threads -l idba_tran_input.fa -o IDBA_TRAN/
+		# mv idba_tran_input.fa IDBA_TRAN/
 		step_description_and_time_second "IDBA_TRAN DONE"
 
 		# step_description_and_time_second "RUNNING TRINITY"
@@ -345,10 +345,10 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 		# step_description_and_time_second "TRINITY DONE"
 
 		step_description_and_time_second "RUNNING TRANSABYSS"
-    transabyss --pe ../../$R1_sorted ../../$R2_sorted --threads $threads \
-    --outdir TRANSABYSS/
-    sed 's/ /_/g' TRANSABYSS/transabyss-final.fa \
-		> TRANSABYSS/transabyss-final_edited.fa # Edit for universal format
+    # transabyss --pe ../../$R1_sorted ../../$R2_sorted --threads $threads \
+    # --outdir TRANSABYSS/
+    # sed 's/ /_/g' TRANSABYSS/transabyss-final.fa \
+		# > TRANSABYSS/transabyss-final_edited.fa # Edit for universal format
 		step_description_and_time_second "TRANSABYSS DONE"
 
 		step_description_and_time_first "FINISHED STEP 3: ASSEMBLY OF TRIMMED READS IN FOLDER $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/"
@@ -361,13 +361,13 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 		for assembly_results in SPADES METASPADES MEGAHIT IDBA_UD RNASPADES IDBA_TRAN TRANSABYSS; do
 
 			if [[ $assembly_results == 'SPADES' ]]; then
-				scaffolds='SPADES/scaffolds.fasta'
+				scaffolds='SPADES/contigs.fasta'
 			elif [[ $assembly_results == 'METASPADES' ]]; then
 				scaffolds='METASPADES/scaffolds.fasta'
 			elif [[ $assembly_results == 'MEGAHIT' ]]; then
 				scaffolds='MEGAHIT/final.contigs.fa'
 			elif [[ $assembly_results == 'IDBA_UD' ]]; then
-				scaffolds='IDBA_UD/scaffold.fa'
+				scaffolds='IDBA_UD/contig.fa'
 			elif [[ $assembly_results == 'RNASPADES' ]]; then
 				scaffolds='RNASPADES/transcripts.fasta'
 			elif [[ $assembly_results == 'IDBA_TRAN' ]]; then
@@ -391,34 +391,34 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
         if [[ $mapper == 'BWA' ]]; then
           step_description_and_time_second "Starting bwa index"
-          bwa index -p bwa_index ../../../$scaffolds
+          # bwa index -p bwa_index ../../../$scaffolds
           step_description_and_time_second "bwa index complete. Starting bwa mem"
-          bwa mem -t $threads bwa_index ../../../../../../*1P_error_corrected.fastq \
-					../../../../../../*2P_error_corrected.fastq > ${mapper}_output.sam
-          rm bwa_index*
+          # bwa mem -t $threads bwa_index ../../../../../../*1P_error_corrected.fastq \
+					# ../../../../../../*2P_error_corrected.fastq > ${mapper}_output.sam
+          # rm bwa_index*
 					step_description_and_time_second "bwa mem complete"
   			else
           step_description_and_time_second "Starting bowtie2 index"
-    			bowtie2-build -f ../../../$scaffolds bowtie_index
+    			# bowtie2-build -f ../../../$scaffolds bowtie_index
     			step_description_and_time_second "bowtie2 index complete. Starting bowtie2"
-    			bowtie2 -q -x bowtie_index -1 ../../../../../../*1P_error_corrected.fastq \
-					-2 ../../../../../../*2P_error_corrected.fastq -S ${mapper}_output.sam \
-					-p $threads
-    			rm bowtie_index*
+    			# bowtie2 -q -x bowtie_index -1 ../../../../../../*1P_error_corrected.fastq \
+					# -2 ../../../../../../*2P_error_corrected.fastq -S ${mapper}_output.sam \
+					# -p $threads
+    			# rm bowtie_index*
           step_description_and_time_second "bowtie2 complete"
         fi
 
   			# Editing the mapper outputs:
-  			samtools view -F 4 ${mapper}_output.sam | cut -f3	| sort | uniq -c \
-				| column -t | sed 's/  */\t/g' > out_mapped_${mapper}.txt
-  			samtools view -f 4 ${mapper}_output.sam | cut -f3 |	sort | uniq -c \
-				| column -t | sed 's/  */\t/g' > out_unmapped_${mapper}.txt
-  			echo -e "counts\tsequence_name" > merge_input_mapped_${mapper}.txt \
-				&& cat out_mapped_${mapper}.txt >> merge_input_mapped_${mapper}.txt
-  			echo -e "counts\tsequence_name" > merge_input_unmapped_${mapper}.txt \
-				&& cat out_unmapped_${mapper}.txt >> merge_input_unmapped_${mapper}.txt
-
-  			rm out_*mapped_${mapper}.txt
+  			# samtools view -F 4 ${mapper}_output.sam | cut -f3	| sort | uniq -c \
+				# | column -t | sed 's/  */\t/g' > out_mapped_${mapper}.txt
+  			# samtools view -f 4 ${mapper}_output.sam | cut -f3 |	sort | uniq -c \
+				# | column -t | sed 's/  */\t/g' > out_unmapped_${mapper}.txt
+  			# echo -e "counts\tsequence_name" > merge_input_mapped_${mapper}.txt \
+				# && cat out_mapped_${mapper}.txt >> merge_input_mapped_${mapper}.txt
+  			# echo -e "counts\tsequence_name" > merge_input_unmapped_${mapper}.txt \
+				# && cat out_unmapped_${mapper}.txt >> merge_input_unmapped_${mapper}.txt
+        #
+  			# rm out_*mapped_${mapper}.txt
         cd ..
 			# And we close the mapper loop here because the next step is independent
 			# from the mappers and saved under a separate folder:
@@ -455,9 +455,11 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
 				step_description_and_time_second "RUNNING BLAST WITH DATABASE $DB"
 				# Run BLAST via blastn
-				blastn -query ../../../../$scaffolds -db $blastDB -out blast_output.txt \
-				-outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
-				-evalue 1e-05 -num_threads $threads
+				if ! [ "$(ls -A ${pwd})" ]; then
+					blastn -query ../../../../$scaffolds -db $blastDB -out blast_output.txt \
+					-outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
+					-evalue 1e-05 -num_threads $threads
+				fi
 				step_description_and_time_second "BLAST WITH DATABASE $DB DONE"
 
 				step_description_and_time_second "RUNNING BLAST FIRST HIT"
@@ -465,15 +467,12 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				assign_taxonomy_to_NCBI_staxids.sh -b blast_output.txt -c 13 \
 				-e ~/.etetoolkit/taxa.sqlite
 				sed -i 's/Unknown/NA/g' blast_output_with_taxonomy.txt
-				blast_filter.py blast_output_with_taxonomy.txt soft
+				blast_filter.py blast_output_with_taxonomy.txt soft -o blast_first_hit.txt
 				step_description_and_time_second "BLAST FIRST HIT DONE"
 
 				step_description_and_time_second "RUNNING BLAST FILTERED"
-				# We run a separate script to add taxonomy and filter the BLAST results:
-				assign_taxonomy_to_NCBI_staxids.sh -b blast_output.txt -c 13 \
-				-e ~/.etetoolkit/taxa.sqlite
-				sed -i 's/Unknown/NA/g' blast_output_with_taxonomy.txt
-				blast_filter.py blast_output_with_taxonomy.txt strict
+				# We run a separate script to filter the BLAST results:
+				blast_filter.py blast_output_with_taxonomy.txt strict -o blast_filtered.txt
 				step_description_and_time_second "BLAST FILTERED DONE"
 
 				# step_description_and_time_second "RUNNING KRAKEN2 WITH DATABASE $DB"
@@ -673,7 +672,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 						elif [[ $classification_tool == 'BLAST_FIRST_HIT' ]]; then
 
 							# We run a simple python script because we need to merge on "outer":
-							merge_on_outer.py ${classification_tool}/blast_filtered.txt \
+							merge_on_outer.py ${classification_tool}/blast_first_hit.txt \
 							${classification_tool}/FINAL_FILES/intermediate_files/${assembly_results}_final_${mapper}_merge_ready.txt \
 							${classification_tool}/FINAL_FILES/intermediate_files/${trimming_results##*/}_${rrna_filter_results}_${assembly_results}_${mapper}_${DB}_${classification_tool}_merged.txt
 
