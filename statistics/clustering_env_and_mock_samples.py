@@ -1,33 +1,23 @@
 #!/usr/bin/env python3
 
-# Written by Christopher Hempel (hempelc@uoguelph.ca) on 3 Dec 2021
+# Written by Christopher Hempel (hempelc@uoguelph.ca) on 27 Jan 2022
 
-# This script compares clustering of environmental and mock community samples
+# This script clusters  environmental and mock community samples and exports labels as a dictionary
 
 import pandas as pd
 import numpy as np
 import plotly.express as px
 import os
+import pickle
 import logging
-import rpy2.robjects as ro
-from rpy2.robjects.packages import importr
-from rpy2.robjects import pandas2ri
-from rpy2.robjects.conversion import localconverter
-from sklearn.preprocessing import StandardScaler
-from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
-from sklearn.manifold import MDS
 from kneed import KneeLocator
 from collections import Counter
-from sklearn.metrics import adjusted_rand_score
-from sklearn.metrics import adjusted_mutual_info_score
 from sklearn.metrics import silhouette_score
-from scipy.spatial import distance_matrix
 from scipy.spatial.distance import pdist
 from scipy.spatial.distance import squareform
 from sklearn_extra.cluster import KMedoids
 from skbio.stats.ordination import pcoa
-from itertools import product
 base = importr('base')
 ape = importr('ape')
 
@@ -41,9 +31,9 @@ logging.basicConfig(level=logging.DEBUG,
 ## Full path to directory that contains samples
 workdir = "/Users/christopherhempel/Desktop/pipeline_results"
 ## Directory for cluster plots
-plotdir = os.path.join(workdir, "cluster_comparison_results")
-if not os.path.exists(plotdir):
-    os.mkdir(plotdir)
+outdir = os.path.join(workdir, "cluster_comparison_results")
+if not os.path.exists(outdir):
+    os.mkdir(outdir)
 ## Set number of clustering tests to estimate appropriate k
 k_test_reps = 1 # Note: Kmedoids generates reproducible results
 ## Set number of repetitions for actual clustering to identify clustering with
@@ -51,7 +41,7 @@ k_test_reps = 1 # Note: Kmedoids generates reproducible results
 k_actual_reps=1 # Note: Kmedoids generates reproducible results
 ## Set if you want to loop over all result combinations of genus/species and
 ## rel/pa metrics (True or False)
-looping=False
+looping=True
 ## If you set looping to False, then define what specific rank and metrics and sample
 ## you want to process:
 ### ("genus", "species")
@@ -74,36 +64,6 @@ else:
 
 # Dict that will contain all labels and distance matrices
 labels_master={}
-pairds_master={}
-
-
-# Define functions:
-## Define pdist functions for pairwise ARI and AMI indices
-def dfun_ami(u, v):
-    return adjusted_mutual_info_score(u, v)
-def dfun_ari(u, v):
-    return adjusted_rand_score(u, v)
-
-## Calculate paired CADM using a dictionary of dissimilarity marices
-def paird_cadm(dic):
-    w_lst=[]
-    chi2_lst=[]
-    vals=dic.values()
-    idx=list(dic.keys())
-    len_vals=len(vals)
-    with localconverter(ro.default_converter + pandas2ri.converter):
-        for v, u in product(vals, vals):
-            u_r=base.as_data_frame(pd.DataFrame(u))
-            v_r=base.as_data_frame(pd.DataFrame(v))
-            combined_r=base.rbind(u_r, v_r)
-            ## 4.3 Do CADM in R
-            cadm=ape.CADM_global(combined_r, 2, len(combined_r.columns))
-            # Kendall's coefficient of concordance
-            w_lst.append(cadm[0][0])
-            # Friedman's chi-square statistic
-            chi2_lst.append(cadm[0][1])
-    w_lst_reshaped=np.reshape(w_lst, [len_vals, len_vals])
-    return pd.DataFrame(w_lst_reshaped, index=idx, columns=idx)
 
 
 for metr in metr_lst:
@@ -118,7 +78,6 @@ for metr in metr_lst:
     for groupby_rank in groupby_rank_lst:
         for sample in samples:
 
-
             #for sample_set in ["env_samples", "mock_samples"]:
             for sample_set in ["env_samples"]:
 
@@ -132,7 +91,6 @@ for metr in metr_lst:
 
                 # Calculate pairwise distance
                 paird=squareform(pdist(df, metric=distance_metric_paird))
-                pairds_master["{0}_{1}_{2}_{3}".format(sample, metr, groupby_rank, sample_set)]=paird
 
 
                 # 2 Clustering based on dissimilarity matrices
@@ -144,7 +102,7 @@ for metr in metr_lst:
                     ## 2.1.1 Estimate the best kluster number k
                     ### Number of k to test
                     ktest=20
-                    ## 2.1.2 Elbow method based on SSE (kmeans)
+                    ## 2.1.2 Elbow method based on SSE (kmedoids)
                     ### The dic fit holds the SSE values for each k
                     fit={}
                     for k in range(3, ktest):
@@ -172,7 +130,7 @@ for metr in metr_lst:
                 k=int(count_df.sort_values("count")["k"].iloc[-1])
                 print("The best k based on KneeLocator is {0} in {1}/{2} repetitions.".format(k, counts, k_test_reps))
 
-                ## 2.2 Perform the actual kmeans with the estimated k
+                ## 2.2 Perform the actual kmedoids with the estimated k
                 ### We cluster with the same k 100 times and determine the cluster labels
                 ### with the lowest silhouette score
                 k_actual_dic={}
@@ -186,7 +144,7 @@ for metr in metr_lst:
                 silscore_lst_act=[]
                 for x in k_actual_dic.values():
                     silscore_lst_act.append(x["silscore"])
-                best_silscore=sorted(silscore_lst_act)[-1]
+                best_silscore=sorted(silscore_lst_act)[0]
                 ### And we extract the labels for the lowest silhouette score
                 for x in k_actual_dic.values():
                     if x["silscore"]==best_silscore:
@@ -197,48 +155,34 @@ for metr in metr_lst:
                 # 3 Do PCoA/PCA with 2 axes
                 # PCoA
                 pcoa_model = pcoa(paird, number_of_dimensions=3)
-                pca_graph_df=pcoa_model.samples[['PC1', 'PC2', 'PC3']]
-                pca_graph_df['pipeline']=df.index
-                pc1_graph = str(round(pcoa_model.proportion_explained[0] * 100, 2))
-                pc2_graph = str(round(pcoa_model.proportion_explained[1] * 100, 2))
-                pc3_graph = str(round(pcoa_model.proportion_explained[2] * 100, 2))
+                pcoa_graph_df=pcoa_model.samples[['PC1', 'PC2', 'PC3']]
+                pcoa_graph_df['pipeline']=df.index
+                pco1_graph = str(round(pcoa_model.proportion_explained[0] * 100, 2))
+                pco2_graph = str(round(pcoa_model.proportion_explained[1] * 100, 2))
+                pco3_graph = str(round(pcoa_model.proportion_explained[2] * 100, 2))
                 # # Alternatively PCA
                 # pca=PCA(n_components=3)
                 # pca_input = pca.fit_transform(df)
-                # pc1_graph = str(round(pca.explained_variance_ratio_[0] * 100, 2))
-                # pc2_graph = str(round(pca.explained_variance_ratio_[1] * 100, 2))
-                # pc3_graph = str(round(pca.explained_variance_ratio_[2] * 100, 2))
-                # pca_graph_df=pd.DataFrame(pca_input, columns = ['PC1', 'PC2', 'PC3'], index=df.index)
-                # pca_graph_df=pca_graph_df.reset_index()
-                pca_graph_df["cluster"]=[str(x) for x in labels]
-                fig_kmean = px.scatter_3d(pca_graph_df, x="PC1", y="PC2", z="PC3",
-                    labels={"PC1": "PC1 ({0}%)".format(pc1_graph),
-                    "PC2": "PC2 ({0}%)".format(pc2_graph),
-                    "PC3": "PC3 ({0}%)".format(pc3_graph)}, symbol="cluster",
+                # pco1_graph = str(round(pca.explained_variance_ratio_[0] * 100, 2))
+                # pco2_graph = str(round(pca.explained_variance_ratio_[1] * 100, 2))
+                # pco3_graph = str(round(pca.explained_variance_ratio_[2] * 100, 2))
+                # pcoa_graph_df=pd.DataFrame(pca_input, columns = ['PC1', 'PC2', 'PC3'], index=df.index)
+                # pcoa_graph_df=pcoa_graph_df.reset_index()
+                pcoa_graph_df["cluster"]=[str(x) for x in labels]
+                fig_kmean = px.scatter_3d(pcoa_graph_df, x="PC1", y="PC2", z="PC3",
+                    labels={"PC1": "PC1 ({0}%)".format(pco1_graph),
+                    "PC2": "PC2 ({0}%)".format(pco2_graph),
+                    "PC3": "PC3 ({0}%)".format(pco3_graph)}, symbol="cluster",
                         color="cluster",
                         title="{0} {1} {2} {3}".format(sample, sample_set, groupby_rank, metr),
                         hover_data=['pipeline'])
+                fig_kmean.update_traces(marker=dict(size=2), selector=dict(mode='markers'))
                 fig_kmean.show()
+                fig_kmean.write_image(os.path.join(outdir, "{0}_{1}_{2}_{3}_pcoa_kmedoids.png".format(metr, groupby_rank, sample, sample_set)))
 
 
-
-# 3 Calculate AMI and ARI
-idx=list(labels_master.keys())
-pairwise_ami= pd.DataFrame(squareform(pdist(list(labels_master.values()), dfun_ami)), index=idx, columns=idx)
-pairwise_ari = pd.DataFrame(squareform(pdist(list(labels_master.values()), dfun_ari)), index=idx, columns=idx)
-
-fig_ami=px.imshow(pairwise_ami)
-fig_ami.show()
-
-fig_ari=px.imshow(pairwise_ari)
-fig_ari.show()
-
-
-# 4 Calculate congruence among distance matrices
-paird_cadm_df=paird_cadm(pairds_master)
-
-fig_cadm=px.imshow(paird_cadm_df)
-fig_cadm.show()
+with open(os.path.join(outdir, "labels_master.pkl"), 'wb') as f:
+    pickle.dump(labels_master, f)
 
 
 
