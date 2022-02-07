@@ -122,12 +122,14 @@ for groupby_rank in groupby_rank_lst:
 
         ## We  need absolute abundances of mock community taxa. Therefore, we use the relative
         ## abundance of each taxon in the mock community, either based on SSU
-        ## genes or cells, and multiply them by the absolute number of reads
-        ## of that sample:
+        ## genes or cells. While we're at it, we determine the lowest relative
+        ## abundance, lower it 3 orders of magnitude, and use the result to impute 0s later
         if rel_abun_basis == "gen":
             expected_df["rel_abun"] = rel_abun_gen
+            impute=min(rel_abun_gen)*1e-03
         elif rel_abun_basis == "cell":
             expected_df["rel_abun"] = rel_abun_cell
+            impute=min(rel_abun_cell)*1e-03
 
 
         master_dfs_raw = {} # Empty dic that will eventually contain all samples' raw pipelines output
@@ -275,6 +277,8 @@ for groupby_rank in groupby_rank_lst:
                 metrics_reps[sample].loc['TP'] = TP
                 metrics_reps[sample].loc['FP'] = FP
 
+
+
         # 5 Make final metrics_df and Standardize rel abundances
         ## Add info on tools used in each step for each pipeline
         for rep in metrics_reps.keys():
@@ -289,8 +293,8 @@ for groupby_rank in groupby_rank_lst:
                     reversed_df[pipeline][step]=pipeline.split("_")[step_list.index(step)]
             ## Make the df
             metrics_df=pd.DataFrame(reversed_df).transpose()
-            ## Standardize by replacing 0s and taking the centered log ratio
-            metrics_df_rel_std=pd.DataFrame(clr(multiplicative_replacement(metrics_df.iloc[:, 0:11].to_numpy(dtype="float"))),
+            ## Standardize by replacing 0s by "impute" (3 orders of magnitude lower than lowest taxon) and taking the centered log ratio
+            metrics_df_rel_std=pd.DataFrame(clr(multiplicative_replacement(metrics_df.iloc[:, 0:11].to_numpy(dtype="float"), delta=impute)),
                 index=metrics_df.index, columns=metrics_df.columns[0:11])
             metrics_df_concat=pd.concat([metrics_df_rel_std, metrics_df.iloc[:, 11:20]], axis=1)
             ## Save the df
