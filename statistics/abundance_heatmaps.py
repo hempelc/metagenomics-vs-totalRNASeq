@@ -5,104 +5,106 @@ import math
 import plotly.express as px
 from scipy.spatial.distance import euclidean
 import os
+import copy
+import logging
 
-# Input directory
-input_dir='~/Desktop/pipeline_results/pipeline_results_mock_samples/metrics_gen_genus/'
+# Activate logging for debugging
+logging.basicConfig(level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Define functions
-## Reversing multiplicative replacement
-def reverse_multiplicative_replacement(lst, known_sum):
-    repl=round(1/len(lst)**2, 8)
-    rounded=[round(x, 8) for x in lst]
-    non_repl_lst=[x-repl if x==repl else x for x in rounded]
-    n_zero=len([x for x in non_repl_lst if x==0])
-    div=known_sum/(1-repl*n_zero)
-    div_lst=[x*div for x in non_repl_lst]
-    return np.array(div_lst)
-## Apply function for pd.apply (softmax reverses clr transformation)
-def reverse(x):
-    return reverse_multiplicative_replacement(softmax(x),1)
+# Parameters set manually
+## Full path to directory that contains samples:
+workdir="/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock_samples/"
+## List of DNA and RNA mock community samples, replicates of 3; must equal names of directories in workdir that
+## contain each sample's pipeline results:
+samples = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA"]
+types=["DNA", "RNA"]
+reps=["M4", "M5", "M6"]
 
+## Set if you want to loop over all result combinations of parameters in script
+## "processing_and_metrics.py" and all metrics (True or False)
+looping=True
+## If you set looping to False, then define what specific combination
+## and metrics you want to process:
+### ("gen_genus", "gen_species")
+combinations="gen_species"
+metrics="rel"
 
-# Define best pipelines
-dic_best_pip={"M4_DNA": "DNA_5_unsorted_metaspades_bwa_ncbi-nt_kraken2",
-    "M5_DNA": "DNA_15_unsorted_transabyss_bwa_ncbi-nt_blast-filtered",
-    "M6_DNA": "DNA_20_unsorted_spades_bwa_ncbi-nt_kraken2",
-    "M4_RNA": "RNA_20_unsorted_rnaspades_bwa_silva_blast-first-hit",
-    "M5_RNA": "RNA_5_rrnafilter_transabyss_bwa_silva_kraken2",
-    "M6_RNA": "RNA_5_barrnap_rnaspades_bwa_silva_kraken2"}
-# And empty dics
-dic_reverse={}
-dic_clr_mr={}
-dic_best_abun={}
-dic_best_abun_clr_mr={}
+# Parameters set automatically
+## Set lists for aggregation, combinations, and metrics for looping:
+if looping:
+    combinations=["gen_genus", "gen_species"]
+    metrics=["rel", "pa"]
 
-
-# Loop over replicates
-for rep in ["M4", "M5", "M6"]:
-    for NA in ["DNA", "RNA"]:
-        # Import data
-        sam=rep + "_" + NA
-        df=pd.read_csv(os.path.join(input_dir, "{0}_metrics_df.csv".format(sam)), index_col="pipeline")
-        df_crop=df.iloc[:, 0:11].transpose()
-        # Save transformed df
-        dic_clr_mr[sam]=df_crop.transpose()
-        # Reverse transformation and save df
-        df_rev=df_crop.apply(reverse, axis=0).transpose()
-        exp=df_rev.loc["expected"]
-        exp_clr_mr=df_crop.transpose().loc["expected"]
-        dic_reverse[sam]=df_rev
+## Make plot export directory:
+exportdir=os.path.join(workdir, "stats_summary_plots", "abundance_heatmaps")
+if not os.path.exists(exportdir):
+    os.mkdir(exportdir)
 
 
-# Extract best pipeline abundances for both transformed and non-transformed abundances
-for rep in ["M4", "M5", "M6"]:
-    for NA in ["DNA", "RNA"]:
-        sam=rep + "_" + NA
-        dic_best_abun[NA+ "_" +rep]=dic_reverse[sam].loc[dic_best_pip[sam]]
-for rep in ["M4", "M5", "M6"]:
-    for NA in ["DNA", "RNA"]:
-        sam=rep + "_" + NA
-        dic_best_abun_clr_mr[NA+ "_" +rep]=dic_clr_mr[sam].loc[dic_best_pip[sam]]
+# Function for df normalization
+def diff_norm(series):
+    diff=abs(series-series["expected"])
+    return (diff-diff.min())/(diff.max()-diff.min())
+
+for combination in combinations:
+    for metr in metrics:
+        master_df=pd.DataFrame()
+        for sample in samples:
+            # Import metrics df
+            file=os.path.join(workdir, "metrics_" + combination, sample + "_metrics_df.csv")
+            metrics_df=pd.read_csv(file, index_col=0)
+            # Drop unwanted columns
+            if metr=="rel":
+                metrics_df=metrics_df.drop(metrics_df.loc[:,'TP':'classifier'], axis=1)
+            elif metr=="pa":
+                metrics_df=metrics_df.loc[:, "TP":"FP"]
+            # Separate expected from df
+            metrics_df_no_exp=metrics_df.drop(["expected"], axis=0)
+            exp=metrics_df.loc["expected"]
+
+            #  Euclidean distances between pipelines and expected:
+            ## Calculate euc dist for each pipeline
+            for index,row in metrics_df_no_exp.iterrows():
+                metrics_df_no_exp.loc[index,'euc_dist'] = euclidean(row, exp)
+
+            # Pick best pipeline metrics based on Euclidean distance
+            best=metrics_df_no_exp.sort_values('euc_dist').iloc[0]\
+                .rename("_".join(sample.split("_")[::-1]))
+            master_df=master_df.append(best)
+        # Add expected and sort
+        master_df=master_df.append(exp).fillna(0).sort_values('expected', axis=1, ascending=False)
+        master_df=master_df.reindex(["DNA_M4", "DNA_M5", "DNA_M6", "expected", "RNA_M4", "RNA_M5", "RNA_M6"])
+        master_df=master_df[[c for c in master_df if c!='euc_dist'] + ['euc_dist']]
+
+        # Normalize abundances from 0 to 1
+        master_df_norm_w_exp=master_df.apply(diff_norm)
 
 
-# Add expected and normalize abundances from 0 to 1
-## For non-transformed abundances
-fin=pd.DataFrame(dic_best_abun)
-fin = fin.reindex(sorted(fin.columns), axis=1)
-fin["expected"]=exp
-fin=fin.transpose()
+        # Plot heatmap
+        combination_short=combination.replace("gen_", "")
+        if metr=="pa":
+            text_auto=True
+            non_normalized_col=[px.colors.sequential.Viridis[x] for x in [0,5,9]]
+        elif metr=="rel":
+            text_auto=".2f"
+            non_normalized_col=px.colors.sequential.Viridis
+        ## With expected
+        ### Normalized
+        fig=px.imshow(master_df_norm_w_exp, color_continuous_scale=["#d80054", "#51a9ff"], text_auto=".2f")
+        fig.show()
+        fig.write_image(os.path.join(exportdir, "abundance_heatmap_norm_w_exp_" + combination_short + "_" + metr + ".png"))
+        fig.write_image(os.path.join(exportdir, "abundance_heatmap_norm_w_exp_" + combination_short + "_" + metr + ".svg"))
 
-norm_abs=pd.DataFrame()
-for i in fin.columns:
-    max=abs(fin[i]-fin[i]["expected"]).max()
-    norm_abs[i]=abs(fin[i]-fin[i]["expected"])/max
-
-## For transformed abundances
-fin_clr_mr=pd.DataFrame(dic_best_abun_clr_mr)
-fin_clr_mr["expected"]=exp_clr_mr
-fin_clr_mr = fin_clr_mr.reindex(sorted(fin_clr_mr.columns), axis=1).transpose()
-fin_clr_mr["euc_dist"]=fin_clr_mr.apply(lambda row : euclidean(row, exp_clr_mr), axis=1)
-
-
-norm_fin_clr_mr=pd.DataFrame()
-for i in fin_clr_mr.columns:
-    max=abs(fin_clr_mr[i]-fin_clr_mr[i]["expected"]).max()
-    norm_fin_clr_mr[i]=abs(fin_clr_mr[i]-fin_clr_mr[i]["expected"])/max
-
-
-# Heatmap of transformed and non-transformed abundaces before and after normalization
-fig=px.imshow(fin, color_continuous_scale=px.colors.sequential.Blues)
-fig.show()
-fig=px.imshow(norm_abs, color_continuous_scale=px.colors.sequential.Blues)
-fig.show()
-
-fig=px.imshow(fin_clr_mr, color_continuous_scale=px.colors.sequential.Blues)
-fig.show()
-fig.write_image("/Users/christopherhempel/Desktop/heatmap_abun_cell_genus.png")
-fig=px.imshow(norm_fin_clr_mr, color_continuous_scale=px.colors.sequential.Blues)
-fig.show()
-fig.write_image("/Users/christopherhempel/Desktop/heatmap_norm_abun_cell_genus.png")
-
-# Print euclidean distance to expected for transformed and non-transformed abundaces
-fin.apply(lambda row : euclidean(row, exp), axis=1)
-fin_clr_mr.apply(lambda row : euclidean(row, exp_clr_mr), axis=1)
+        ### Non-normalized
+        fig=px.imshow(master_df.drop(['euc_dist'], axis=1), color_continuous_scale=non_normalized_col, text_auto=text_auto)
+        fig.show()
+        fig.write_image(os.path.join(exportdir, "abundance_heatmap_w_exp_" + combination_short + "_" + metr + ".png"))
+        fig.write_image(os.path.join(exportdir, "abundance_heatmap_w_exp_" + combination_short + "_" + metr + ".svg"))
+        #### Plot eucdist separately on different colourscale to make it distinguishable
+        eucdist_df=copy.deepcopy(master_df)
+        eucdist_df["random"]=np.random.randint(master_df["euc_dist"].max(), size=len(master_df))
+        fig=px.imshow(eucdist_df.loc[:, "euc_dist":"random"], color_continuous_scale=px.colors.sequential.Reds_r[1:], text_auto=".2f")
+        fig.show()
+        fig.write_image(os.path.join(exportdir, "abundance_heatmap_w_exp_" + combination_short + "_" + metr + "_euc_dist.png"))
+        fig.write_image(os.path.join(exportdir, "abundance_heatmap_w_exp_" + combination_short + "_" + metr + "_euc_dist.svg"))
