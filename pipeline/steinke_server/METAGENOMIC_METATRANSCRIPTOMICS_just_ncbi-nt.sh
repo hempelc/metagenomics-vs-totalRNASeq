@@ -69,7 +69,7 @@ Usage:
 
   # Set default options:
   threads='16'
-  ncbi_nt_blast_db="/hdd2/databases/nt_database_feb_2020_indexed/nt"
+  ncbi_nt_blast_db="/hdd2/databases/nt_database_14_Feb_2021_indexed/nt"
   silva_blast_db="/hdd2/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Jul_2021/blastdb"
   ncbi_nt_kraken2_db="/hdd2/databases/kraken2_nt_DB"
   silva_kraken2_db="/hdd2/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Jul_2021/"
@@ -537,6 +537,8 @@ elif [[ $db == 'ncbi_nt' ]]; then
 	krakenDB=$ncbi_nt_kraken2_db
 	blastDB=$ncbi_nt_blast_db
 fi
+
+echo ${base_directory}/${scaffolds}
 
 if [[ $classification == "blast_first_hit" || $classification == "blast_filtered" ]]; then
 	step_description_and_time_first "RUNNING BLAST WITH DATABASE $blastDB"

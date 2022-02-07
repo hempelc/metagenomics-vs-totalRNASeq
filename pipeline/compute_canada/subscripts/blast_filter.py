@@ -1,11 +1,30 @@
 #!/usr/bin/env python3
 
+# Written by Chris Hempel (hempelc@uoguelph.ca) on 20 Jan 2022
+# A script to filter blast hits with assigned taxonomy
+
+import datetime
 import pandas as pd
 import sys
 import argparse
+import warnings
 
-# Make class to format helptext of options properly, taken from
-# https://www.google.com/search?q=argsparse+recognize+newline+in+help&oq=argsparse+recognize+newline+in+help&aqs=chrome..69i57j33i22i29i30.12450j0j7&sourceid=chrome&ie=UTF-8
+# Set that warnings are not printed to console
+warnings.filterwarnings("ignore")
+
+# Define funtion to print datetime and text
+def time_print(text):
+    datetime_now=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(datetime_now + "  ---  " + text)
+
+# Define function to filter bitscores
+def bitscore_cutoff(x):
+    min_bitscore=x.max()-x.max()*0.02
+    return x[x>=min_bitscore]
+
+# Define class to format helptext of options properly, taken from
+# https://www.google.com/search?q=argsparse+recognize+newline+in+help&oq=argsparse+
+# recognize+newline+in+help&aqs=chrome..69i57j33i22i29i30.12450j0j7&sourceid=chrome&ie=UTF-8
 class SmartFormatter(argparse.HelpFormatter):
     def _split_lines(self, text, width):
         if text.startswith('R|'):
@@ -58,78 +77,66 @@ bitscore_threshold=args.bitscore
 cutoff=args.cutoff
 out=args.out
 
-# Define ranks to loop over later
-ranks=["superkingdom", "kingdom", "phylum", "subphylum", "class",
-    "subclass", "order", "suborder", "infraorder", "family", "genus", "lowest_hit"]
-# Read in df
-df=pd.read_csv(file, sep="\t", dtype={"qseqid": str}).fillna('NA')
-# Make dicts with taxonomy keys and empty lists
-tax_dic={"sequence_name":[]}
-for x in ranks:
-    tax_dic[x]=[]
+# Define ranks to use
+ranks=["superkingdom", "kingdom", "phylum", "subphylum", "class", "subclass",
+    "order", "suborder", "infraorder", "family", "genus", "lowest_hit"]
+# Define which columns to load in
+req_cols=['qseqid', 'pident', 'length', 'bitscore']+ranks
 
-# For each unique ID
-sequence_names=sorted(df["qseqid"].unique())
-for sequence_name in sequence_names:
-    # Add the id name to the dic
-    tax_dic["sequence_name"].append(sequence_name)
-    # Subsample the big df to only rows that contain the sequence id
-    df_sub=df[df["qseqid"]==sequence_name]
-    # Extract the best bitscore
-    best_bitscore=sorted(df_sub["bitscore"], reverse=True)[0]
-    print("Processing sequence {0} with bitscore {1}".format(sequence_name,
-        best_bitscore))
 
-    # Apply bitscore filter depending on used filter
-    if filter=="soft":
-        # Bitscore filter = best bitscore
-        df_sub_filtered=df_sub[df_sub["bitscore"]==best_bitscore]
-    elif filter=="strict":
-        # 1. Bitscore filter = minimum alignment length of "length" and minimum
-        #    bitscore of "bitscore_threshold" and only hits within bitscore range
-        #    of the top "percentage" of the best bitscore
-        df_sub_filtered=df_sub[(df_sub["bitscore"]>=best_bitscore-best_bitscore*percentage)
-            & (df_sub["length"]>=length) & (df_sub["bitscore"]>=bitscore_threshold)]
+time_print("Reading in file...")
+# Only read in columsn we need
+df=pd.read_csv(file, usecols=req_cols, sep="\t", dtype={"qseqid": str}).fillna('NA')
 
-        # 2. Apply similarity cutoff
-        for idx, row in df_sub_filtered.iterrows():
-            if row["pident"] < cutoff[0]:
-                    df_sub_filtered.at[idx,"lowest_hit"]="NA"
-            if row["pident"] < cutoff[1]:
-                    df_sub_filtered.at[idx,"genus"]="NA"
-            if row["pident"] < cutoff[2]:
-                    df_sub_filtered.at[idx,"family"]="NA"
-            if row["pident"] < cutoff[3]:
-                for rank in ['order', 'suborder', 'infraorder']:
-                    df_sub_filtered.at[idx,rank]="NA"
-            if row["pident"] < cutoff[4]:
-                for rank in ['class', 'subclass']:
-                    df_sub_filtered.at[idx,rank]="NA"
-            if row["pident"] < cutoff[5]:
-                for rank in ['phylum', 'subphylum']:
-                    df_sub_filtered.at[idx,rank]="NA"
 
-    # Apply LCA filter
-    for rank in ranks:
-        if rank=="lowest_hit":
-            taxon=df_sub_filtered[rank].str.split(' ').str[:2].str.join(sep=' ')\
-                .unique() # Get first two words and each unique name
-        else:
-             # First two words not needed, should always be one word:
-            taxon=df_sub_filtered[rank].unique()
-        if len(taxon)!=1: # If not only one unique name
-            tax_dic[rank].append("NA")
-        elif rank=="lowest_hit": # If one uniqie name but species rank, make more checks
-            # If species is two words and if capitalization structure "Genus species":
-            if len(taxon[0].split(' '))!=1 and taxon[0][0].isupper() \
-                and taxon[0].split(' ')[1][0].islower():
-                tax_dic[rank].append(taxon[0])
-            else:
-                tax_dic[rank].append("NA")
-        else: # If oen unique name and not species rank
-            tax_dic[rank].append(taxon[0])
+time_print('Checking if species are in "Genus species" format...')
+## Cut down to first two words
+df["lowest_hit"]=df["lowest_hit"].str.split(' ').str[:2].str.join(sep=' ')
 
-# Turn dic to df, cahnge on column name, and save df
-tax_df=pd.DataFrame(tax_dic)
-tax_df.rename(columns={'lowest_hit': 'species'}, inplace=True)
-tax_df.to_csv(out, sep="\t", index=False)
+## Check if the first word is capitalized. If not then turn species into "NA"
+idx_spe=df["lowest_hit"].str[0].str.isupper()
+df["lowest_hit"]=[spe if capitalized else "NA" for spe, capitalized in zip(df["lowest_hit"], idx_spe)]
+
+
+if filter=="strict":
+    time_print("Filtering hits based on bitscore and length...")
+    df.loc[(df['length'] < 100) & (df['bitscore'] < 155), ranks] = "NA"
+
+    time_print("Grouping qseqids and filtering hits based on bitscore cutoff for each qseqid...")
+    idx = df.groupby(['qseqid'])['bitscore'].transform(bitscore_cutoff) == df['bitscore']
+    df=df[idx]
+
+    time_print("Applying similarity cutoff...")
+    df.loc[df["pident"] < cutoff[0], 'lowest_hit'] = "NA"
+    df.loc[df["pident"] < cutoff[1], 'genus'] = "NA"
+    df.loc[df["pident"] < cutoff[2], 'family'] = "NA"
+    df.loc[df["pident"] < cutoff[3], ['order', 'suborder', 'infraorder']] = "NA"
+    df.loc[df["pident"] < cutoff[4], ['class', 'subclass']] = "NA"
+    df.loc[df["pident"] < cutoff[5], ['phylum', 'subphylum']] = "NA"
+
+elif filter=="soft":
+    time_print("Grouping qseqids and filtering hits based on the highest bitscore of each qseqid...")
+    idx=df.groupby(['qseqid'])['bitscore'].transform(max) == df['bitscore']
+    df=df[idx]
+
+# Keep only relevant columns and put lowest_hit to last column
+df=df[["qseqid"] + ranks]
+
+
+time_print("Performing LCA filter...")
+## Make a df mask: group df by contigs, check if rank has more than one taxon, and if yes, True, else False
+lca_mask=df.groupby(["qseqid"]).transform(lambda x: len(set(x)) != 1)
+
+## Replace ranks in df with "NA" based on mask
+df=df.mask(lca_mask, "NA")
+df["qseqid"]=df['qseqid']
+
+## Drop duplicate rows == aggregate contig info
+df.drop_duplicates(inplace=True)
+
+
+# Change column name and save df
+df.rename(columns={'lowest_hit': 'species', 'qseqid': 'sequence_name'}, inplace=True)
+df.to_csv(out, sep="\t", index=False)
+
+time_print("Filtering done.")
