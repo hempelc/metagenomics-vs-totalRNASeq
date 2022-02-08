@@ -7,6 +7,8 @@ from scipy.spatial.distance import euclidean
 import os
 import copy
 import logging
+from sklearn.preprocessing import StandardScaler
+
 
 # Activate logging for debugging
 logging.basicConfig(level=logging.DEBUG,
@@ -27,8 +29,8 @@ looping=True
 ## If you set looping to False, then define what specific combination
 ## and metrics you want to process:
 ### ("gen_genus", "gen_species")
-combinations="gen_species"
-metrics="rel"
+combinations=["gen_species"]
+metrics=["pa"]
 
 # Parameters set automatically
 ## Set lists for aggregation, combinations, and metrics for looping:
@@ -50,26 +52,35 @@ def diff_norm(series):
 for combination in combinations:
     for metr in metrics:
         master_df=pd.DataFrame()
+        metrics_df_master=pd.DataFrame()
         for sample in samples:
             # Import metrics df
             file=os.path.join(workdir, "metrics_" + combination, sample + "_metrics_df.csv")
             metrics_df=pd.read_csv(file, index_col=0)
-            # Drop unwanted columns
-            if metr=="rel":
-                metrics_df=metrics_df.drop(metrics_df.loc[:,'TP':'classifier'], axis=1)
-            elif metr=="pa":
-                metrics_df=metrics_df.loc[:, "TP":"FP"]
-            # Separate expected from df
-            metrics_df_no_exp=metrics_df.drop(["expected"], axis=0)
-            exp=metrics_df.loc["expected"]
-
-            #  Euclidean distances between pipelines and expected:
-            ## Calculate euc dist for each pipeline
-            for index,row in metrics_df_no_exp.iterrows():
-                metrics_df_no_exp.loc[index,'euc_dist'] = euclidean(row, exp)
-
+            metrics_df["sample"]=[sample]*len(metrics_df)
+            metrics_df_master=pd.concat([metrics_df_master, metrics_df])
+        # Drop unwanted columns and standardize P/A if applicable
+        if metr=="rel":
+            metrics_df_master=metrics_df_master.drop(metrics_df_master.loc[:,'TP':'classifier'], axis=1)
+        elif metr=="pa":
+            metrics_df_master=metrics_df_master.loc[:, ["TP","FP","sample"]]
+            sample_col=metrics_df_master["sample"]
+            ## Standardize (needed since TP and FP are not standardized)
+            metrics_df_master=pd.DataFrame(StandardScaler().fit_transform(metrics_df_master.loc[:, ["TP","FP"]]), index=metrics_df_master.index, columns=["TP", "FP"])
+            metrics_df_master["sample"]=sample_col
+        # Separate expected from df
+        metrics_df_master_no_exp=metrics_df_master.drop(["expected"], axis=0)
+        exp=metrics_df_master.drop(["sample"], axis=1).loc["expected"].drop_duplicates().loc["expected"]
+        #  Euclidean distances between pipelines and expected:
+        metrics_df_master_no_exp=metrics_df_master_no_exp.reset_index()
+        ## Calculate euc dist for each pipeline
+        for index,row in metrics_df_master_no_exp.iterrows():
+            metrics_df_master_no_exp.loc[index,'euc_dist'] = euclidean(row.drop(["pipeline", "sample"]), exp)
+        metrics_df_master_no_exp=metrics_df_master_no_exp.set_index("pipeline")
+        for sample in samples:
             # Pick best pipeline metrics based on Euclidean distance
-            best=metrics_df_no_exp.sort_values('euc_dist').iloc[0]\
+            subdf=metrics_df_master_no_exp[metrics_df_master_no_exp['sample']==sample].drop(['sample'], axis=1)
+            best=subdf.sort_values('euc_dist').iloc[0]\
                 .rename("_".join(sample.split("_")[::-1]))
             master_df=master_df.append(best)
         # Add expected and sort
@@ -84,10 +95,8 @@ for combination in combinations:
         # Plot heatmap
         combination_short=combination.replace("gen_", "")
         if metr=="pa":
-            text_auto=True
             non_normalized_col=[px.colors.sequential.Viridis[x] for x in [0,5,9]]
         elif metr=="rel":
-            text_auto=".2f"
             non_normalized_col=px.colors.sequential.Viridis
         ## With expected
         ### Normalized
@@ -97,7 +106,7 @@ for combination in combinations:
         fig.write_image(os.path.join(exportdir, "abundance_heatmap_norm_w_exp_" + combination_short + "_" + metr + ".svg"))
 
         ### Non-normalized
-        fig=px.imshow(master_df.drop(['euc_dist'], axis=1), color_continuous_scale=non_normalized_col, text_auto=text_auto)
+        fig=px.imshow(master_df.drop(['euc_dist'], axis=1), color_continuous_scale=non_normalized_col, text_auto=".2f")
         fig.show()
         fig.write_image(os.path.join(exportdir, "abundance_heatmap_w_exp_" + combination_short + "_" + metr + ".png"))
         fig.write_image(os.path.join(exportdir, "abundance_heatmap_w_exp_" + combination_short + "_" + metr + ".svg"))
