@@ -7,7 +7,6 @@ from scipy.spatial.distance import euclidean
 import os
 import copy
 import logging
-from sklearn.preprocessing import StandardScaler
 
 
 # Activate logging for debugging
@@ -65,9 +64,6 @@ for combination in combinations:
         elif metr=="pa":
             metrics_df_master=metrics_df_master.loc[:, ["TP","FP","sample"]]
             sample_col=metrics_df_master["sample"]
-            ## Standardize (needed since TP and FP are not standardized)
-            metrics_df_master=pd.DataFrame(StandardScaler().fit_transform(metrics_df_master.loc[:, ["TP","FP"]]), index=metrics_df_master.index, columns=["TP", "FP"])
-            metrics_df_master["sample"]=sample_col
         # Separate expected from df
         metrics_df_master_no_exp=metrics_df_master.drop(["expected"], axis=0)
         exp=metrics_df_master.drop(["sample"], axis=1).loc["expected"].drop_duplicates().loc["expected"]

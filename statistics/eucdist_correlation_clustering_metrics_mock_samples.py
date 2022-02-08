@@ -22,7 +22,6 @@ from numpy import array, linspace
 from sklearn.neighbors import KernelDensity
 from sklearn.model_selection import GridSearchCV
 from scipy.signal import argrelextrema
-from sklearn.preprocessing import StandardScaler
 
 
 # Activate logging for debugging
@@ -110,9 +109,6 @@ for combination in combinations:
                 no_drops=["FP", "TP", 'type', 'trimming_score',
                     'rRNA_sorting_tool', 'assembly_tool', 'mapper', 'database', 'classifier']
                 metrics_df=metrics_df.drop([x for x in metrics_df.columns if x not in no_drops], axis=1)
-                ## Standardize (needed since TP and FP are not standardized)
-                metrics_df_TP_FP_std=pd.DataFrame(StandardScaler().fit_transform(metrics_df.iloc[:, 0:2]), index=metrics_df.index, columns=["TP", "FP"])
-                metrics_df=pd.concat([metrics_df_TP_FP_std, metrics_df.iloc[:, 2:]], axis=1)
             ## Separate expected from dfs
             metrics_df_no_exp=metrics_df.drop(["expected"], axis=0)
             exp=metrics_df.iloc[:, :-7].loc["expected"]
