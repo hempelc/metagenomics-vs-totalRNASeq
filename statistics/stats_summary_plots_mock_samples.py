@@ -20,8 +20,6 @@ logging.basicConfig(level=logging.DEBUG,
 
 # Parameters manual setting
 workdir="/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock_samples/"
-## Should cell reference be included? (True/False)
-cell=False
 
 # Parameters auto setting
 ## List of DNA and RNA mock community samples, replicates of 3; must equal names of directories in workdir that
@@ -50,7 +48,7 @@ for agg in aggs:
     cluster_counts_all=pd.DataFrame({'tool':tools})
     cluster_counts_master_df=pd.DataFrame()
     total_counts_master_df=pd.DataFrame()
-    plotdir_level2=os.path.join(workdir, "stats_summary_plots", agg)
+    plotdir_level2=os.path.join(workdir, "stats_summary_plots", "bubble_plots", agg)
     if not os.path.exists(plotdir_level2):
         os.mkdir(plotdir_level2)
 
@@ -142,35 +140,31 @@ for agg in aggs:
     category_orders_cluster_counts=[x for x in tools if x in cluster_counts_master_df["tool"].unique()]
 
     if agg=="agg_reps_agg_type":
-        width=1050
-        category_orders_comb=tool_eval_master_df["combination"].unique()
+        width=1050/1.5
+        category_orders_comb=['agg_gen_species_rel','agg_gen_genus_rel',
+            'agg_gen_species_pa','agg_gen_genus_pa']
     elif agg=="agg_reps_sep_type":
-        width=1250
-        category_orders_comb=sorted(tool_eval_master_df["combination"].unique())
+        width=1250/1.5
+        category_orders_comb=['DNA_gen_species_rel','DNA_gen_genus_rel',
+            'DNA_gen_species_pa','DNA_gen_genus_pa', 'RNA_gen_species_rel',
+            'RNA_gen_genus_rel','RNA_gen_species_pa','RNA_gen_genus_pa']
     elif agg=="sep_reps_agg_type":
-        width=1600
-        category_orders_comb=[
-            'M4_cell_genus_rel','M5_cell_genus_rel','M6_cell_genus_rel','M4_cell_genus_pa','M5_cell_genus_pa','M6_cell_genus_pa','M4_cell_species_rel','M5_cell_species_rel',
-            'M6_cell_species_rel', 'M4_cell_species_pa','M5_cell_species_pa', 'M6_cell_species_pa', 'M4_gen_genus_rel','M5_gen_genus_rel',
-            'M6_gen_genus_rel', 'M4_gen_genus_pa','M5_gen_genus_pa', 'M6_gen_genus_pa', 'M4_gen_species_rel','M5_gen_species_rel',
-            'M6_gen_species_rel', 'M4_gen_species_pa','M5_gen_species_pa', 'M6_gen_species_pa']
+        width=1600/1.5
+        category_orders_comb=['M4_gen_species_rel','M5_gen_species_rel',
+            'M6_gen_species_rel','M4_gen_genus_rel','M5_gen_genus_rel',
+            'M6_gen_genus_rel','M4_gen_species_pa','M5_gen_species_pa',
+            'M6_gen_species_pa','M4_gen_genus_pa','M5_gen_genus_pa', 'M6_gen_genus_pa']
     elif agg=="sep_reps_sep_type":
-        width=2600
-        category_orders_comb=[
-            'M4_DNA_cell_genus_rel', 'M5_DNA_cell_genus_rel','M6_DNA_cell_genus_rel', 'M4_DNA_cell_genus_pa', 'M5_DNA_cell_genus_pa','M6_DNA_cell_genus_pa','M4_DNA_cell_species_rel','M5_DNA_cell_species_rel',
-            'M6_DNA_cell_species_rel','M4_DNA_cell_species_pa','M5_DNA_cell_species_pa', 'M6_DNA_cell_species_pa', 'M4_DNA_gen_genus_rel','M5_DNA_gen_genus_rel','M6_DNA_gen_genus_rel',
-            'M4_DNA_gen_genus_pa','M5_DNA_gen_genus_pa','M6_DNA_gen_genus_pa', 'M4_DNA_gen_species_rel','M5_DNA_gen_species_rel','M6_DNA_gen_species_rel', 'M4_DNA_gen_species_pa','M5_DNA_gen_species_pa','M6_DNA_gen_species_pa',
-            'M4_RNA_cell_genus_rel','M5_RNA_cell_genus_rel','M6_RNA_cell_genus_rel','M4_RNA_cell_genus_pa','M5_RNA_cell_genus_pa','M6_RNA_cell_genus_pa','M4_RNA_cell_species_rel','M5_RNA_cell_species_rel','M6_RNA_cell_species_rel',
-            'M4_RNA_cell_species_pa','M5_RNA_cell_species_pa','M6_RNA_cell_species_pa','M4_RNA_gen_genus_rel', 'M5_RNA_gen_genus_rel', 'M6_RNA_gen_genus_rel', 'M4_RNA_gen_genus_pa', 'M5_RNA_gen_genus_pa','M6_RNA_gen_genus_pa',
-            'M4_RNA_gen_species_rel', 'M5_RNA_gen_species_rel','M6_RNA_gen_species_rel','M4_RNA_gen_species_pa', 'M5_RNA_gen_species_pa','M6_RNA_gen_species_pa']
-
-    if cell==False:
-        tool_eval_master_df=tool_eval_master_df[~tool_eval_master_df.combination.str.contains("cell")]
-        cluster_counts_master_df=cluster_counts_master_df[~cluster_counts_master_df.combination.str.contains("cell")]
-        total_counts_master_df=total_counts_master_df[~total_counts_master_df.combination.str.contains("cell")]
-        category_orders_comb=[ x for x in category_orders_comb if "cell" not in x ]
-        width=width/1.5
-
+        width=2600/1.5
+        category_orders_comb=['M4_DNA_gen_species_rel','M5_DNA_gen_species_rel',
+            'M6_DNA_gen_species_rel','M4_DNA_gen_genus_rel','M5_DNA_gen_genus_rel',
+            'M6_DNA_gen_genus_rel','M4_DNA_gen_species_pa','M5_DNA_gen_species_pa',
+            'M6_DNA_gen_species_pa','M4_DNA_gen_genus_pa','M5_DNA_gen_genus_pa',
+            'M6_DNA_gen_genus_pa','M4_RNA_gen_species_rel','M5_RNA_gen_species_rel',
+            'M6_RNA_gen_species_rel','M4_RNA_gen_genus_rel','M5_RNA_gen_genus_rel',
+            'M6_RNA_gen_genus_rel','M4_RNA_gen_species_pa','M5_RNA_gen_species_pa',
+            'M6_RNA_gen_species_pa','M4_RNA_gen_genus_pa','M5_RNA_gen_genus_pa',
+            'M6_RNA_gen_genus_pa']
     ## 2.1 Tool evaluation:
     ### Invert pval for graph (otherwise bubbles with good p-value are not visible):
     #tool_eval_master_df["p-value"]=1-tool_eval_master_df["p-value"]
