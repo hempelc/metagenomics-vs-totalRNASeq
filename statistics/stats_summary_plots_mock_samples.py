@@ -6,6 +6,7 @@
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import logging
 import os
 import pickle
@@ -25,7 +26,7 @@ workdir="/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock
 ## List of DNA and RNA mock community samples, replicates of 3; must equal names of directories in workdir that
 ## contain each sample's pipeline results:
 aggs=["agg_reps_agg_type", "agg_reps_sep_type", "sep_reps_agg_type", "sep_reps_sep_type"]
-levels=["cell_genus", "cell_species", "gen_genus", "gen_species"]
+levels=["gen_genus", "gen_species"]
 metr_lst=["rel", "pa"]
 steps=["type", "trimming_score", "rRNA_sorting_tool", "assembly_tool", "mapper", "classifier", "database"]
 tools=['type_DNA', 'type_RNA',
@@ -146,8 +147,8 @@ for agg in aggs:
     elif agg=="agg_reps_sep_type":
         width=1250/1.5
         category_orders_comb=['DNA_gen_species_rel','DNA_gen_genus_rel',
-            'DNA_gen_species_pa','DNA_gen_genus_pa', 'RNA_gen_species_rel',
-            'RNA_gen_genus_rel','RNA_gen_species_pa','RNA_gen_genus_pa']
+            'RNA_gen_species_rel', 'RNA_gen_genus_rel','DNA_gen_species_pa',
+            'DNA_gen_genus_pa', 'RNA_gen_species_pa','RNA_gen_genus_pa']
     elif agg=="sep_reps_agg_type":
         width=1600/1.5
         category_orders_comb=['M4_gen_species_rel','M5_gen_species_rel',
@@ -158,11 +159,11 @@ for agg in aggs:
         width=2600/1.5
         category_orders_comb=['M4_DNA_gen_species_rel','M5_DNA_gen_species_rel',
             'M6_DNA_gen_species_rel','M4_DNA_gen_genus_rel','M5_DNA_gen_genus_rel',
-            'M6_DNA_gen_genus_rel','M4_DNA_gen_species_pa','M5_DNA_gen_species_pa',
-            'M6_DNA_gen_species_pa','M4_DNA_gen_genus_pa','M5_DNA_gen_genus_pa',
-            'M6_DNA_gen_genus_pa','M4_RNA_gen_species_rel','M5_RNA_gen_species_rel',
+            'M6_DNA_gen_genus_rel','M4_RNA_gen_species_rel','M5_RNA_gen_species_rel',
             'M6_RNA_gen_species_rel','M4_RNA_gen_genus_rel','M5_RNA_gen_genus_rel',
-            'M6_RNA_gen_genus_rel','M4_RNA_gen_species_pa','M5_RNA_gen_species_pa',
+            'M6_RNA_gen_genus_rel','M4_DNA_gen_species_pa','M5_DNA_gen_species_pa',
+            'M6_DNA_gen_species_pa','M4_DNA_gen_genus_pa','M5_DNA_gen_genus_pa',
+            'M6_DNA_gen_genus_pa','M4_RNA_gen_species_pa','M5_RNA_gen_species_pa',
             'M6_RNA_gen_species_pa','M4_RNA_gen_genus_pa','M5_RNA_gen_genus_pa',
             'M6_RNA_gen_genus_pa']
     ## 2.1 Tool evaluation:
@@ -190,12 +191,18 @@ for agg in aggs:
     ## 2.2.2 Cluster total counts of each cluster:
     total_counts_master_df["mean_euc_dist"]=total_counts_master_df["mean_euc_dist"].round(2)
     fig_cluster_counts_total = px.scatter(total_counts_master_df, x="combination", y="index",
-    	         size="total_counts", color="total_counts",
+    	         size="total_counts",
                  hover_name="total_counts", size_max=30, width=width,
                  color_continuous_scale=px.colors.sequential.thermal[0:-2],
-                 category_orders={"combination": category_orders_comb}, text='mean_euc_dist')
+                 category_orders={"combination": category_orders_comb}, text='total_counts')
     fig_cluster_counts_total.update_traces(marker=dict(line=dict(width=0,color='black')), selector=dict(mode='markers'))
     fig_cluster_counts_total.update_traces(textposition='top center')
+    fig_cluster_counts_total.add_trace(go.Scatter(
+        x=total_counts_master_df["combination"],
+        y=total_counts_master_df["index"],
+        mode="text",
+        text=total_counts_master_df["mean_euc_dist"],
+        textposition="bottom center"))
     fig_cluster_counts_total.write_image(os.path.join(plotdir_level2, agg + "_bubbleplot_cluster_counts_total.svg"))
     fig_cluster_counts_total.write_image(os.path.join(plotdir_level2, agg + "_bubbleplot_cluster_counts_total.png"))
 
