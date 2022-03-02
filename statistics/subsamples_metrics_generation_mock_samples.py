@@ -241,7 +241,7 @@ for groupby_rank in groupby_rank_lst:
                 #### taxon counts for that pipeline:
                 master_dfs_rel[sample][pipeline]=abun
 
-        # Repeat that for negative controls
+        # Repeat that for negative controls (could be done together but copy-pasting the code was faster)
         master_dfs_neg_rel = {}
         for sample, pipeline_dfs in master_dfs_neg_raw.items():
             ### Make master df with taxa from unique_taxa list as row names:
