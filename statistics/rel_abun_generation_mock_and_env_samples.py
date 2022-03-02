@@ -27,23 +27,23 @@ workdir_mock = "/Users/christopherhempel/Desktop/pipeline_results/pipeline_resul
 ## contain each sample's pipeline results:
 samples_mock = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA",
     "M_Neg_DNA", "M_Neg_RNA", "M_Ext_DNA", "M_Ext_RNA"]
-samples_env = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA",
-    "M_Neg_DNA", "M_Neg_RNA", "M_Ext_DNA", "M_Ext_RNA"]
+samples_env = ["F4_DNA", "F4_RNA", "F5_DNA", "F5_RNA", "F6_DNA", "F6_RNA",
+    "F_Neg_DNA", "F_Neg_RNA", "F_Ext_DNA", "F_Ext_RNA"]
 ## Dics containing number of reads per sample
 sample_reads_mock={"M4_DNA": 1128425, "M4_RNA": 306047, "M5_DNA": 790808, "M5_RNA": 400780,
     "M6_DNA": 783841, "M6_RNA": 389552, "M_Neg_DNA": 682, "M_Neg_RNA": 5200,
     "M_Ext_DNA":  445, "M_Ext_RNA": 2672}
-sample_reads_env={"M4_DNA": 1128425, "M4_RNA": 306047, "M5_DNA": 790808, "M5_RNA": 400780,
-    "M6_DNA": 783841, "M6_RNA": 389552, "M_Neg_DNA": 682, "M_Neg_RNA": 5200,
-    "M_Ext_DNA":  445, "M_Ext_RNA": 2672}
+sample_reads_env={"F4_DNA": 1535063, "F4_RNA": 4434832, "F5_DNA": 1532542, "F5_RNA": 5052819,
+    "F6_DNA": 1796045, "F6_RNA": 4885790, "F_Neg_DNA": 121, "F_Neg_RNA": 5491,
+    "F_Ext_DNA":  304, "F_Ext_RNA": 5660}
 
-## Indicate if you want to loop over genus and species (True/False)
-looping_sample=True
+## Indicate if you want to loop over env and mock (True/False)
+looping_sample=False
 ## If you set looping_rank to False, then define what specific sample set you want
 ## to process (option "mock" or "env"):
 sample_set_name="env"
 ## Indicate if you want to loop over genus and species (True/False)
-looping_rank=True
+looping_rank=False
 ## If you set looping_rank to False, then define what specific rank you want to process:
 ### Taxonomic rank to group rows on. Either based on genus (option "genus")
 ### or on species (option "species"):
@@ -81,15 +81,17 @@ for sample_set in sample_set_name_lst:
         all_taxa = [] # Empty list that will eventually contain all taxa that appear in all samples
         for sample in samples:
             ## Make a list for all file names in sample dic:
-            sample_files = glob.glob(os.path.join(workdir, sample, "*.txt"))
+            sample_files = glob.glob(os.path.join(workdir, sample, "*.txt*"))
             ## Make a dic that will eventually contain all pipeline dfs and set the first entry to expected community:
             sample_dfs = {}
             ## For each file in the sample dic
             for file in sample_files:
                 #### Read in file as pandas df, fill NaN with "NA", "Unknown" by "NA", and fix one taxonomic misambiguation
-                df = pd.read_table(file).fillna("NA").replace("Lactobacillus",
-                    r"Limosilactobacillus", regex=True).replace("Unknown",
-                    "NA").replace("-", r"", regex=True)
+                df = pd.read_table(file)\
+                    .replace("Lactobacillus", r"Limosilactobacillus", regex=True)\
+                    .replace("Unknown", "NA").replace("-", r"", regex=True)
+                df=df.rename(columns={df.columns[0]: 'sequence_name'})\
+                    .dropna(subset = ['sequence_name']).fillna("NA")
                 ### Apply a species filter: if a species is not 2 words (contains a space),
                 ### replace species value with "NA"
                 #### Therefore, first get indices of species not containing a space
@@ -117,13 +119,13 @@ for sample_set in sample_set_name_lst:
                 ### Add all taxa to list "all_taxa"
                 all_taxa.extend(df_agg[groupby_rank].tolist())
                 ### Edit file name so that we can name dfs based on their file name=pipeline
-                pipeline_name = file.split("/")[-1].split(".")[-2].split("trimmed_at_phred_")[1].split("_final")[0].replace("idba_",
+                pipeline_name = file.split("/")[-1].split(".")[0].split("trimmed_at_phred_")[1].split("_final")[0].replace("idba_",
                     "idba-").replace("ncbi_nt", "ncbi-nt").replace("blast_first_hit",
                     "blast-first-hit").replace("blast_filtered", "blast-filtered")
                 ### Add df_agg to the sample_dfs dic with key=pipeline_name
                 sample_dfs[pipeline_name] = df_agg
-                ### Save sample_df in dic master_dfs_raw:
-                master_dfs_raw[sample] = sample_dfs
+            ### Save sample_df in dic master_dfs_raw:
+            master_dfs_raw[sample] = sample_dfs
 
 
         # 2 Generate master dfs with relative read counts
@@ -161,7 +163,11 @@ for sample_set in sample_set_name_lst:
         ## (the name of expected gets stripped off the prefix after):
         master_dfs_prefix={}
         for sample_type in ["DNA", "RNA"]:
-            for sample in [x + "_" + sample_type for x in ["M4", "M5", "M6", "M_Neg", "M_Ext"]]:
+            if sample_set=="mock":
+                names_and_contr=["M4", "M5", "M6", "M_Neg", "M_Ext"]
+            else:
+                names_and_contr=["F4", "F5", "F6", "F_Neg", "F_Ext"]
+            for sample in [x + "_" + sample_type for x in names_and_contr]:
                 master_dfs_prefix[sample]=master_dfs_rel[sample].add_prefix(sample_type
                     + "_").rename(columns={sample_type + "_expected": "expected"})
 
@@ -170,19 +176,23 @@ for sample_set in sample_set_name_lst:
         for sample_type in ["DNA", "RNA"]:
             if sample_set=="mock":
                 read_dic=sample_reads_mock
-                neg_readnum=read_dic["M_Neg_" + sample_type]
-                ext_readnum=read_dic["M_Ext_" + sample_type]
+                neg="M_Neg_" + sample_type
+                ext="M_Ext_" + sample_type
+                names=["M4", "M5", "M6"]
             else:
                 read_dic=sample_reads_env
-                neg_readnum=read_dic["M_Neg_" + sample_type]
-                ext_readnum=read_dic["M_Ext_" + sample_type]
-            for sample in [x + "_" + sample_type for x in ["M4", "M5", "M6"]]:
+                neg="F_Neg_" + sample_type
+                ext="F_Ext_" + sample_type
+                names=["F4", "F5", "F6"]
+            neg_readnum=read_dic[neg]
+            ext_readnum=read_dic[ext]
+            for sample in [x + "_" + sample_type for x in names]:
                 #### We substract the reads occuring in the filtration and extraction
                 #### control from the samples, separately for RNA and DNA controls:
                 ##### We're converting counts back to absolute and substract absolute numbers of reads of the negative controls
                 readnum=read_dic[sample]
-                master_dfs_rel_sub[sample]=master_dfs_prefix[sample]*readnum-(master_dfs_prefix["M_Neg_" + sample_type]*neg_readnum \
-                    + master_dfs_prefix["M_Ext_" + sample_type]*ext_readnum)
+                master_dfs_rel_sub[sample]=master_dfs_prefix[sample]*readnum-(master_dfs_prefix[neg]*neg_readnum \
+                    + master_dfs_prefix[ext]*ext_readnum)
                 ### Convert counts below 0 to 0 (happens if negative control contains more reads than original sample):
                 master_dfs_rel_sub[sample][master_dfs_rel_sub[sample] < 0] = 0
                 ### Convert counts back to relative
