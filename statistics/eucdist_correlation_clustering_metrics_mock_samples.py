@@ -47,11 +47,11 @@ metr_list=["rel", "pa"]
 ## If you set looping to False, then define what specific aggregation, combination,
 ## and metrics you want to process:
 ### ("agg_reps_agg_type", "agg_reps_sep_type", "sep_reps_ag_type", "sep_reps_sep_type")
-agg="agg_reps_agg_type"
+agg="agg_reps_sep_type"
 ### ("cell_genus", "cell_species", "gen_genus", "gen_species")
 comb="gen_genus"
 ### ("rel", "pa")
-metrics="pa"
+metrics="rel"
 
 master_master_counts_dic={}
 
@@ -157,17 +157,9 @@ for combination in combinations:
                 tools=[]
                 for step in df.loc[:, 'type':'classifier'].columns:
                     for tool in df[step].unique():
-                        ### Make sure trimming score 5 doesn't pick up 15 as well
-                        if tool=="5":
-                            tool="_5"
                         #### Cut down df to rows containing tool and take the averge and min euc_dist:
-                        mean_euc_dist=df.reset_index()[df.reset_index()['pipeline']
-                            .str.contains(tool)]["euc_dist"].mean()
-                        min_euc_dist=df.reset_index()[df.reset_index()['pipeline']
-                            .str.contains(tool)]["euc_dist"].sort_values().min()
-                        ### Reverse changes
-                        if tool=="_5":
-                            tool="5"
+                        mean_euc_dist=df[df[step]==tool]["euc_dist"].mean()
+                        min_euc_dist=df[df[step]==tool]["euc_dist"].min()
                         tools.append(step + "_" + tool)
                         mean_euc_dist_lst.append(mean_euc_dist)
                         min_euc_dist_lst.append(min_euc_dist)
