@@ -18,8 +18,6 @@ from scipy.spatial.distance import pdist
 from scipy.spatial.distance import squareform
 from sklearn_extra.cluster import KMedoids
 from skbio.stats.ordination import pcoa
-base = importr('base')
-ape = importr('ape')
 
 
 # Activate logging for debugging
@@ -42,32 +40,37 @@ k_actual_reps=1 # Note: Kmedoids generates reproducible results
 ## Set if you want to loop over all result combinations of genus/species and
 ## rel/pa metrics (True or False)
 looping=True
-## If you set looping to False, then define what specific rank and metrics and sample
+## If you set looping to False, then define what specific rank and metrics and set
 ## you want to process:
 ### ("genus", "species")
 rank="genus"
 ### ("rel", "pa")
 metrics="rel"
-samp="M4_RNA"
-
+### ("env_samples", "mock_samples)
+sets="env_samples"
 
 # Parameters set automatically
 if looping:
     groupby_rank_lst=["genus", "species"]
     metr_lst=["rel", "pa"]
-    samples = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA"]
+    # sample_sets=["env_samples", "mock_samples"]
+    sample_sets=["env_samples"]
 
 else:
     groupby_rank_lst=[rank]
     metr_lst=[metrics]
-    samples=[samp]
+    sample_sets=[sets]
 
-# Dict that will contain all labels and distance matrices
-labels_master={}
 
+# Dict that will contain all labels and distance matrices (load if run for otehr ranks):
+pickle_dic=os.path.join(outdir, "labels_master.pkl")
+if not os.path.exists(pickle_dic):
+    labels_master={}
+else:
+    with open(pickle_dic, 'rb') as f:
+        labels_master = pickle.load(f)
 
 for metr in metr_lst:
-
     if metr=="rel":
         distance_metric_kmedoids='euclidean'
         distance_metric_paird="euclidean"
@@ -76,11 +79,12 @@ for metr in metr_lst:
         distance_metric_paird="jaccard"
 
     for groupby_rank in groupby_rank_lst:
-        for sample in samples:
-
-            #for sample_set in ["env_samples", "mock_samples"]:
-            for sample_set in ["env_samples"]:
-
+        for sample_set in sample_sets:
+            if sample_set=="mock_samples":
+                samples=["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA"]
+            else:
+                samples=["F4_DNA", "F4_RNA", "F5_DNA", "F5_RNA", "F6_DNA", "F6_RNA"]
+            for sample in samples:
                 # Dic that will contain labels of each sample set
                 labels_sample_set={}
 
