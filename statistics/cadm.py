@@ -28,6 +28,8 @@ logging.basicConfig(level=logging.DEBUG,
 # Parameters set manually
 ## Full path to directory that contains samples
 workdir = "/Users/christopherhempel/Desktop/pipeline_results"
+# CADM already generated?
+cadm_done=True
 ## Set if you want to loop over all result combinations of genus/species and
 ## rel/pa metrics (True or False)
 looping=True
@@ -37,7 +39,8 @@ looping=True
 rank="genus"
 ### ("rel", "pa")
 metrics="pa"
-samp="M4_RNA"
+### ("env_samples", "mock_samples)
+sets="env_samples"
 
 
 # Parameters set automatically
@@ -48,12 +51,13 @@ if not os.path.exists(outdir):
 if looping:
     groupby_rank_lst=["genus", "species"]
     metr_lst=["rel", "pa"]
-    samples = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA"]
+    sample_sets=["env_samples", "mock_samples"]
 
 else:
     groupby_rank_lst=[rank]
     metr_lst=[metrics]
-    samples=[samp]
+    sample_sets=[sets]
+
 # Dict for distance to use
 distance_metric_paird={"rel": "euclidean", "pa": "jaccard"}
 # Dict that will contain all distance matrices
@@ -82,52 +86,54 @@ def paird_cadm(dic):
     w_lst_reshaped=np.reshape(w_lst, [len_vals, len_vals])
     return pd.DataFrame(w_lst_reshaped, index=idx, columns=idx)
 
+if cadm_done==False:
+    for metr in metr_lst:
+        for groupby_rank in groupby_rank_lst:
+            for sample_set in sample_sets:
+                if sample_set=="mock_samples":
+                    samples=["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA"]
+                else:
+                    samples=["F4_DNA", "F4_RNA", "F5_DNA", "F5_RNA", "F6_DNA", "F6_RNA"]
+                for sample in samples:
+                        # Import transformed abundances
+                        file = os.path.join(workdir, "pipeline_results_" + sample_set, "rel_abun_" + groupby_rank,
+                            sample + "_rel_abun_" + groupby_rank + "_" + metr + ".csv")
+                        df=pd.read_csv(file, index_col="pipeline")
 
-for metr in metr_lst:
-    for groupby_rank in groupby_rank_lst:
-        for sample in samples:
+                        # Calculate pairwise distance
+                        paird=squareform(pdist(df, metric=distance_metric_paird[metr]))
+                        pairds_master["{0}_{1}_{2}_{3}".format(sample, metr, groupby_rank, sample_set)]=paird
 
-            #for sample_set in ["env_samples", "mock_samples"]:
-            for sample_set in ["env_samples"]:
+    #  Calculate congruence among distance matrices
+    paird_cadm_df=paird_cadm(pairds_master)
+else:
+    paird_cadm_df=pd.read_csv(os.path.join(outdir, "cadm_df.csv"), index_col=0)
 
-                # Dic that will contain labels of each sample set
-                labels_sample_set={}
-
-                # 1 Import transformed abundances
-                file = os.path.join(workdir, "pipeline_results_" + sample_set, "rel_abun_" + groupby_rank,
-                    sample + "_rel_abun_" + groupby_rank + "_" + metr + ".csv")
-                df=pd.read_csv(file, index_col="pipeline")
-
-                # Calculate pairwise distance
-                paird=squareform(pdist(df, metric=distance_metric_paird[metr]))
-                pairds_master["{0}_{1}_{2}_{3}".format(sample, metr, groupby_rank, sample_set)]=paird
-
-
-#  Calculate congruence among distance matrices
-paird_cadm_df=paird_cadm(pairds_master)
 
 # Organize df
-category_orders_comb=['M4_DNA_gen_rel_genus','M4_DNA_gen_rel_species',
-    'M5_DNA_gen_rel_genus','M5_DNA_gen_rel_species','M6_DNA_gen_rel_genus',
-    'M6_DNA_gen_rel_species', 'M4_DNA_gen_pa_genus','M4_DNA_gen_pa_species',
-    'M5_DNA_gen_pa_genus','M5_DNA_gen_pa_species','M6_DNA_gen_pa_genus',
-    'M6_DNA_gen_pa_species', 'M4_RNA_gen_rel_genus', 'M4_RNA_gen_rel_species',
-    'M5_RNA_gen_rel_genus', 'M5_RNA_gen_rel_species', 'M6_RNA_gen_rel_genus',
-    'M6_RNA_gen_rel_species', 'M4_RNA_gen_pa_genus', 'M4_RNA_gen_pa_species',
-    'M5_RNA_gen_pa_genus', 'M5_RNA_gen_pa_species', 'M6_RNA_gen_pa_genus',
-    'M6_RNA_gen_pa_species']
-category_orders_comb=[x.replace("gen_", "") for x in category_orders_comb]
-paird_cadm_df.index=paird_cadm_df.index.str.replace("_env_samples", "")
-paird_cadm_df=paird_cadm_df.reindex(index = category_orders_comb)
+category_orders_comb_M=['M4_DNA_rel_genus','M4_DNA_rel_species',
+    'M5_DNA_rel_genus','M5_DNA_rel_species','M6_DNA_rel_genus',
+    'M6_DNA_rel_species', 'M4_DNA_pa_genus','M4_DNA_pa_species',
+    'M5_DNA_pa_genus','M5_DNA_pa_species','M6_DNA_pa_genus',
+    'M6_DNA_pa_species', 'M4_RNA_rel_genus', 'M4_RNA_rel_species',
+    'M5_RNA_rel_genus', 'M5_RNA_rel_species', 'M6_RNA_rel_genus',
+    'M6_RNA_rel_species', 'M4_RNA_pa_genus', 'M4_RNA_pa_species',
+    'M5_RNA_pa_genus', 'M5_RNA_pa_species', 'M6_RNA_pa_genus',
+    'M6_RNA_pa_species']
+category_orders_comb_F=[x.replace("M", "F") + "_env_samples" for x in category_orders_comb_M]
+category_orders_comb_M=[x + "_mock_samples" for x in category_orders_comb_M]
+category_orders_comb_both=category_orders_comb_M+category_orders_comb_F
+paird_cadm_df=paird_cadm_df.reindex(index = category_orders_comb_both)
 paird_cadm_df=paird_cadm_df.transpose()
-paird_cadm_df.index=paird_cadm_df.index.str.replace("_env_samples", "")
-paird_cadm_df=paird_cadm_df.reindex(index = category_orders_comb)
+paird_cadm_df=paird_cadm_df.reindex(index = category_orders_comb_both)
 
 # Plot
-fig_cadm=px.imshow(paird_cadm_df, height=800, width=800)
+fig_cadm=px.imshow(paird_cadm_df, height=1200, width=1200)
 fig_cadm.show()
 fig_cadm.write_image(os.path.join(outdir, "cadm_heatmap.png"))
 
+# Save df
+paird_cadm_df.to_csv(os.path.join(outdir, "cadm_df.csv"))
 
 
 
