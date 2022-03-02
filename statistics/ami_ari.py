@@ -35,36 +35,35 @@ idx=list(labels_master.keys())
 pairwise_ami= pd.DataFrame(squareform(pdist(list(labels_master.values()), dfun_ami)), index=idx, columns=idx).replace(0, 1)
 pairwise_ari = pd.DataFrame(squareform(pdist(list(labels_master.values()), dfun_ari)), index=idx, columns=idx).replace(0, 1)
 
-# Organize dfs
-category_orders_comb=['M4_DNA_gen_rel_genus','M4_DNA_gen_rel_species',
-    'M5_DNA_gen_rel_genus','M5_DNA_gen_rel_species','M6_DNA_gen_rel_genus',
-    'M6_DNA_gen_rel_species', 'M4_DNA_gen_pa_genus','M4_DNA_gen_pa_species',
-    'M5_DNA_gen_pa_genus','M5_DNA_gen_pa_species','M6_DNA_gen_pa_genus',
-    'M6_DNA_gen_pa_species', 'M4_RNA_gen_rel_genus', 'M4_RNA_gen_rel_species',
-    'M5_RNA_gen_rel_genus', 'M5_RNA_gen_rel_species', 'M6_RNA_gen_rel_genus',
-    'M6_RNA_gen_rel_species', 'M4_RNA_gen_pa_genus', 'M4_RNA_gen_pa_species',
-    'M5_RNA_gen_pa_genus', 'M5_RNA_gen_pa_species', 'M6_RNA_gen_pa_genus',
-    'M6_RNA_gen_pa_species']
-category_orders_comb=[x.replace("gen_", "") for x in category_orders_comb]
 
-pairwise_ami.index=pairwise_ami.index.str.replace("_env_samples", "")
-pairwise_ami=pairwise_ami.reindex(index = category_orders_comb)
+# Organize df
+category_orders_comb_M=['M4_DNA_rel_genus','M4_DNA_rel_species',
+    'M5_DNA_rel_genus','M5_DNA_rel_species','M6_DNA_rel_genus',
+    'M6_DNA_rel_species', 'M4_DNA_pa_genus','M4_DNA_pa_species',
+    'M5_DNA_pa_genus','M5_DNA_pa_species','M6_DNA_pa_genus',
+    'M6_DNA_pa_species', 'M4_RNA_rel_genus', 'M4_RNA_rel_species',
+    'M5_RNA_rel_genus', 'M5_RNA_rel_species', 'M6_RNA_rel_genus',
+    'M6_RNA_rel_species', 'M4_RNA_pa_genus', 'M4_RNA_pa_species',
+    'M5_RNA_pa_genus', 'M5_RNA_pa_species', 'M6_RNA_pa_genus',
+    'M6_RNA_pa_species']
+category_orders_comb_F=[x.replace("M", "F") + "_env_samples" for x in category_orders_comb_M]
+category_orders_comb_M=[x + "_mock_samples" for x in category_orders_comb_M]
+category_orders_comb_both=category_orders_comb_M+category_orders_comb_F
+
+pairwise_ami=pairwise_ami.reindex(index = category_orders_comb_both)
 pairwise_ami=pairwise_ami.transpose()
-pairwise_ami.index=pairwise_ami.index.str.replace("_env_samples", "")
-pairwise_ami=pairwise_ami.reindex(index = category_orders_comb)
+pairwise_ami=pairwise_ami.reindex(index = category_orders_comb_both)
 
-pairwise_ari.index=pairwise_ari.index.str.replace("_env_samples", "")
-pairwise_ari=pairwise_ari.reindex(index = category_orders_comb)
+pairwise_ari=pairwise_ari.reindex(index = category_orders_comb_both)
 pairwise_ari=pairwise_ari.transpose()
-pairwise_ari.index=pairwise_ari.index.str.replace("_env_samples", "")
-pairwise_ari=pairwise_ari.reindex(index = category_orders_comb)
+pairwise_ari=pairwise_ari.reindex(index = category_orders_comb_both)
 
 
 # Plot
-fig_ami=px.imshow(pairwise_ami, height=800, width=800)
+fig_ami=px.imshow(pairwise_ami, height=1200, width=1200)
 fig_ami.show()
 fig_ami.write_image(os.path.join(workdir, "ami_heatmap.png"))
 
-fig_ari=px.imshow(pairwise_ari, height=800, width=800)
+fig_ari=px.imshow(pairwise_ari, height=1200, width=1200)
 fig_ari.show()
 fig_ari.write_image(os.path.join(workdir, "ari_heatmap.png"))
