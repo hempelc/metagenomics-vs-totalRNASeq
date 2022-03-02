@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Written by Christopher Hempel (hempelc@uoguelph.ca) on 16 Jul 2021
+# Written by Christopher Hempel (hempelc@uoguelph.ca) on 2 Mar 2022
 
 # This script generates a barplot for read numbers and % of duplicates
 
