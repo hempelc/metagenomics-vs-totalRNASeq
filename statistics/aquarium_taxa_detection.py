@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+
+# Written by Christopher Hempel (hempelc@uoguelph.ca) on 2 Mar 2022
+
+# This script tests if expected genera and species are found among aquarium samples
+
+
 import pandas as pd
 
 workdir='/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_env_samples/'
