@@ -33,9 +33,9 @@ neg_samples=["M_Neg_DNA", "M_Ext_DNA", "M_Neg_RNA", "M_Ext_RNA"]
 neg_sample_reads={"M_Neg_DNA": 682, "M_Neg_RNA": 5200,
     "M_Ext_DNA":  445, "M_Ext_RNA": 2672}
 ## List that indicates at what number of reads was subsampled
-subsample_readnums=[20000, 40000]
+subsample_readnums=[1000]
 ## Indicate if you want to loop over all combinations of genus/species and silva/ncbi and rel/pa (True/False)
-looping=True
+looping=False
 ## If you set looping to False, then define what specific rank, datatype, and database
 ## you want to process:
 rank="genus"
@@ -350,14 +350,21 @@ for subsample_readnum in subsample_readnums:
                 for rep in metrics_reps.keys():
                     ### Make the df
                     metrics_df=metrics_reps[rep].transpose()
-                    ### Standardize by replacing 0s by "impute" (3 orders of magnitude lower than lowest taxon) and taking the centered log ratio
-                    #### If entiro row sum == 0; then multiplicative_replacement doesn't work, in which case we replace 0s manually:
+                    ### Standardize by replacing 0s by "impute" (3 orders of
+                    ### magnitude lower than lowest taxon) and taking the centered
+                    ### log ratio. If entire row sum == 0, then
+                    ### multiplicative_replacement doesn't work, in which case
+                    ### we drop these:
                     metrics_df_rel_std=pd.DataFrame({}, index=metrics_df.index, columns=metrics_df.columns[0:11])
                     for index,row in metrics_df.iterrows():
                         if row.sum()==0:
-                            metrics_df_rel_std.loc[index]=clr(row[0:11].replace(0, impute))
+                            continue
+                            # Or: replace 0s manually
+                            #metrics_df_rel_std.loc[index]=clr(row[0:11].replace(0, impute))
                         else:
                             metrics_df_rel_std.loc[index]=clr(multiplicative_replacement(row[0:11].to_numpy(dtype="float"), delta=impute))
-                    metrics_df_concat=pd.concat([metrics_df_rel_std, metrics_df.iloc[:, 11:]], axis=1)
+                    metrics_df_rel_std=metrics_df_rel_std.dropna()
+                    metrics_df_TP_FP=metrics_df.loc[metrics_df_rel_std.index].iloc[:, 11:]
+                    metrics_df_concat=pd.concat([metrics_df_rel_std, metrics_df_TP_FP], axis=1)
                     ### Save the df
                     metrics_df_concat.to_csv(os.path.join(workdir, str(subsample_readnum), "{0}_{1}_{2}_{3}_metrics_df.csv".format(rep, db, groupby_rank, data_type)), index_label="subsample")
