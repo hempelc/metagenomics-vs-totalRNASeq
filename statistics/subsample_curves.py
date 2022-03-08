@@ -15,9 +15,11 @@ from scipy.spatial.distance import euclidean
 samples = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA"]
 workdir = "/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock_samples_subsamples_curves/"
 ## Subsample read numbers
-subsample_readnums=[1000, 2500, 5000, 10000, 20000, 40000, 60000, 78149]
+subsample_readnums=[1000, 2500, 5000, 10000, 20000, 40000, 60000, 78149, 94633, 120144, 300000, 500000]
 ## Indicate if you want to keep replicates separate
 sep_reps=False
+## If sep_reps=False, indicate if you want to show separate replcates as gray lines
+show_reps=True
 ## Indicate if you want to loop over all 4 combinations of genus/species and cell/gen (True/False)
 looping=True
 ## If you set looping to False, then define what specific rank and datatype and database
@@ -83,7 +85,7 @@ for na in ["RNA", "DNA"]:
                 rep_df=pd.DataFrame()
                 for rep in reps:
                     rep_df=pd.concat([rep_df, master_df[rep]])
-                master_df_no_reps["{0}_{1}_{2}_{3}".format(na, db, groupby_rank, data_type)]=rep_df
+                master_df["{0}_{1}_{2}_{3}".format(na, db, groupby_rank, data_type)]=rep_df
 
 # Plot (taken from https://plotly.com/python/continuous-error-bars/)
 ## Make a plot for each evaluation level and add each sampel as layer in a for loop
@@ -91,13 +93,11 @@ for groupby_rank in groupby_rank_lst:
     for data_type in data_types:
         for db in db_lst:
             fig=go.Figure()
-            if sep_reps==True:
-                dic=master_df
-            else:
-                dic=master_df_no_reps
-            lvls=[x for x in dic.keys() if "{0}_{1}_{2}".format(db, groupby_rank, data_type) in x]
+            lvls=[x for x in master_df.keys() if "{0}_{1}_{2}".format(db, groupby_rank, data_type) in x]
             ## Sort by DNA and RNA
             lvls=[x for x in lvls if "DNA" in x]+[x for x in lvls if "RNA" in x]
+            if sep_reps:
+                lvls=[x for x in lvls if "M" in x]
             for lvl in lvls:
                 if "RNA" in lvl:
                     color='rgba(220,50,32,1)'
@@ -107,34 +107,63 @@ for groupby_rank in groupby_rank_lst:
                     color_err='rgba(0,90,181,0.1)'
                 name=lvl.replace("_{0}_{1}_{2}".format(db, groupby_rank, data_type), '')
                 ## Calculate mean and sd
-                mean=dic[lvl].mean()
+                mean=master_df[lvl].mean()
                 sd=pd.Series()
-                for col in dic[lvl].columns:
-                    col_no_nan=dic[lvl][col].dropna()
+                for col in master_df[lvl].columns:
+                    col_no_nan=master_df[lvl][col].dropna()
                     if len(col_no_nan)==1:
                         sd.loc[col]=0
                     else:
-                        sd.loc[col]=dic[lvl][col].dropna().std()
+                        sd.loc[col]=master_df[lvl][col].dropna().std()
                 mean_plus_sd=mean+sd
                 mean_minus_sd=mean-sd
-                fig.add_trace(
-                    go.Scatter(
-                        name=name,
-                        x=list(dic[lvl].columns),
-                        y=mean,
-                        line=dict(color=color),
-                        mode='lines+markers'))
-                fig.add_trace(
-                    go.Scatter(
-                        x=list(dic[lvl].columns)+list(dic[lvl].columns)[::-1], # x, then x reversed
-                        y=list(mean_plus_sd)+list(mean_minus_sd)[::-1], # upper, then lower reversed
-                        fill='toself',
-                        fillcolor=color_err,
-                        line=dict(color='rgba(255,255,255,0)'),
-                        hoverinfo="skip",
-                        showlegend=False))
+                if not sep_reps:
+                    if "M" in lvl:
+                        if show_reps:
+                            fig.add_trace(
+                                go.Scatter(
+                                    name=name,
+                                    x=list(dic[lvl].columns),
+                                    y=mean,
+                                    line=dict(color='rgba(211,211,211,1)'),
+                                    mode='lines'))
+                    else:
+                        fig.add_trace(
+                            go.Scatter(
+                                name=name,
+                                x=list(master_df[lvl].columns),
+                                y=mean,
+                                line=dict(color=color),
+                                mode='lines+markers'))
+                        fig.add_trace(
+                            go.Scatter(
+                                x=list(master_df[lvl].columns)+list(master_df[lvl].columns)[::-1], # x, then x reversed
+                                y=list(mean_plus_sd)+list(mean_minus_sd)[::-1], # upper, then lower reversed
+                                fill='toself',
+                                fillcolor=color_err,
+                                line=dict(color='rgba(255,255,255,0)'),
+                                hoverinfo="skip",
+                                showlegend=False))
+                else:
+                    fig.add_trace(
+                        go.Scatter(
+                            name=name,
+                            x=list(master_df[lvl].columns),
+                            y=mean,
+                            line=dict(color=color),
+                            mode='lines+markers'))
+                    fig.add_trace(
+                        go.Scatter(
+                            x=list(master_df[lvl].columns)+list(master_df[lvl].columns)[::-1], # x, then x reversed
+                            y=list(mean_plus_sd)+list(mean_minus_sd)[::-1], # upper, then lower reversed
+                            fill='toself',
+                            fillcolor=color_err,
+                            line=dict(color='rgba(255,255,255,0)'),
+                            hoverinfo="skip",
+                            showlegend=False))
             fig.update_layout(title="{0}_{1}_{2}".format(db, groupby_rank, data_type),
                 xaxis_title="Number of reads",
                 yaxis_title="Euclidean distance to reference",
                 legend_title="Sample")
             fig.show()
+            fig.write_image(os.path.join(workdir, "subsample_curves_{0}_{1}_{2}.png".format(db, groupby_rank, data_type)))
