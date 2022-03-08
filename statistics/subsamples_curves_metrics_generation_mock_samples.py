@@ -33,9 +33,10 @@ neg_samples=["M_Neg_DNA", "M_Ext_DNA", "M_Neg_RNA", "M_Ext_RNA"]
 neg_sample_reads={"M_Neg_DNA": 682, "M_Neg_RNA": 5200,
     "M_Ext_DNA":  445, "M_Ext_RNA": 2672}
 ## List that indicates at what number of reads was subsampled
-subsample_readnums=[1000]
+subsample_readnums=[1000, 60000, 10000, 78149, 120144, 94633, 20000, 2500, 300000, 40000, 5000, 500000]
+
 ## Indicate if you want to loop over all combinations of genus/species and silva/ncbi and rel/pa (True/False)
-looping=False
+looping=True
 ## If you set looping to False, then define what specific rank, datatype, and database
 ## you want to process:
 rank="genus"
@@ -279,10 +280,16 @@ for subsample_readnum in subsample_readnums:
 
                 ## 4.3 Substract controls from samples
                 master_dfs_rel_sub={}
-                neg_readnum=neg_sample_reads["M_Neg_DNA"]
-                ext_readnum=neg_sample_reads["M_Ext_DNA"]
                 ### Define which pipeline from negative controls needs to be substracted from samples
                 for sample in samples:
+                    if "DNA" in sample:
+                        neg_filter="M_Neg_DNA"
+                        neg_extraction="M_Ext_DNA"
+                    elif "RNA" in sample:
+                        neg_filter="M_Neg_RNA"
+                        neg_extraction="M_Ext_RNA"
+                    neg_readnum=neg_sample_reads[neg_filter]
+                    ext_readnum=neg_sample_reads[neg_extraction]
                     #### Define used pipeline
                     pip = list(pipelines_df[(pipelines_df["db"] == db) \
                         & (pipelines_df["sample"] == sample)]["{0}_{1}"\
@@ -294,8 +301,8 @@ for subsample_readnum in subsample_readnums:
                     ### control from the samples:
                     #### We're converting counts back to absolute and substract absolute numbers of reads of the negative controls
                     readnum_df=master_dfs_rel[sample]*subsample_readnum
-                    master_dfs_rel_sub[sample]=readnum_df.sub((master_dfs_neg_rel["M_Neg_DNA"]\
-                        [pip]*neg_readnum + master_dfs_neg_rel["M_Ext_DNA"][pip]*ext_readnum), axis=0)
+                    master_dfs_rel_sub[sample]=readnum_df.sub((master_dfs_neg_rel[neg_filter]\
+                        [pip]*neg_readnum + master_dfs_neg_rel[neg_extraction][pip]*ext_readnum), axis=0)
                     ### Convert counts below 0 to 0 (happens if negative control contains more reads than original sample):
                     master_dfs_rel_sub[sample][master_dfs_rel_sub[sample] < 0] = 0
                     ### Convert counts back to relative
