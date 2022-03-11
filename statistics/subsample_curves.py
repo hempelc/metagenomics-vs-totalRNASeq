@@ -15,7 +15,7 @@ from scipy.spatial.distance import euclidean
 samples = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA"]
 workdir = "/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock_samples_subsamples_curves/"
 ## Subsample read numbers
-subsample_readnums=[1000, 2500, 5000, 10000, 20000, 40000, 60000, 78149, 94633, 120144, 300000, 500000]
+subsample_readnums=[1000, 2500, 5000, 10000, 20000, 40000, 60000, 78149, 94633, 120144, 200000]
 ## Indicate if you want to keep replicates separate
 sep_reps=False
 ## If sep_reps=False, indicate if you want to show separate replcates as gray lines
@@ -57,6 +57,8 @@ for sample in samples:
                 for subsample_readnum in subsample_readnums:
                     # Import data
                     file=os.path.join(workdir, str(subsample_readnum), "{0}_{1}_{2}_{3}_metrics_df.csv".format(sample, db, groupby_rank, data_type))
+                    if not os.path.isfile(file):
+                        continue
                     df=pd.read_csv(file, index_col=0)
                     # Drop unwanted columns
                     if data_type=="rel":
@@ -95,7 +97,10 @@ for groupby_rank in groupby_rank_lst:
             fig=go.Figure()
             lvls=[x for x in master_df.keys() if "{0}_{1}_{2}".format(db, groupby_rank, data_type) in x]
             ## Sort by DNA and RNA
-            lvls=[x for x in lvls if "DNA" in x]+[x for x in lvls if "RNA" in x]
+            lvls=[x for x in lvls if "DNA" in x if "M" in x]\
+                +[x for x in lvls if "RNA" in x if "M" in x]\
+                +[x for x in lvls if "DNA" in x if "M" not in x]\
+                +[x for x in lvls if "RNA" in x if "M" not in x]
             if sep_reps:
                 lvls=[x for x in lvls if "M" in x]
             for lvl in lvls:
@@ -118,15 +123,18 @@ for groupby_rank in groupby_rank_lst:
                 mean_plus_sd=mean+sd
                 mean_minus_sd=mean-sd
                 if not sep_reps:
+                    # Add grey lines
                     if "M" in lvl:
                         if show_reps:
                             fig.add_trace(
                                 go.Scatter(
                                     name=name,
-                                    x=list(dic[lvl].columns),
+                                    x=list(master_df[lvl].columns),
                                     y=mean,
                                     line=dict(color='rgba(211,211,211,1)'),
-                                    mode='lines'))
+                                    mode='lines',
+                                    showlegend=False))
+                    # Add actual lines
                     else:
                         fig.add_trace(
                             go.Scatter(
@@ -164,6 +172,6 @@ for groupby_rank in groupby_rank_lst:
             fig.update_layout(title="{0}_{1}_{2}".format(db, groupby_rank, data_type),
                 xaxis_title="Number of reads",
                 yaxis_title="Euclidean distance to reference",
-                legend_title="Sample")
+                legend_title="Sequencing type")
             fig.show()
             fig.write_image(os.path.join(workdir, "subsample_curves_{0}_{1}_{2}.png".format(db, groupby_rank, data_type)))
