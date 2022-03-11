@@ -27,9 +27,9 @@ workdir = "/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mo
 samples = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA",
     "M_Neg_DNA", "M_Neg_RNA", "M_Ext_DNA", "M_Ext_RNA"]
 ## Dic containing number of reads per sample
-sample_reads={"M4_DNA": 1128425, "M4_RNA": 306047, "M5_DNA": 790808, "M5_RNA": 400780,
-    "M6_DNA": 783841, "M6_RNA": 389552, "M_Neg_DNA": 682, "M_Neg_RNA": 5200,
-    "M_Ext_DNA":  445, "M_Ext_RNA": 2672}
+sample_reads={"M4_DNA": 817619, "M4_RNA": 94633, "M5_DNA": 644634, "M5_RNA": 78149,
+    "M6_DNA": 669382, "M6_RNA": 120144, "M_Ext_DNA": 399, "M_Ext_RNA": 887,
+    "M_Neg_DNA": 640, "M_Neg_RNA": 1551}
 ## Indicate if you want to loop over all 4 combinations of genus/species and cell/gen (True/False)
 looping=True
 ## If you set looping to False, then define what specific rank and abundance
@@ -137,21 +137,16 @@ for groupby_rank in groupby_rank_lst:
 
         for sample in samples:
             ## Make a list for all file names in sample dic:
-            sample_files = glob.glob(os.path.join(workdir, sample, "*.txt"))
+            sample_files = glob.glob(os.path.join(workdir, sample, "*.txt*"))
             ## Make a dic that will eventually contain all pipeline dfs and set the first entry to expected community:
             sample_dfs = {"expected": expected_df}
             ## For each file in the sample dic
             for file in sample_files:
                 #### Read in file as pandas df, fill NaN with "NA", "Unknown" by "NA", and fix one taxonomic misambiguation
-                df = pd.read_table(file).fillna("NA").replace("Lactobacillus",
-                    r"Limosilactobacillus", regex=True).replace("Unknown", "NA").replace("-", r"", regex=True)
-                ### Apply a species filter: if a species is not 2 words (contains a space),
-                ### replace species value with "NA"
-                #### Therefore, first get indices of species not containing a space
-                idx=df['species'].str.contains(" ")[df['species'].str.contains(" ") == False].index
-                #### And replace them with "NA" in the df
-                df.loc[idx,'species'] = "NA"
-                ### Cut df down to relevant columns
+                df = pd.read_table(file).replace("Lactobacillus", r"Limosilactobacillus", regex=True)\
+                    .replace("Unknown", "NA").replace("-", r"", regex=True)
+                df=df.rename(columns={df.columns[0]: 'sequence_name'})\
+                    .dropna(subset = ['sequence_name']).fillna("NA")
                 if groupby_rank == "species":
                     df_small = df[["superkingdom", "phylum", "class", "order", "family",
                         "genus", "species", "counts"]]
@@ -163,6 +158,13 @@ for groupby_rank in groupby_rank_lst:
                 if df.empty:
                     df_agg = df_small
                 else:
+                    ### Apply a species filter: if a species is not 2 words (contains a space),
+                    ### replace species value with "NA"
+                    #### Therefore, first get indices of species not containing a space
+                    idx=df['species'].str.contains(" ")[df['species'].str.contains(" ") == False].index
+                    #### And replace them with "NA" in the df
+                    df.loc[idx,'species'] = "NA"
+                    ### Cut df down to relevant columns
                     #### Group similar taxonomy hits and sum their counts:
                     df_agg = df_small.groupby(list(df_small.columns)[:-1]).sum().reset_index()
                     #### Turn counts into relative abundances:
@@ -172,7 +174,7 @@ for groupby_rank in groupby_rank_lst:
                 ### Add all taxa to list "all_taxa"
                 all_taxa.extend(df_agg[groupby_rank].tolist())
                 ### Edit file name so that we can name dfs based on their file name=pipeline
-                pipeline_name = file.split("/")[-1].split(".")[-2].split("trimmed_at_phred_")[1].split("_final")[0].replace("idba_",
+                pipeline_name = file.split("/")[-1].split(".")[0].split("trimmed_at_phred_")[1].split("_final")[0].replace("idba_",
                     "idba-").replace("ncbi_nt", "ncbi-nt").replace("blast_first_hit",
                     "blast-first-hit").replace("blast_filtered", "blast-filtered")
                 ### Add df_agg to the sample_dfs dic with key=pipeline_name
