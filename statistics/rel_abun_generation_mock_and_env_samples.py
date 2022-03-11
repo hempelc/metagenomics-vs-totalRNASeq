@@ -30,20 +30,19 @@ samples_mock = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA",
 samples_env = ["F4_DNA", "F4_RNA", "F5_DNA", "F5_RNA", "F6_DNA", "F6_RNA",
     "F_Neg_DNA", "F_Neg_RNA", "F_Ext_DNA", "F_Ext_RNA"]
 ## Dics containing number of reads per sample
-sample_reads_mock={"M4_DNA": 1128425, "M4_RNA": 306047, "M5_DNA": 790808, "M5_RNA": 400780,
-    "M6_DNA": 783841, "M6_RNA": 389552, "M_Neg_DNA": 682, "M_Neg_RNA": 5200,
-    "M_Ext_DNA":  445, "M_Ext_RNA": 2672}
-sample_reads_env={"F4_DNA": 1535063, "F4_RNA": 4434832, "F5_DNA": 1532542, "F5_RNA": 5052819,
-    "F6_DNA": 1796045, "F6_RNA": 4885790, "F_Neg_DNA": 121, "F_Neg_RNA": 5491,
-    "F_Ext_DNA":  304, "F_Ext_RNA": 5660}
-
+sample_reads_mock={"M4_DNA": 817619, "M4_RNA": 94633,
+    "M5_DNA": 644634, "M5_RNA": 78149, "M6_DNA": 669382, "M6_RNA": 120144,
+    "M_Ext_DNA": 399, "M_Ext_RNA": 887, "M_Neg_DNA": 640, "M_Neg_RNA": 1551}
+sample_reads_env={"F4_DNA": 1355159, "F4_RNA": 1902388, "F5_DNA": 1373310, "F5_RNA": 1099851,
+    "F6_DNA": 1571705, "F6_RNA": 773067, "F_Ext_DNA": 99, "F_Ext_RNA": 2685,
+    "F_Neg_DNA": 157, "F_Neg_RNA": 1137}
 ## Indicate if you want to loop over env and mock (True/False)
-looping_sample=False
+looping_sample=True
 ## If you set looping_rank to False, then define what specific sample set you want
 ## to process (option "mock" or "env"):
 sample_set_name="env"
 ## Indicate if you want to loop over genus and species (True/False)
-looping_rank=False
+looping_rank=True
 ## If you set looping_rank to False, then define what specific rank you want to process:
 ### Taxonomic rank to group rows on. Either based on genus (option "genus")
 ### or on species (option "species"):
@@ -82,23 +81,15 @@ for sample_set in sample_set_name_lst:
         for sample in samples:
             ## Make a list for all file names in sample dic:
             sample_files = glob.glob(os.path.join(workdir, sample, "*.txt*"))
-            ## Make a dic that will eventually contain all pipeline dfs and set the first entry to expected community:
+            ## Make a dic that will eventually contain all pipeline dfs:
             sample_dfs = {}
             ## For each file in the sample dic
             for file in sample_files:
                 #### Read in file as pandas df, fill NaN with "NA", "Unknown" by "NA", and fix one taxonomic misambiguation
-                df = pd.read_table(file)\
-                    .replace("Lactobacillus", r"Limosilactobacillus", regex=True)\
+                df = pd.read_table(file).replace("Lactobacillus", r"Limosilactobacillus", regex=True)\
                     .replace("Unknown", "NA").replace("-", r"", regex=True)
                 df=df.rename(columns={df.columns[0]: 'sequence_name'})\
                     .dropna(subset = ['sequence_name']).fillna("NA")
-                ### Apply a species filter: if a species is not 2 words (contains a space),
-                ### replace species value with "NA"
-                #### Therefore, first get indices of species not containing a space
-                idx=df['species'].str.contains(" ")[df['species'].str.contains(" ") == False].index
-                #### And replace them with "NA" in the df
-                df.loc[idx,'species'] = "NA"
-                ### Cut df down to relevant columns
                 if groupby_rank == "species":
                     df_small = df[["superkingdom", "phylum", "class", "order", "family",
                         "genus", "species", "counts"]]
@@ -110,6 +101,13 @@ for sample_set in sample_set_name_lst:
                 if df.empty:
                     df_agg = df_small
                 else:
+                    ### Apply a species filter: if a species is not 2 words (contains a space),
+                    ### replace species value with "NA"
+                    #### Therefore, first get indices of species not containing a space
+                    idx=df['species'].str.contains(" ")[df['species'].str.contains(" ") == False].index
+                    #### And replace them with "NA" in the df
+                    df.loc[idx,'species'] = "NA"
+                    ### Cut df down to relevant columns
                     #### Group similar taxonomy hits and sum their counts:
                     df_agg = df_small.groupby(list(df_small.columns)[:-1]).sum().reset_index()
                     #### Turn counts into relative abundances:
