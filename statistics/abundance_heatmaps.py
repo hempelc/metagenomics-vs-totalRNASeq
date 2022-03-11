@@ -1,13 +1,19 @@
+#!/usr/bin/env python3
+
+# Written by Christopher Hempel (hempelc@uoguelph.ca) on 9 Mar 2021
+
+# This script processes pipeline data from multiple replicates of environmental
+# samples and compares the respective metrics in heatmaps
+
 import pandas as pd
 import numpy as np
-from scipy.special import softmax
 import math
 import plotly.express as px
-from scipy.spatial.distance import euclidean
 import os
 import copy
 import logging
-
+from scipy.stats import ttest_rel
+from scipy.spatial.distance import euclidean
 
 # Activate logging for debugging
 logging.basicConfig(level=logging.DEBUG,
@@ -22,7 +28,7 @@ samples = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA"]
 types=["DNA", "RNA"]
 reps=["M4", "M5", "M6"]
 # Include silva, ncbi-nt, or both?
-db='ncbi-nt'
+db='silva'
 ## Set if you want to loop over all result combinations of parameters in script
 ## "processing_and_metrics.py" and all metrics (True or False)
 looping=True
@@ -114,6 +120,11 @@ for combination in combinations:
             name="_".join(subsample.replace("_subsample","").split("_")[::-1])
             master_df.loc[name]=subsample_metrics
 
+        # Calculate p-values between DNA and RNA
+        dna_eucdist=master_df[master_df.index.str.contains('DNA')]["euc_dist"]
+        rna_eucdist=master_df[master_df.index.str.contains('RNA')]["euc_dist"]
+        pval=ttest_rel(dna_eucdist, rna_eucdist)[1]
+
 
         # Normalize abundances from 0 to 1
         master_df_norm_w_exp=master_df.apply(diff_norm)
@@ -127,20 +138,20 @@ for combination in combinations:
             non_normalized_col=px.colors.sequential.Viridis
         ## With expected
         ### Normalized
-        fig=px.imshow(master_df_norm_w_exp, color_continuous_scale=["#d80054", "#51a9ff"], text_auto=".2f")
+        fig=px.imshow(master_df_norm_w_exp, color_continuous_scale=["#d80054", "#51a9ff"], text_auto=".2f", title="p=" + str(round(pval, 3)))
         fig.show()
         fig.write_image(os.path.join(exportdir, "abundance_heatmap_norm_w_exp_" + combination_short + "_" + metr + ".png"))
         fig.write_image(os.path.join(exportdir, "abundance_heatmap_norm_w_exp_" + combination_short + "_" + metr + ".svg"))
 
         ### Non-normalized
-        fig=px.imshow(master_df.drop(['euc_dist'], axis=1), color_continuous_scale=non_normalized_col, text_auto=".2f")
+        fig=px.imshow(master_df.drop(['euc_dist'], axis=1), color_continuous_scale=non_normalized_col, text_auto=".2f", title="p=" + str(round(pval, 3)))
         fig.show()
         fig.write_image(os.path.join(exportdir, "abundance_heatmap_w_exp_" + combination_short + "_" + metr + ".png"))
         fig.write_image(os.path.join(exportdir, "abundance_heatmap_w_exp_" + combination_short + "_" + metr + ".svg"))
         #### Plot eucdist separately on different colourscale to make it distinguishable
         eucdist_df=copy.deepcopy(master_df)
         eucdist_df["random"]=np.random.randint(master_df["euc_dist"].max(), size=len(master_df))
-        fig=px.imshow(eucdist_df.loc[:, "euc_dist":"random"], color_continuous_scale=px.colors.sequential.Reds_r[1:], text_auto=".2f")
+        fig=px.imshow(eucdist_df.loc[:, "euc_dist":"random"], color_continuous_scale=px.colors.sequential.Reds_r[1:], text_auto=".2f", title="p=" + str(round(pval, 3)))
         fig.show()
         fig.write_image(os.path.join(exportdir, "abundance_heatmap_w_exp_" + combination_short + "_" + metr + "_euc_dist.png"))
         fig.write_image(os.path.join(exportdir, "abundance_heatmap_w_exp_" + combination_short + "_" + metr + "_euc_dist.svg"))
