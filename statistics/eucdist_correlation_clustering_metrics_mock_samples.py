@@ -37,6 +37,8 @@ workdir="/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock
 samples = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA"]
 types=["DNA", "RNA"]
 reps=["M4", "M5", "M6"]
+# Indicate which databases you want to include (silva, ncbi_nt, both)
+db="silva"
 ## Set if you want to loop over all result combinations of parameters in script
 ## "processing_and_metrics.py" and all metrics (True or False)
 looping=True
@@ -97,6 +99,10 @@ for combination in combinations:
             # 1 Import data
             ## Import metrics df
             metrics_df=pd.read_csv(os.path.join(workdir, "metrics_" + combination, sample + "_metrics_df.csv"), index_col=0)
+            if db=="silva":
+                metrics_df=metrics_df[~metrics_df.index.str.contains("ncbi-nt")]
+            elif db=="ncbi-nt":
+                metrics_df=metrics_df[~metrics_df.index.str.contains("silva")]
             ## Convert trimming score column type into str
             metrics_df['trimming_score'] = metrics_df['trimming_score'].astype(str)
             ### Drop additional ones specified by parameter "metr" and set expected dummy
