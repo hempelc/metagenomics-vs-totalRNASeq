@@ -24,17 +24,11 @@ logging.basicConfig(level=logging.DEBUG,
 # Parameters set manually
 ## Full path to directory that contains samples
 workdir = "/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock_samples_subsamples_curves/"
-## Lists of DNA and RNA mock community samples, replicates of 3 plus filtration controls (Neg) and
-## extraction controls (Ext); must equal names of directories in workdir that
-## contain each sample's pipeline results:
-samples = ["M4_DNA", "M5_DNA", "M6_DNA", "M4_RNA", "M5_RNA", "M6_RNA"]
-neg_samples=["M_Neg_DNA", "M_Ext_DNA", "M_Neg_RNA", "M_Ext_RNA"]
 ## Dic containing number of reads per negative control
-neg_sample_reads={"M_Neg_DNA": 682, "M_Neg_RNA": 5200,
-    "M_Ext_DNA":  445, "M_Ext_RNA": 2672}
+neg_sample_reads={"M_Neg_DNA": 640, "M_Neg_RNA": 1551,
+    "M_Ext_DNA": 399, "M_Ext_RNA": 887}
 ## List that indicates at what number of reads was subsampled
-subsample_readnums=[1000, 60000, 10000, 78149, 120144, 94633, 20000, 2500, 300000, 40000, 5000, 500000]
-
+subsample_readnums=[300000, 400000, 500000, 600000, 644634, 669382, 817619]
 ## Indicate if you want to loop over all combinations of genus/species and silva/ncbi and rel/pa (True/False)
 looping=True
 ## If you set looping to False, then define what specific rank, datatype, and database
@@ -132,10 +126,15 @@ for subsample_readnum in subsample_readnums:
                 master_dfs_raw = {} # Empty dic that will eventually contain all samples' raw pipelines output
                 all_taxa = [] # Empty list that will eventually contain all taxa that appear in all samples
 
+                subsample_dir=os.path.join(workdir, str(subsample_readnum))
+                ## Define samples
+                samples=[f.split('/')[-2] for f in glob.glob(os.path.join(subsample_dir, "*/")) if "M4" in f or "M5" in f or "M6" in f]
+                neg_samples=[f.split('/')[-2] for f in glob.glob(os.path.join(subsample_dir, "*/")) if "M_" in f]
+
                 for sample in samples:
-                    subsample_dir=os.path.join(str(subsample_readnum), sample)
+                    sample_dir=os.path.join(subsample_dir, sample)
                     ## Make a list for all file names in sample dic:
-                    sample_files = glob.glob(os.path.join(workdir, subsample_dir, "*", db, groupby_rank + "_" + data_type, "*.txt"))
+                    sample_files = glob.glob(os.path.join(sample_dir, "*", db, groupby_rank + "_" + data_type, "*.txt"))
                     ## Make a dic that will eventually contain all pipeline dfs and set the first entry to expected community:
                     sample_dfs = {"expected": expected_df}
                     ## For each file in the sample dic
@@ -181,7 +180,7 @@ for subsample_readnum in subsample_readnums:
                 master_dfs_neg_raw = {} # Empty dic that will eventually contain all samples' raw pipelines output
                 for neg_sample in neg_samples:
                     ## Make a list for all file names in sample dic:
-                    neg_sample_files = glob.glob(os.path.join(workdir, str(subsample_readnum), neg_sample, "*.txt"))
+                    neg_sample_files = glob.glob(os.path.join(subsample_dir, neg_sample, "*.txt"))
                     ## For each file in the sample dic
                     neg_sample_dfs={}
                     for file in neg_sample_files:
