@@ -28,6 +28,8 @@ logging.basicConfig(level=logging.DEBUG,
 # Parameters set manually
 ## Full path to directory that contains samples
 workdir = "/Users/christopherhempel/Desktop/pipeline_results"
+## Clusters labels in pickel object available?
+pickle_clusters=False
 ## Directory for cluster plots
 outdir = os.path.join(workdir, "cluster_comparison_results")
 if not os.path.exists(outdir):
@@ -62,13 +64,14 @@ else:
     sample_sets=[sets]
 
 
-# Dict that will contain all labels and distance matrices (load if run for otehr ranks):
-pickle_dic=os.path.join(outdir, "labels_master.pkl")
-if not os.path.exists(pickle_dic):
-    labels_master={}
-else:
+# Load pickel dict if available
+if pickle_clusters:
+    pickle_dic=os.path.join(outdir, "labels_master.pkl")
     with open(pickle_dic, 'rb') as f:
         labels_master = pickle.load(f)
+else:
+    labels_master={}
+
 
 for metr in metr_lst:
     if metr=="rel":
