@@ -25,6 +25,8 @@ workdir="/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock
 # Parameters auto setting
 ## List of DNA and RNA mock community samples, replicates of 3; must equal names of directories in workdir that
 ## contain each sample's pipeline results:
+# Indicate if you want to just highlight the best min or also mean (True/False)
+both=False
 aggs=["agg_reps_agg_type", "agg_reps_sep_type", "sep_reps_agg_type", "sep_reps_sep_type"]
 levels=["gen_genus", "gen_species"]
 metr_lst=["rel", "pa"]
@@ -128,11 +130,16 @@ for agg in aggs:
     tool_eval_master_df.loc[tool_eval_master_df["p-value"] > 0.05, 'size_lvl'] = 0.03
 
     #### Make col for category of lowest euc dist
-    tool_eval_master_df.loc[(tool_eval_master_df["mean_euc_dist_lowest"] == "yes") & (tool_eval_master_df["min_euc_dist_lowest"] == "yes") , 'euc_dist_category'] = "both"
-    tool_eval_master_df.loc[(tool_eval_master_df["mean_euc_dist_lowest"] == "no") & (tool_eval_master_df["min_euc_dist_lowest"] == "no") , 'euc_dist_category'] = "none"
-    tool_eval_master_df.loc[(tool_eval_master_df["mean_euc_dist_lowest"] == "yes") & (tool_eval_master_df["min_euc_dist_lowest"] == "no") , 'euc_dist_category'] = "mean"
-    tool_eval_master_df.loc[(tool_eval_master_df["mean_euc_dist_lowest"] == "no") & (tool_eval_master_df["min_euc_dist_lowest"] == "yes") , 'euc_dist_category'] = "min"
-
+    if both:
+        tool_eval_master_df.loc[(tool_eval_master_df["mean_euc_dist_lowest"] == "yes") & (tool_eval_master_df["min_euc_dist_lowest"] == "yes") , 'euc_dist_category'] = "both"
+        tool_eval_master_df.loc[(tool_eval_master_df["mean_euc_dist_lowest"] == "no") & (tool_eval_master_df["min_euc_dist_lowest"] == "no") , 'euc_dist_category'] = "none"
+        tool_eval_master_df.loc[(tool_eval_master_df["mean_euc_dist_lowest"] == "yes") & (tool_eval_master_df["min_euc_dist_lowest"] == "no") , 'euc_dist_category'] = "mean"
+        tool_eval_master_df.loc[(tool_eval_master_df["mean_euc_dist_lowest"] == "no") & (tool_eval_master_df["min_euc_dist_lowest"] == "yes") , 'euc_dist_category'] = "min"
+    else:
+        tool_eval_master_df.loc[(tool_eval_master_df["mean_euc_dist_lowest"] == "yes") & (tool_eval_master_df["min_euc_dist_lowest"] == "yes") , 'euc_dist_category'] = "min"
+        tool_eval_master_df.loc[(tool_eval_master_df["mean_euc_dist_lowest"] == "no") & (tool_eval_master_df["min_euc_dist_lowest"] == "no") , 'euc_dist_category'] = "none"
+        tool_eval_master_df.loc[(tool_eval_master_df["mean_euc_dist_lowest"] == "yes") & (tool_eval_master_df["min_euc_dist_lowest"] == "no") , 'euc_dist_category'] = "none"
+        tool_eval_master_df.loc[(tool_eval_master_df["mean_euc_dist_lowest"] == "no") & (tool_eval_master_df["min_euc_dist_lowest"] == "yes") , 'euc_dist_category'] = "min"
     total_counts_master_df.reset_index(inplace=True)
 
 
@@ -168,12 +175,15 @@ for agg in aggs:
             'M6_RNA_gen_genus_pa']
     ## 2.1 Tool evaluation:
     ### Invert pval for graph (otherwise bubbles with good p-value are not visible):
-    #tool_eval_master_df["p-value"]=1-tool_eval_master_df["p-value"]
+    if both:
+        color_discrete_map={'none': "lightgrey", 'min': "#0187b3", 'mean': "#e3c284", "both": "#cc0035"}
+    else:
+        color_discrete_map={'none': "lightgrey", 'min': "#cc0035"}
     fig_tool_eval = px.scatter(tool_eval_master_df, x="combination", y="tool",
     	         size="size_lvl", color="euc_dist_category",
                  hover_name="mean_euc_dist", size_max=28, height=1350, width=width,
                  category_orders={"tool": category_orders_tool_eval_tool, "combination": category_orders_comb},
-                 color_discrete_map={'none': "lightgrey", 'min': "#0187b3", 'mean': "#e3c284", "both": "#cc0035"})
+                 color_discrete_map=color_discrete_map)
     fig_tool_eval.update_traces(marker=dict(line=dict(width=0,color='black')), selector=dict(mode='markers'))
     fig_tool_eval.write_image(os.path.join(plotdir_level2, agg + "_bubbleplot_tool_eval.svg"))
     fig_tool_eval.write_image(os.path.join(plotdir_level2, agg + "_bubbleplot_tool_eval.png"))
