@@ -28,8 +28,8 @@ workdir = "/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mo
 samples = ["M4_DNA_subsample", "M5_DNA_subsample", "M6_DNA_subsample"]
 neg_samples=["M_Neg_DNA", "M_Ext_DNA"]
 ## Dic containing number of reads per sample
-sample_reads={"M4_DNA_subsample": 306047, "M5_DNA_subsample": 400780,
-    "M6_DNA_subsample": 389552, "M_Neg_DNA": 682, "M_Ext_DNA": 445}
+sample_reads={"M4_DNA_subsample": 94633, "M5_DNA_subsample": 78149,
+    "M6_DNA_subsample": 120144, "M_Neg_DNA": 640, "M_Ext_DNA": 399}
 ## Indicate if you want to loop over genus and species (True/False)
 looping=True
 ## If you set looping to False, then define what specific rank and abundance
@@ -118,7 +118,10 @@ for groupby_rank in groupby_rank_lst:
 
         for sample in samples:
             ## Make a list for all file names in sample dic:
-            sample_files = glob.glob(os.path.join(workdir, sample, "*", groupby_rank + "_" + data_type, "*", "*.txt"))
+            if "M_" in sample:
+                sample_files = glob.glob(os.path.join(workdir, sample, "*.txt*"))
+            else:
+                sample_files = glob.glob(os.path.join(workdir, sample, "*", groupby_rank + "_" + data_type, "*", "*.txt"))
             ## Make a dic that will eventually contain all pipeline dfs and set the first entry to expected community:
             sample_dfs = {"expected": expected_df}
             ## For each file in the sample dic
