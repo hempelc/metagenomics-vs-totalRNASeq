@@ -9,24 +9,49 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objs as go
 from scipy.spatial.distance import euclidean
+import statsmodels.api as sm
+from scipy.stats import ttest_rel
 
 
 # Parameters set manually
 samples = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA"]
 workdir = "/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock_samples_subsamples_curves/"
 ## Subsample read numbers
-subsample_readnums=[1000, 2500, 5000, 10000, 20000, 40000, 60000, 78149, 94633, 120144, 200000]
+subsample_readnums=[1000, 2500, 5000, 10000, 20000, 40000, 60000, 78149, 94633,
+    120144, 200000, 300000, 400000, 500000, 600000, 644634, 669382, 817619]
+## Regression calc based on # of reads
+reg_reads=120144
 ## Indicate if you want to keep replicates separate
 sep_reps=False
 ## If sep_reps=False, indicate if you want to show separate replcates as gray lines
 show_reps=True
+## Indicate if you don't want to show euc_dist for up to 40k reads
+fourtyk=False
 ## Indicate if you want to loop over all 4 combinations of genus/species and cell/gen (True/False)
 looping=True
 ## If you set looping to False, then define what specific rank and datatype and database
 ## you want to process:
-rank="genus"
+rank="species"
 database="silva"
 dt_type="rel"
+
+# Adding regression curves for data until 120,144 reads
+def add_reg(mean, colour):
+    mean_sub=mean.loc[:reg_reads]
+    y_reg=mean_sub
+    x_reg=mean_sub.index
+    fit_results=sm.OLS(y_reg, sm.add_constant(x_reg), missing="drop").fit()
+    const = round(fit_results.params["const"], 2)
+    coeff = round(fit_results.params["x1"], 8)
+    fun="{0}+{1}*x".format(const, coeff)
+    y_pred = fit_results.predict()
+    fig.add_trace(
+        go.Scatter(
+            name=fun,
+            x=x_reg,
+            y=y_pred,
+            line=dict(color=colour, dash='dash'),
+            mode='lines'))
 
 
 # Parameters set automatically
@@ -94,6 +119,8 @@ for na in ["RNA", "DNA"]:
 for groupby_rank in groupby_rank_lst:
     for data_type in data_types:
         for db in db_lst:
+            diffs=pd.DataFrame(index=['diff'])
+            coeffs=pd.DataFrame(index=['coef'])
             fig=go.Figure()
             lvls=[x for x in master_df.keys() if "{0}_{1}_{2}".format(db, groupby_rank, data_type) in x]
             ## Sort by DNA and RNA
@@ -104,6 +131,10 @@ for groupby_rank in groupby_rank_lst:
             if sep_reps:
                 lvls=[x for x in lvls if "M" in x]
             for lvl in lvls:
+                if not fourtyk:
+                    cols=[x for x in master_df[lvl].columns if x >= 40000]
+                else:
+                    cols=master_df[lvl].columns
                 if "RNA" in lvl:
                     color='rgba(220,50,32,1)'
                     color_err='rgba(220,50,32,0.1)'
@@ -112,16 +143,25 @@ for groupby_rank in groupby_rank_lst:
                     color_err='rgba(0,90,181,0.1)'
                 name=lvl.replace("_{0}_{1}_{2}".format(db, groupby_rank, data_type), '')
                 ## Calculate mean and sd
-                mean=master_df[lvl].mean()
+                mean=master_df[lvl].loc[:, cols].mean()
                 sd=pd.Series()
-                for col in master_df[lvl].columns:
+                for col in cols:
                     col_no_nan=master_df[lvl][col].dropna()
                     if len(col_no_nan)==1:
                         sd.loc[col]=0
                     else:
-                        sd.loc[col]=master_df[lvl][col].dropna().std()
+                        sd.loc[col]=col_no_nan.std()
                 mean_plus_sd=mean+sd
                 mean_minus_sd=mean-sd
+                ## Save coefficients of replicates
+                mean_sub=mean.loc[:reg_reads]
+                y_reg=mean_sub
+                x_reg=mean_sub.index
+                fit_results=sm.OLS(y_reg, sm.add_constant(x_reg), missing="drop").fit()
+                const = fit_results.params["const"]
+                coef = fit_results.params["x1"]
+                if "M" in lvl:
+                    coeffs[lvl]=coef
                 if not sep_reps:
                     # Add grey lines
                     if "M" in lvl:
@@ -129,49 +169,61 @@ for groupby_rank in groupby_rank_lst:
                             fig.add_trace(
                                 go.Scatter(
                                     name=name,
-                                    x=list(master_df[lvl].columns),
+                                    x=list(cols),
                                     y=mean,
                                     line=dict(color='rgba(211,211,211,1)'),
                                     mode='lines',
                                     showlegend=False))
-                    # Add actual lines
                     else:
+                        # Add actual lines
                         fig.add_trace(
                             go.Scatter(
                                 name=name,
-                                x=list(master_df[lvl].columns),
+                                x=list(cols),
                                 y=mean,
                                 line=dict(color=color),
                                 mode='lines+markers'))
                         fig.add_trace(
                             go.Scatter(
-                                x=list(master_df[lvl].columns)+list(master_df[lvl].columns)[::-1], # x, then x reversed
+                                x=list(cols)+list(cols)[::-1], # x, then x reversed
                                 y=list(mean_plus_sd)+list(mean_minus_sd)[::-1], # upper, then lower reversed
                                 fill='toself',
                                 fillcolor=color_err,
                                 line=dict(color='rgba(255,255,255,0)'),
                                 hoverinfo="skip",
                                 showlegend=False))
+                        # Add regression line
+                        add_reg(mean, "black")
                 else:
                     fig.add_trace(
                         go.Scatter(
                             name=name,
-                            x=list(master_df[lvl].columns),
+                            x=list(cols),
                             y=mean,
                             line=dict(color=color),
                             mode='lines+markers'))
                     fig.add_trace(
                         go.Scatter(
-                            x=list(master_df[lvl].columns)+list(master_df[lvl].columns)[::-1], # x, then x reversed
+                            x=list(cols)+list(cols)[::-1], # x, then x reversed
                             y=list(mean_plus_sd)+list(mean_minus_sd)[::-1], # upper, then lower reversed
                             fill='toself',
                             fillcolor=color_err,
                             line=dict(color='rgba(255,255,255,0)'),
                             hoverinfo="skip",
                             showlegend=False))
-            fig.update_layout(title="{0}_{1}_{2}".format(db, groupby_rank, data_type),
+                    # Add regression line
+                    add_reg(mean, "black")
+
+            # Calculate p-values between DNA and RNA coefficients at 120k reads
+            coeffs=coeffs.transpose()
+            dna_coeffs=coeffs[coeffs.index.str.contains('DNA')]["coef"]
+            rna_coeffs=coeffs[coeffs.index.str.contains('RNA')]["coef"]
+            pval_coef=ttest_rel(dna_coeffs, rna_coeffs)[1]
+
+            fig.update_layout(title="{0}_{1}_{2}, pval={3}".format(db, groupby_rank, data_type, round(pval_coef, 3)),
                 xaxis_title="Number of reads",
                 yaxis_title="Euclidean distance to reference",
-                legend_title="Sequencing type")
+                legend_title="Sequencing type", template="simple_white")
             fig.show()
-            fig.write_image(os.path.join(workdir, "subsample_curves_{0}_{1}_{2}.png".format(db, groupby_rank, data_type)))
+            fig.write_image(os.path.join(workdir, "subsample_curves_{0}_{1}_{2}.png".format(db, groupby_rank, data_type)), height=600, width=1200)
+            fig.write_image(os.path.join(workdir, "subsample_curves_{0}_{1}_{2}.svg".format(db, groupby_rank, data_type)), height=600, width=1200)
