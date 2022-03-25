@@ -4,9 +4,9 @@ The repo contains scripts to run pipelines on compute canada clusters or locally
 
 The workflow from sample preparation to accuracy evaluation is shown in the following:
 
-<img src="https://github.com/hempelc/metagenomics-vs-totalRNASeq/blob/master/workflow.png" alt="workflow" width="400"/>
+<img src="https://github.com/hempelc/metagenomics-vs-totalRNASeq/blob/master/workflow.png" alt="workflow" width="100"/>
 
-The processed pipelines are combinations of typically utilized data-processing tools, and the following figure gives an overview of the tested tools per processing step. All combinations of tools were tested, resulting in 3,064 tested pipelines.
+The processed pipelines are combinations of typically utilized data-processing tools, and the following figure gives an overview of the tested tools per processing step. All combinations of tools were tested, resulting in 1,536 tested pipelines.
 
 <img src="https://github.com/hempelc/metagenomics-vs-totalRNASeq/blob/master/pipeline_steps.png" alt="pipelines" width="800"/>
 
