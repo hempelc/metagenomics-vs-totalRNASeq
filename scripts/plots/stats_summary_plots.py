@@ -25,7 +25,7 @@ workdir="/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock
 # Parameters auto setting
 ## List of DNA and RNA mock community samples, replicates of 3; must equal names of directories in workdir that
 ## contain each sample's pipeline results:
-# Indicate if you want to just highlight the best min or also mean (True/False)
+# Indicate if you want to just highlight the best min (False) or also mean (True)
 both=False
 aggs=["agg_reps_agg_type", "agg_reps_sep_type", "sep_reps_agg_type", "sep_reps_sep_type"]
 levels=["gen_genus", "gen_species"]

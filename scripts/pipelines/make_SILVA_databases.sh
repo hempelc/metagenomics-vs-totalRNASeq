@@ -2,9 +2,9 @@
 
 # Script to set up a SILVA SSU and LSU NR99 BLASTand kraken2 DB
 
-# Usage: db)make_test.sh path_to_new_kraken2_DB path_and_name_for_new_generated_DB
+# Usage: make_SILVA_databases.sh path_to_new_kraken2_DB path_to_new_BLAST_DB
 
-# Set variable to path name for generated SILVA kraken2 DB
+# Set variable to path name for generated SILVA kraken2 and BLAST DB
 # Note: kraken2 won't work if the DB is moved after building
 kraken2DB=$1
 blastDB=$2
@@ -321,10 +321,12 @@ cp nodes.dmp names.dmp $kraken2DB/taxonomy # Prepare the taxonomy for the kraken
 kraken2-build --add-to-library SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_kraken2.fasta --db $kraken2DB
 kraken2-build --build --db $kraken2DB
 
+# Make the blast DB
 mkdir $blastDB
 cd $blastDB
-# Make the blast DB
 makeblastdb -dbtype 'nucl' -in ../SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta \
 -parse_seqids -taxid_map ../SILVA_accession_numbers_and_NCBI_taxids.txt \
 -out $(basename $blastDB)
 cd ..
+
+echo "Databse setup done."
