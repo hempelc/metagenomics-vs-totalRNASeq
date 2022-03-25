@@ -3,22 +3,32 @@
 # Version 0.1
 # Written by Natalie Wright (nwrigh06@uoguelph.ca) and Chris Hempel (hempelc@uoguelph.ca)
 
-# This is a pipeline for Chris Hempel's first PhD chapter to be run on the Steinke server
+# This script was designed for Chris Hempel's first PhD chapter to run any combination
+# of specified data-processing tools on metagenomcis and total RNA-Seq data
 
-# It takes in lines of a separate file containing combinations of the pipeline steps that are to be run
-
-# The output is a folder called "${pipeline}"_FINAL_FILES/
+# The output is a folder named after the specified pipeline
 # that contains tab-separated, taxonomically annotated scaffolds and read counts
 # for the specified pipeline.
 
-# To run every possible combination of tools, the pipeline requires the following
-# subscripts, which are all located in the subscripts/ directory:
-	# assign_NCBI_staxids_to_CREST_v4.py, fasta_to_tab, mergeFilesOnColumn.pl,
-	# assign_taxonomy_to_NCBI_staxids.sh  fastqc_on_R1_R2_and_optional_trimming.sh,
-	# merge_on_outer.py, blast_filtering.bash, filter-fasta.awk,
-	# deinterleave_fastq_reads.sh, LookupTaxonDetails3.py
+# The pipleine that is to be run should be given in the following format:
+# "PHREDScore-rRNASortingTool-AssemblyTool-Mapper-ClassificationTool"
+# You can choose from the following options:
+	# PHREDScore: 5, 10, 15, 20
+	# rRNASortingTool: barrnap, rrnafilter, sortmerna, unsorted
+	# AssemblyTool: megahit, metaspades, spades, rnaspades, trinity, idba_ud, idba_tran, transabyss
+	# Mapper: bwa, bowtie2
+	# ClassificationTool: blast_filtered, blast_first_hit, kraken2
 
-# To run every possible combination of tools, the pipeline requires the following
+
+# The pipelines require the following subscripts, which are all located in the
+# subscripts/ directory:
+	# assign_taxonomy_to_NCBI_staxids.sh, blast_filter.py, fasta_to_tab,
+	# fastqc_on_R1_R2_and_optional_trimming.sh, filter-fasta.awk,
+	# deinterleave_fastq_reads.sh, LookupTaxonDetails3.py, merge_on_outer.py,
+	# mergeFilesOnColumn.pl
+
+
+# To run every possible combination of tools, the pipelines require the following
 # programs/python packages (versions we used when writing this script are
 # indicated in brackets):
 	# FastQC (0.11.5), Trimmomatic (0.33), sortmeRNA (4.0.0), barrnap (0.9),
@@ -34,24 +44,33 @@
 	# http://seqanswers.com/forums/showthread.php?t=29109, and see also
 	# https://github.com/loneknightpy/idba/issues/26
 
+# The pipelines also require the file <PATH/TO/.etetoolkit/taxa.sqlite>,
+# which is generated in the home directory when ete3 is run for the first time.
+# Note that we installed ete3 in a conda environment and activate the conda
+# environment within this script.
+
+# rRNAFilter only worked for us when we started it within the directory
+# containing the rRNAFilter.jar file. Therefore, we cope it from it's current
+# location within the script.
+
+# Adapt default options below as necessary.
+
+
 cmd="$0 $@" # Make variable containing the entire entered command to print command to logfile
 usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> \
--P <line from external file with pipeline tools to use> -N <NCBI_NT BLAST database> \
--S <SILVA BLAST databse> -n <NCBI_NT kraken2 database> -s <SILVA kraken2 database> \
+-P <pipeline> -S <SILVA BLAST database> -s <SILVA kraken2 database> \
 -B <SILVA SortMeRNA LSU bacteria database> -b <SILVA SortMeRNA SSU bacteria database> \
 -A <SILVA SortMeRNA LSU archaea database> -a <SILVA SortMeRNA SSU archaea database> \
 -E <SILVA SortMeRNA LSU eukaryota database> -e <SILVA SortMeRNA SSU eukaryota database> \
 -R <SILVA SortMeRNA rfam 5.8S database> -r <SILVA SortMeRNA rfam 5S database> \
--T <PATH/TO/trimmomatic-<version>.jar)> \
--t <PATH/TO/.etetoolkit/taxa.sqlite> -m <nnnG>[-p <n>]
+-T <PATH/TO/trimmomatic-<version>.jar)> -i <PATH/TO/rRNAFilter directory)>\
+-t <PATH/TO/.etetoolkit/taxa.sqlite> -m <nnnG> [-p <n>]
 
 Usage:
 	-1 Full path to forward reads in .fastq/.fq format
 	-2 Full path to reverse reads in .fastq/.fq format
 	-P Pipeline tools
-	-N Path to NCBI_NT database for BLAST
 	-S Path to SILVA database for BLAST
-	-n Path to NCBI_NT database for kraken2
 	-s Path to SILVA database for kraken2
 	-B Path to bacteria LSU SILVA database for SortMeRNA (comes with SortMeRNA, silva-bac-23s-id98.fasta)
 	-b Path to bacteria SSU SILVA database for SortMeRNA (comes with SortMeRNA, silva-bac-16s-id90.fasta)
@@ -63,6 +82,7 @@ Usage:
 	-r Path to rfam 5S database for SortMeRNA (comes with SortMeRNA, rfam-5s-database-id98.fasta)
 	-T Path to trimmomatic application (trimmomatic-<version>.jar)
 	-t Path to .etetoolkit/taxa.sqlite
+	-i Path to rRNAFilter directory
 	-m Maximum memory (format: XXXG, where XXX is a numerical value for teh emmory in Gigabyte)
 	-p Number of threads (default:16)
 	-h Display this help and exit"
@@ -70,9 +90,7 @@ Usage:
 # Set default options:
 threads='16'
 pipeline="20-unsorted-spades-bwa-silva-kraken2"
-ncbi_nt_blast_db="/hdd2/databases/nt_database_14_Feb_2021_indexed/nt"
 silva_blast_db="/hdd2/databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_BLAST_DB_Jul_2021/blastdb"
-ncbi_nt_kraken2_db="/hdd2/databases/kraken2_nt_DB"
 silva_kraken2_db="/hdd2/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Jul_2021/"
 silva_sortmerna_bac_lsu="/hdd2/databases/sortmerna_silva_databases/silva-bac-23s-id98.fasta"
 silva_sortmerna_bac_ssu="/hdd2/databases/sortmerna_silva_databases/silva-bac-16s-id90.fasta"
@@ -94,9 +112,7 @@ while getopts ':1:2:P:N:S:n:s:B:b:A:a:E:e:R:r:x:F:f:T:t:i:m:p:h' opt; do
 		1) forward_reads="${OPTARG}" ;;
 		2) reverse_reads="${OPTARG}" ;;
 		P) pipeline="${OPTARG}" ;;
-		N) ncbi_nt_blast_db="${OPTARG}" ;;
 		S) silva_blast_db="${OPTARG}" ;;
-		n) ncbi_nt_kraken2_db="${OPTARG}" ;;
 		s) silva_kraken2_db="${OPTARG}" ;;
 		B) silva_sortmerna_bac_lsu="${OPTARG}" ;;
 		b) silva_sortmerna_bac_ssu="${OPTARG}" ;;
@@ -125,15 +141,13 @@ shift $((OPTIND - 1))
 
 # Check if required options are set:
 if [[ -z $forward_reads || -z $reverse_reads || -z $pipeline \
-|| -z $ncbi_nt_blast_db || -z $silva_blast_db || -z $ncbi_nt_kraken2_db \
-|| -z $silva_kraken2_db || -z $silva_sortmerna_bac_lsu \
+|| -z $silva_blast_db || -z $silva_kraken2_db || -z $silva_sortmerna_bac_lsu \
 || -z $silva_sortmerna_bac_ssu || -z $silva_sortmerna_arc_lsu \
 || -z $silva_sortmerna_arc_ssu || -z $silva_sortmerna_euk_lsu \
 || -z $silva_sortmerna_euk_ssu || -z $silva_sortmerna_rfam_5 \
-|| -z $silva_sortmerna_rfam_5_8 \
-|| -z $trimmomatic || -z $etetoolkit || -z $rrnafil \
+|| -z $silva_sortmerna_rfam_5_8 || -z $trimmomatic || -z $etetoolkit || -z $rrnafil \
 || -z $memory ]]; then
-   echo -e "-1, -2, -P, -N, -S, -n, -s, -B, -b, -A, -a, -E, -e, -R, -r, -T, -t, -i, -m, and -p must be set.\n"
+   echo -e "-1, -2, -P, -S, -s, -B, -b, -A, -a, -E, -e, -R, -r, -T, -t, -i, -m, and -p must be set.\n"
    echo -e "$usage\n\n"
    echo -e "Exiting script.\n"
    exit
@@ -144,8 +158,7 @@ trimming=$(echo $pipeline | cut -f1 -d-)
 sorting=$(echo $pipeline | cut -f2 -d-)
 assembly=$(echo $pipeline | cut -f3 -d-)
 mapping=$(echo $pipeline | cut -f4 -d-)
-db=$(echo $pipeline | cut -f5 -d-)
-classification=$(echo $pipeline | cut -f6 -d-)
+classification=$(echo $pipeline | cut -f5 -d-)
 
 # Define functions to print steps with time
 start=$(date +%s)
@@ -260,8 +273,6 @@ if [[ ${sorting} == "sortmerna" ]]; then
 
 elif [[ ${sorting} == "rrnafilter" ]]; then
 	step_description_and_time_first "RUNNING rRNAFILTER"
-	mkdir rRNAFILTER/
-	cd rRNAFILTER/
 	# rRNAFilter only worked for us when we started it within the directory
 	# containing the .jar file. To simplify switching to that directory, we copy
 	# it from its location to the pwd:
@@ -500,29 +511,20 @@ step_description_and_time_first "FINISHED STEP 4: MAPPING"
 
 ######################### Steps 5 and 6.1: Picking a referencd DB and taxonomic classification ################################
 
-step_description_and_time_first "START STEP 5 AND 6.1: CLASSIFICATION OF ASSEMBLED SCAFFOLDS WITH $(echo $db | tr '[:lower:]' '[:upper:]') DATABASE"
-
-mkdir step_5_reference_DB/
-mkdir step_5_reference_DB/$(echo $db | tr '[:lower:]' '[:upper:]')/
-mkdir step_5_reference_DB/$(echo $db | tr '[:lower:]' '[:upper:]')/step_6_classification/
-mkdir step_5_reference_DB/$(echo $db | tr '[:lower:]' '[:upper:]')/step_6_classification/$(echo $classification | tr '[:lower:]' '[:upper:]')/
-cd step_5_reference_DB/$(echo $db | tr '[:lower:]' '[:upper:]')/step_6_classification/$(echo $classification | tr '[:lower:]' '[:upper:]')/
+step_description_and_time_first "START STEP 5.1: CLASSIFICATION OF ASSEMBLED SCAFFOLDS"
 
 
-if [[ $db == "silva" ]]; then
-	krakenDB=$silva_kraken2_db
-	blastDB=$silva_blast_db
-elif [[ $db == 'ncbi_nt' ]]; then
-	krakenDB=$ncbi_nt_kraken2_db
-	blastDB=$ncbi_nt_blast_db
-fi
+mkdir step_5_classification/
+mkdir step_5_classification/$(echo $classification | tr '[:lower:]' '[:upper:]')/
+cd step_5_classification/$(echo $classification | tr '[:lower:]' '[:upper:]')/
+
 
 if [[ $classification == "blast_first_hit" || $classification == "blast_filtered" ]]; then
-	step_description_and_time_first "RUNNING BLAST WITH DATABASE $blastDB"
-	blastn -query ../../../../$scaffolds -db $blastDB -out blast_output.txt \
+	step_description_and_time_first "RUNNING BLAST WITH DATABASE $silva_blast_db"
+	blastn -query ../../../../$scaffolds -db $silva_blast_db -out blast_output.txt \
 	-outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
 	-evalue 1e-05 -num_threads $threads
-	step_description_and_time_first "BLAST WITH DATABASE $blastDB DONE"
+	step_description_and_time_first "BLAST WITH DATABASE $silva_blast_db DONE"
 fi
 
 if [[ $classification == "blast_first_hit" ]]; then
@@ -546,9 +548,9 @@ elif [[ $classification == "blast_filtered" ]]; then
 	step_description_and_time_first "BLAST FILTERED DONE"
 
 elif [[ $classification == "kraken2" ]]; then
-	step_description_and_time_first "RUNNING KRAKEN2 WITH DATABASE $krakenDB"
+	step_description_and_time_first "RUNNING KRAKEN2 WITH DATABASE $silva_kraken2_db"
 	# Run kraken2
-	kraken2 --db $krakenDB --threads $threads ../../../../$scaffolds \
+	kraken2 --db $silva_kraken2_db --threads $threads ../../../../$scaffolds \
 	> kraken2_output.txt
 
 	cut -f 2-3 kraken2_output.txt > kraken2_output_contig_taxid.txt # Isolate contig names and taxids
@@ -577,7 +579,7 @@ elif [[ $classification == "kraken2" ]]; then
 	mkdir intermediate_files
 	mv kraken2_output* intermediate_files/
 
-step_description_and_time_first "KRAKEN2 WITH DATABASE $krakenDB DONE"
+step_description_and_time_first "KRAKEN2 WITH DATABASE $silva_kraken2_db DONE"
 fi
 
 ######################### Step 6.2: Generating final putput files ################################
@@ -655,73 +657,73 @@ if [[ $classification == 'blast_filtered' ]]; then
 	# We run a simple python script because we need to merge on "outer":
 	merge_on_outer.py ../../blast_filtered.txt \
 	${assembly}_final_${mapping}_merge_ready.txt \
-	trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt
+	trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt
 
 	if [[ $assembly == 'spades' || $assembly == 'metaspades' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
 		| sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' \
-		| sed 's/length_//g' | sed 's/cov_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		| sed 's/length_//g' | sed 's/cov_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
-		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
-		>> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
+		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
+		>> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt
 
 	elif [[ $assembly == 'idba_ud' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
-		| sed 's/scaffold_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
+		| sed 's/scaffold_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
-		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
-		>> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
+		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
+		>> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt
 
 	elif [[ $assembly == 'megahit' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
-		| sed 's/_/\t/1' | cut -f2-17 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
+		| sed 's/_/\t/1' | cut -f2-17 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tsequence_length\tassembly_sequence" \
 		> tmp \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $15, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $16}' tmp \
-		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
+		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
 		&& rm tmp
 
 	elif [[ $assembly == 'rnaspades' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
 		| sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' \
 		| sed 's/length_//g' | sed 's/cov_//g' | sed 's/_/\t/1' \
-		| cut -f1,2,3,5-21 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		| cut -f1,2,3,5-21 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
-		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
-		>> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
+		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
+		>> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt
 
 	elif [[ $assembly == 'idba_tran' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
-		|	sed 's/contig-[0-9]*_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
+		|	sed 's/contig-[0-9]*_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
 		> tmp \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $15, $16, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $17}' tmp \
-		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
+		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
 		&& rm tmp
 
 	elif [[ $assembly == 'trinity' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
 		| sed 's/_/\t/5' | sed 's/len=//g' | sed 's/TRINITY_//g' \
-		> trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		> trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tsequence_length\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
-		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
-		>> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
+		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
+		>> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt
 
 	elif [[ $assembly == 'transabyss' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
-		| sed 's/_/\t/1' | sed 's/_/\t/1' | sed -r 's/_[0-9,.+-]*\t/\t/g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
+		| sed 's/_/\t/1' | sed 's/_/\t/1' | sed -r 's/_[0-9,.+-]*\t/\t/g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
-		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
-		>> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
+		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
+		>> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt
 	fi
 
 	step_description_and_time_first "DONE FINALIZING BLAST_FILTERED FILES"
@@ -731,78 +733,78 @@ elif [[ $classification == 'blast_first_hit' ]]; then
 	# We run a simple python script because we need to merge on "outer":
 	merge_on_outer.py ../../blast_filtered.txt \
 	${assembly}_final_${mapping}_merge_ready.txt \
-	trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt
+	trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt
 
 	if [[ $assembly == 'spades' || $assembly == 'metaspades' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
 		| sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' \
-		| sed 's/length_//g' | sed 's/cov_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		| sed 's/length_//g' | sed 's/cov_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
 		> tmp \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
 		>> tmp
-		cat tmp > ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
+		cat tmp > ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
 
 	elif [[ $assembly == 'idba_ud' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
-		| sed 's/scaffold_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
+		| sed 's/scaffold_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
-		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
-		>> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt
+		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
+		>> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt
 
 	elif [[ $assembly == 'megahit' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
-		| sed 's/_/\t/1' | cut -f2-17 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
+		| sed 's/_/\t/1' | cut -f2-17 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tsequence_length\tassembly_sequence" \
 		> tmp \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $15, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $16}' tmp \
-		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
+		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
 		&& rm tmp
 
 	elif [[ $assembly == 'rnaspades' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
 		| sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' \
 		| sed 's/length_//g' | sed 's/cov_//g' | sed 's/_/\t/1' \
-		| cut -f1,2,3,5-20 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		| cut -f1,2,3,5-20 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
 		> tmp \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
 		>> tmp
-		cat tmp > ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
+		cat tmp > ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
 		&& rm tmp
 
 	elif [[ $assembly == 'idba_tran' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
-		|	sed 's/contig-[0-9]*_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
+		|	sed 's/contig-[0-9]*_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
 		> tmp \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $15, $16, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $17}' tmp \
-		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
+		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
 		&& rm tmp
 
 	elif [[ $assembly == 'trinity' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
-		| sed 's/_/\t/5' | sed 's/len=//g' | sed 's/TRINITY_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
+		| sed 's/_/\t/5' | sed 's/len=//g' | sed 's/TRINITY_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tsequence_length\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
 		> tmp \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
 		>> tmp
-		cat tmp > ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
+		cat tmp > ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
 		&& rm tmp
 
 	elif [[ $assembly == 'transabyss' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
-		| sed 's/_/\t/1' | sed 's/_/\t/1' | sed -r 's/_[0-9,.+-]*\t/\t/g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
+		| sed 's/_/\t/1' | sed 's/_/\t/1' | sed -r 's/_[0-9,.+-]*\t/\t/g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tsequence_length\tcontig_coverage\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tspecies\tcounts\tassembly_sequence" \
 		> tmp \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
 		>> tmp
-		cat tmp > ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
+		cat tmp > ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
 		&& rm tmp
 	fi
 
@@ -813,85 +815,85 @@ elif [[ $classification == 'kraken2' ]]; then
 	# We run a simple python script because we need to merge on "outer":
 	merge_on_outer.py ../../kraken2_final.txt \
 	${assembly}_final_${mapping}_merge_ready.txt \
-	trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt
+	trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt
 
 	if [[ $assembly == 'spades' || $assembly == 'metaspades' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
 		| sed 's/_/\t/2' | sed 's/_/\t/3' | sed 's/NODE_//g' \
-		| sed 's/length_//g' | sed 's/cov_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		| sed 's/length_//g' | sed 's/cov_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tsequence_length\tcontig_coverage\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
 		> tmp \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $2, $3, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $6, $4, $18, $19}' tmp \
-		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
+		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
 		&& rm tmp
 
 	elif [[ $assembly == 'idba_ud' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
-		| sed 's/_/\t/1' | cut -f2-20 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
+		| sed 's/_/\t/1' | cut -f2-20 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
 		> tmp \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $4, $2, $16, $17}' tmp \
-		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
+		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
 		&& rm tmp
 
 	elif [[ $assembly == 'megahit' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
-		| sed 's/_/\t/1' | cut -f2-19 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
+		| sed 's/_/\t/1' | cut -f2-19 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tsequence_length\tassembly_sequence" \
 		> tmp \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $17, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $4, $2, $16, $18}' tmp \
-		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
+		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
 		&& rm tmp
 
 	elif [[ $assembly == 'rnaspades' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
 		| sed 's/_/\t/2' |sed 's/_/\t/3' | sed 's/NODE_//g' \
 		| sed 's/length_//g' | sed 's/cov_//g' | sed 's/_/\t/1' \
-		| cut -f1,2,3,5-20 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		| cut -f1,2,3,5-20 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tsequence_length\tcontig_coverage\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
 		> tmp \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $2, $3, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $6, $4, $18, $19}' tmp \
-		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
+		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
 		&& rm tmp
 
 	elif [[ $assembly == 'idba_tran' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
-		| sed 's/_/\t/1' | cut -f2-20 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
+		| sed 's/_/\t/1' | cut -f2-20 > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tsequence_length\tcontig_kmer_count\tassembly_sequence" \
 		> tmp \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $17, $18, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $4, $2, $16, $19}' tmp \
-		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
+		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
 		&& rm tmp
 
 	elif [[ $assembly == 'trinity' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
-		| sed 's/_/\t/5' | sed 's/len=//g' | sed 's/TRINITY_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
+		| sed 's/_/\t/5' | sed 's/len=//g' | sed 's/TRINITY_//g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tsequence_length\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \
 		> tmp \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $2, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $5, $4, $17, $18}' tmp \
-		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
+		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
 		&& rm tmp
 
 	elif [[ $assembly == 'transabyss' ]]; then
-		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_merged.txt \
-		| sed 's/_/\t/1' | sed 's/_/\t/1' | sed -r 's/_[0-9,.+-]*\t/\t/g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt
+		sed '1d' trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_merged.txt \
+		| sed 's/_/\t/1' | sed 's/_/\t/1' | sed -r 's/_[0-9,.+-]*\t/\t/g' > trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt
 		echo -e "sequence_name\tcontig_length\tcontig_coverage\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus\tcounts\tassembly_sequence" \								> tmp \
-		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_no_header.txt \
+		&& cat trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_no_header.txt \
 		>> tmp
 		awk 'BEGIN {FS="\t"; OFS="\t"} {print $1, $2, $3, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $6, $4, $18, $19}' tmp \
-		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${db}_${classification}_final.txt \
+		> ${base_directory}/trimmed_at_phred_${trimming}_${sorting}_${assembly}_${mapping}_${classification}_final.txt \
 		&& rm tmp
 	fi
 

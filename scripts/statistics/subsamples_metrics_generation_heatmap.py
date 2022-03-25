@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
-# Written by Christopher Hempel (hempelc@uoguelph.ca) on 16 Jul 2021
+# Written by Christopher Hempel (hempelc@uoguelph.ca) on 2 Mar 2022
 
 # This script processes pipeline data from multiple replicates of mock community
-# samples and exports a metrics table
+# samples and exports a metrics table. It's a modified version of the script
+# "metrics_generation_mock_samples.py" that is adapted for subsampled DNA samples
 
 import pandas as pd
 import glob
@@ -20,45 +21,36 @@ logging.basicConfig(level=logging.DEBUG,
 
 # Parameters set manually
 ## Full path to directory that contains samples
-workdir = "/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock_samples/"
-## List of DNA and RNA mock community samples, replicates of 3 plus filtration controls (Neg) and
-## extraction controls (Ext); must equal names of directories in workdir that
+workdir = "/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock_samples_DNA_subsample/"
+## Lists of DNA mock community samples, replicates of 3 plus filtration control (Neg) and
+## extraction control (Ext); must equal names of directories in workdir that
 ## contain each sample's pipeline results:
-samples = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA",
-    "M_Neg_DNA", "M_Neg_RNA", "M_Ext_DNA", "M_Ext_RNA"]
+samples = ["M4_DNA_subsample", "M5_DNA_subsample", "M6_DNA_subsample"]
+neg_samples=["M_Neg_DNA", "M_Ext_DNA"]
 ## Dic containing number of reads per sample
-sample_reads={"M4_DNA": 1128425, "M4_RNA": 306047, "M5_DNA": 790808, "M5_RNA": 400780,
-    "M6_DNA": 783841, "M6_RNA": 389552, "M_Neg_DNA": 682, "M_Neg_RNA": 5200,
-    "M_Ext_DNA":  445, "M_Ext_RNA": 2672}
-## Indicate if you want to loop over all 4 combinations of genus/species and cell/gen (True/False)
+sample_reads={"M4_DNA_subsample": 94633, "M5_DNA_subsample": 78149,
+    "M6_DNA_subsample": 120144, "M_Neg_DNA": 640, "M_Ext_DNA": 399}
+## Indicate if you want to loop over genus and species (True/False)
 looping=True
 ## If you set looping to False, then define what specific rank and abundance
 ## you want to process:
 ### Taxonomic rank to group rows on. Either based on genus (option "genus")
 ### or on species (option "species"):
 rank="genus"
-### Basis for relative abundance calculation of expected mock community taxa abundance;
-### either based on genomic DNA/SSU genes (option "gen") or on cell number (option "cell"):
-abun="cell"
 
 
 # Parameters set automatically
 if looping:
     groupby_rank_lst=["genus", "species"]
-    rel_abun_basis_lst=["cell", "gen"]
 else:
     groupby_rank_lst=[rank]
-    rel_abun_basis_lst=[abun]
+
 ## Relative abundances of mock community taxa based on genome copy numbers as given by manufacturer:
 rel_abun_gen_manuf = [0.948, 0.042, 0.007, 0.0023, 0.00058, 0.00059, 0.00015,
     0.00001, 0.0000015, 0.000001]
-## Relative abundances of mock community taxa based on cell number as given by manufacturer:
-rel_abun_cell_manuf = [0.949, 0.042, 0.007, 0.0012, 0.00058, 0.00059, 0.00015,
-    0.00001, 0.0000007, 0.000001]
 ## These don't add up to 1 for some reason, so we shift the relative abundances
 ## so that they sum up to 1:
 rel_abun_gen = [x/sum(rel_abun_gen_manuf) for x in rel_abun_gen_manuf]
-rel_abun_cell = [x/sum(rel_abun_cell_manuf) for x in rel_abun_cell_manuf]
 
 
 # Functions
@@ -107,38 +99,77 @@ expected_dic["S_aureus"] = ["Bacteria", "Firmicutes", "Bacilli", "Bacillales",
 expected_df=pd.DataFrame.from_dict(expected_dic, orient="index",
     columns=["superkingdom", "phylum", "class", "order", "family", "genus", "species"])
 
+## We  need absolute abundances of mock community taxa. Therefore, we use the relative
+## abundance of each taxon in the mock community. While we're at it, we determine the lowest relative
+## abundance, lower it by 3 orders of magnitude, and use the result to impute 0s later
+expected_df["rel_abun"] = rel_abun_gen
+impute=min(rel_abun_gen)*1e-03
+
+
 
 # 2 Read in all pipeline results for every sample as df and
 #   add all taxa from all dfs to "all_taxa" list (needed to generate master dfs that
 #   contain counts of all taxa from all samples and the expected community):
-## Loop over combinations
+## Loop over groupby_rank
 for groupby_rank in groupby_rank_lst:
-    for rel_abun_basis in rel_abun_basis_lst:
-
-        ## Set output dir
-        statsdir= os.path.join(workdir, "metrics_{0}_{1}".format(rel_abun_basis, groupby_rank))
-        if not os.path.exists(statsdir):
-            os.makedirs(statsdir)
-
-        ## We  need absolute abundances of mock community taxa. Therefore, we use the relative
-        ## abundance of each taxon in the mock community, either based on SSU
-        ## genes or cells, and multiply them by the absolute number of reads
-        ## of that sample:
-        if rel_abun_basis == "gen":
-            expected_df["rel_abun"] = rel_abun_gen
-        elif rel_abun_basis == "cell":
-            expected_df["rel_abun"] = rel_abun_cell
-
-
+    for data_type in ["rel", "pa"]:
         master_dfs_raw = {} # Empty dic that will eventually contain all samples' raw pipelines output
         all_taxa = [] # Empty list that will eventually contain all taxa that appear in all samples
 
         for sample in samples:
             ## Make a list for all file names in sample dic:
-            sample_files = glob.glob(os.path.join(workdir, sample, "*.txt"))
+            if "M_" in sample:
+                sample_files = glob.glob(os.path.join(workdir, sample, "*.txt*"))
+            else:
+                sample_files = glob.glob(os.path.join(workdir, sample, "*", groupby_rank + "_" + data_type, "*", "*.txt"))
             ## Make a dic that will eventually contain all pipeline dfs and set the first entry to expected community:
             sample_dfs = {"expected": expected_df}
             ## For each file in the sample dic
+            for file in sample_files:
+                #### Read in file as pandas df, fill NaN with "NA", "Unknown" by "NA", and fix one taxonomic misambiguation
+                df = pd.read_table(file).fillna("NA").replace("Lactobacillus",
+                    r"Limosilactobacillus", regex=True).replace("Unknown", "NA").replace("-", r"", regex=True)
+                ### Apply a species filter: if a species is not 2 words (contains a space),
+                ### replace species value with "NA"
+                #### Therefore, first get indices of species not containing a space
+                idx=df['species'].str.contains(" ")[df['species'].str.contains(" ") == False].index
+                #### And replace them with "NA" in the df
+                df.loc[idx,'species'] = "NA"
+                ### Cut df down to relevant columns
+                if groupby_rank == "species":
+                    df_small = df[["superkingdom", "phylum", "class", "order", "family",
+                        "genus", "species", "counts"]]
+                elif groupby_rank == "genus":
+                    df_small = df[["superkingdom", "phylum", "class", "order", "family",
+                        "genus", "counts"]]
+                ### The negative controls often have no sequences = empty dfs, therefore we need to
+                ### ignore them in the next step since we get errors if we use groupby on an epmty df:
+                if df.empty:
+                    df_agg = df_small
+                else:
+                    #### Group similar taxonomy hits and sum their counts:
+                    df_agg = df_small.groupby(list(df_small.columns)[:-1]).sum().reset_index()
+                    #### Turn counts into relative abundances:
+                    df_agg["counts"]=df_agg["counts"]/df_agg["counts"].sum()
+                ### Rename counts col
+                df_agg.rename(columns = {'counts':'rel_abun'}, inplace = True)
+                ### Add all taxa to list "all_taxa"
+                all_taxa.extend(df_agg[groupby_rank].tolist())
+                ### Edit file name so that we can name dfs based on their file name=pipeline
+                sample_name = file.split("/")[7]
+                ### Add df_agg to the sample_dfs dic with key=subsample name
+                sample_dfs[sample_name] = df_agg
+            ### Save sample_df in dic master_dfs_raw:
+            master_dfs_raw[sample] = sample_dfs
+
+        # Repeat the code above for negative control samples - these were not subsampled,
+        # so we import all files and select the pipeline that needs to be substracted later
+        master_dfs_neg_raw = {} # Empty dic that will eventually contain all samples' raw pipelines output
+        for sample in neg_samples:
+            ## Make a list for all file names in sample dic:
+            sample_files = glob.glob(os.path.join(workdir, sample, "*.txt"))
+            ## For each file in the sample dic
+            sample_dfs={}
             for file in sample_files:
                 #### Read in file as pandas df, fill NaN with "NA", "Unknown" by "NA", and fix one taxonomic misambiguation
                 df = pd.read_table(file).fillna("NA").replace("Lactobacillus",
@@ -176,7 +207,7 @@ for groupby_rank in groupby_rank_lst:
                 ### Add df_agg to the sample_dfs dic with key=pipeline_name
                 sample_dfs[pipeline_name] = df_agg
             ### Save sample_df in dic master_dfs_raw:
-            master_dfs_raw[sample] = sample_dfs
+            master_dfs_neg_raw[sample] = sample_dfs
 
 
 
@@ -213,33 +244,75 @@ for groupby_rank in groupby_rank_lst:
                 #### taxon counts for that pipeline:
                 master_dfs_rel[sample][pipeline]=abun
 
-        ## 3.3 Add DNA or RNA prefixes to pipeline names to distinguish them later
-        ## (the name of expected gets stripped off the prefix after):
-        master_dfs_prefix={}
-        for sample_type in ["DNA", "RNA"]:
-            for sample in [x + "_" + sample_type for x in ["M4", "M5", "M6", "M_Neg", "M_Ext"]]:
-                master_dfs_prefix[sample]=master_dfs_rel[sample].add_prefix(sample_type
-                    + "_").rename(columns={sample_type + "_expected": "expected"})
-
+        # Repeat that for negative controls (could be done together but copy-pasting the code was faster)
+        master_dfs_neg_rel = {}
+        for sample, pipeline_dfs in master_dfs_neg_raw.items():
+            ### Make master df with taxa from unique_taxa list as row names:
+            master_dfs_neg_rel[sample] = pd.DataFrame(index=pd.Index(unique_taxa))
+            ### For each df in dic with key=pipeline:
+            for pipeline, data in pipeline_dfs.items():
+                #### Make a list for abundances
+                abun=[]
+                #### For each taxon in unique taxa list:
+                for taxon in unique_taxa:
+                    ##### If taxon is in df groupby_rank column:
+                    if (data[groupby_rank] == taxon).any():
+                        ###### Sum up all counts of that taxon and add them to list abun:
+                        abun.append(data.loc[data[groupby_rank] == taxon, 'rel_abun'].sum())
+                    ##### If taxon not in df groupby_rank column, add 0 to list abun:
+                    else:
+                        abun.append(0)
+                #### Make a new column in master df named after the pipeline and add
+                #### taxon counts for that pipeline:
+                master_dfs_neg_rel[sample][pipeline]=abun
 
         ## 3.4 Substract controls from samples
         master_dfs_rel_sub={}
-        for sample_type in ["DNA", "RNA"]:
-            neg_readnum=sample_reads["M_Neg_" + sample_type]
-            ext_readnum=sample_reads["M_Ext_" + sample_type]
-            for sample in [x + "_" + sample_type for x in ["M4", "M5", "M6"]]:
-                #### We substract the reads occuring in the filtration and extraction
-                #### control from the samples, separately for RNA and DNA controls:
-                ##### We're converting counts back to absolute and substract absolute numbers of reads of the negative controls
-                readnum=sample_reads[sample]
-                master_dfs_rel_sub[sample]=master_dfs_prefix[sample]*readnum-(master_dfs_prefix["M_Neg_" + sample_type]*neg_readnum \
-                    + master_dfs_prefix["M_Ext_" + sample_type]*ext_readnum)
-                ### Convert counts below 0 to 0 (happens if negative control contains more reads than original sample):
-                master_dfs_rel_sub[sample][master_dfs_rel_sub[sample] < 0] = 0
-                ### Convert counts back to relative
-                master_dfs_rel_sub[sample]=master_dfs_rel_sub[sample]/master_dfs_rel_sub[sample].sum()
-                #### And since this substraction overrides the expected, we replace it with the old expected:
-                master_dfs_rel_sub[sample]["expected"]=master_dfs_prefix[sample]["expected"]
+        neg_readnum=sample_reads["M_Neg_DNA"]
+        ext_readnum=sample_reads["M_Ext_DNA"]
+        # Define which pipeline from negative controls needs to be substracted from samples
+        for sample in samples:
+            if sample=="M4_DNA_subsample":
+                if groupby_rank + "_" + data_type=="genus_rel":
+                    pip="15_barrnap_spades_bwa_silva_blast-first-hit"
+                elif groupby_rank + "_" + data_type=="genus_pa":
+                    pip="20_barrnap_metaspades_bwa_silva_kraken2"
+                elif groupby_rank + "_" + data_type=="species_rel":
+                    pip="15_unsorted_metaspades_bwa_silva_kraken2"
+                elif groupby_rank + "_" + data_type=="species_pa":
+                    pip="20_barrnap_metaspades_bwa_silva_kraken2"
+            elif sample=="M5_DNA_subsample":
+                if groupby_rank + "_" + data_type=="genus_rel":
+                    pip="10_barrnap_spades_bowtie2_silva_blast-first-hit"
+                elif groupby_rank + "_" + data_type=="genus_pa":
+                    pip="20_sortmerna_transabyss_bwa_silva_kraken2"
+                elif groupby_rank + "_" + data_type=="species_rel":
+                    pip="15_unsorted_transabyss_bwa_silva_kraken2"
+                elif groupby_rank + "_" + data_type=="species_pa":
+                    pip="10_barrnap_idba-ud_bwa_silva_kraken2"
+            elif sample=="M6_DNA_subsample":
+                if groupby_rank + "_" + data_type=="genus_rel":
+                    pip="10_barrnap_rnaspades_bowtie2_silva_kraken2"
+                elif groupby_rank + "_" + data_type=="genus_pa":
+                    pip="20_barrnap_transabyss_bwa_silva_kraken2"
+                elif groupby_rank + "_" + data_type=="species_rel":
+                    pip="15_barrnap_transabyss_bwa_silva_kraken2"
+                elif groupby_rank + "_" + data_type=="species_pa":
+                    pip="10_barrnap_idba-ud_bwa_silva_kraken2"
+            #### We substract the reads occuring in the filtration and extraction
+            #### control from the samples
+            ##### We're converting counts back to absolute and substract absolute numbers of reads of the negative controls
+            readnum=sample_reads[sample]
+            readnum_df=master_dfs_rel[sample]*readnum
+            ##### Substract specific negative control pipelines
+            master_dfs_rel_sub[sample]=readnum_df.sub((master_dfs_neg_rel["M_Neg_DNA"]\
+                [pip]*neg_readnum + master_dfs_neg_rel["M_Ext_DNA"][pip]*ext_readnum), axis=0)
+            ### Convert counts below 0 to 0 (happens if negative control contains more reads than original sample):
+            master_dfs_rel_sub[sample][master_dfs_rel_sub[sample] < 0] = 0
+            ### Convert counts back to relative
+            master_dfs_rel_sub[sample]=master_dfs_rel_sub[sample]/master_dfs_rel_sub[sample].sum()
+            #### And since this substraction overrides the expected, we replace it with the old expected:
+            master_dfs_rel_sub[sample]["expected"]=master_dfs_rel[sample]["expected"]
 
 
         ## 3.5 Generate master df with presence/absence data
@@ -266,32 +339,22 @@ for groupby_rank in groupby_rank_lst:
         ## 4.2 Use the rel_cutdown_expected dfs as metrics for rel abundances of each
         ##     expected taxon and add additional metrics
         metrics_reps=copy.deepcopy(rel_cutdown_expected) # Copy df under different name
-        for sample_type in ["DNA", "RNA"]:
-            for sample in [x + "_" + sample_type for x in ["M4", "M5", "M6"]]:
-                FP_rel=rel_cutdown_FP[sample].sum(axis=0)
-                TP=pa_cutdown_expected[sample].sum(axis=0)
-                FP=pa_cutdown_FP[sample].sum(axis=0)
-                metrics_reps[sample].loc['FP_rel'] = FP_rel
-                metrics_reps[sample].loc['TP'] = TP
-                metrics_reps[sample].loc['FP'] = FP
+        for sample in samples:
+            FP_rel=rel_cutdown_FP[sample].sum(axis=0)
+            TP=pa_cutdown_expected[sample].sum(axis=0)
+            FP=pa_cutdown_FP[sample].sum(axis=0)
+            metrics_reps[sample].loc['FP_rel'] = FP_rel
+            metrics_reps[sample].loc['TP'] = TP
+            metrics_reps[sample].loc['FP'] = FP
 
-        # 5 Make final metrics_df and Standardize rel abundances
-        ## Add info on tools used in each step for each pipeline
+
+
+        # 5 Make final metrics_df and standardize rel abundances
         for rep in metrics_reps.keys():
-            reversed_df=metrics_reps[rep].to_dict()
-            step_list=["type", "trimming_score", "rRNA_sorting_tool", "assembly_tool",
-            "mapper", "database", "classifier"]
-            for step in step_list:
-                for pipeline in reversed_df.keys():
-                    if pipeline=="expected":
-                        reversed_df[pipeline][step]="expected"
-                        continue
-                    reversed_df[pipeline][step]=pipeline.split("_")[step_list.index(step)]
-            ## Make the df
-            metrics_df=pd.DataFrame(reversed_df).transpose()
-            ## Standardize by replacing 0s and taking the centered log ratio
-            metrics_df_rel_std=pd.DataFrame(clr(multiplicative_replacement(metrics_df.iloc[:, 0:11].to_numpy(dtype="float"))),
+            metrics_df=metrics_reps[rep].transpose()
+            ## Standardize by replacing 0s by "impute" (3 orders of magnitude lower than lowest taxon) and taking the centered log ratio
+            metrics_df_rel_std=pd.DataFrame(clr(multiplicative_replacement(metrics_df.iloc[:, 0:11].to_numpy(dtype="float"), delta=impute)),
                 index=metrics_df.index, columns=metrics_df.columns[0:11])
-            metrics_df_concat=pd.concat([metrics_df_rel_std, metrics_df.iloc[:, 11:20]], axis=1)
+            metrics_df_concat=pd.concat([metrics_df_rel_std, metrics_df.iloc[:, 11:]], axis=1)
             ## Save the df
-            metrics_df_concat.to_csv(os.path.join(statsdir, rep + "_metrics_df.csv"), index_label="pipeline")
+            metrics_df_concat.to_csv(os.path.join(workdir, "{0}_{1}_{2}_metrics_df.csv".format(rep, groupby_rank, data_type)), index_label="subsample")
