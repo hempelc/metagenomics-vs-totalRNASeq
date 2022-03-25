@@ -116,9 +116,9 @@ step_description_and_time_first "START RUNNING SCRIPT"
 # Activate the conda ete3 environment within this script to be able to run ete3.
 # I found this solution # to activate conda environments in scripts here:
 # https://github.com/conda/conda/issues/7980.
-eval "$(conda shell.bash hook)" # Without this, the conda environment cannot be
+#eval "$(conda shell.bash hook)" # Without this, the conda environment cannot be
 # activated within the script
-conda activate ete3 # ete3 is our conda environemnt in which we installed ete3
+#conda activate ete3 # ete3 is our conda environemnt in which we installed ete3
 
 # Make output directory and directory for final files:
 mkdir METAGENOMICS_METATRANSCRIPTOMICS_PIPELINE/
@@ -197,20 +197,20 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
 	step_description_and_time_second "RUNNING rRNAFILTER"
 	mkdir rRNAFILTER/
-	cd rRNAFILTER/
+	# cd rRNAFILTER/
 	# # rRNAFilter only worked for us when we started it within the directory
 	# # containing the .jar file. To simplify switching to that directory, we simply
 	# # download the small program within the script and delete it after usage:
 	# wget http://hulab.ucf.edu/research/projects/rRNAFilter/software/rRNAFilter.zip
 	# unzip rRNAFilter.zip
-	cd rRNAFilter/
+	# cd rRNAFilter/
 	# We use 7GB for the rRNAFilter .jar, as shown in the rRNAFilter manual:
 	# java -jar -Xmx7g rRNAFilter_commandline.jar \
 	# -i ../../reads_in_fasta_format/R1.fa -r 0
 	# java -jar -Xmx7g rRNAFilter_commandline.jar \
 	# -i ../../reads_in_fasta_format/R2.fa -r 0
 	# mv ../../reads_in_fasta_format/R*.fa_rRNA ..
-	cd ..
+	# cd ..
 	# rm -r rRNAFilter rRNAFilter.zip
 	# We want to keep paired reads, so we extract all rRNA read names that were
 	# found in R1 and R2, save them as one list, and extract all reads from both
@@ -224,7 +224,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	# seqtk subseq ../reads_in_fasta_format/R2.fa names_sorted.txt \
 	# > rRNAFilter_paired_R2.fa
 	# rm names_sorted.txt names.txt
-	cd ..
+	# cd ..
 	step_description_and_time_second "rRNAFILTER DONE"
 
 	step_description_and_time_second "RUNNING BARRNAP"
@@ -269,7 +269,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 	######################### Step 3: Assembly ################################
 
 	# For loop 2: loop over the folders for rRNA filtered data for assembly:
-  for rrna_filter_results in rRNAFILTER SORTMERNA BARRNAP UNSORTED; do
+	for rrna_filter_results in rRNAFILTER SORTMERNA BARRNAP UNSORTED; do
 		if [[ $rrna_filter_results == 'rRNAFILTER' ]]; then
 			R1_sorted='rRNAFILTER/rRNAFilter_paired_R1.fa'
 			R2_sorted='rRNAFILTER/rRNAFilter_paired_R2.fa'
@@ -345,7 +345,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 		# step_description_and_time_second "TRINITY DONE"
 
 		step_description_and_time_second "RUNNING TRANSABYSS"
-    # transabyss --pe ../../$R1_sorted ../../$R2_sorted --threads $threads \
+		# transabyss --pe ../../$R1_sorted ../../$R2_sorted --threads $threads \
     # --outdir TRANSABYSS/
     # sed 's/ /_/g' TRANSABYSS/transabyss-final.fa \
 		# > TRANSABYSS/transabyss-final_edited.fa # Edit for universal format
@@ -358,16 +358,16 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
 		# For loop 3: loop over the folders for assembled data for mapping:
 		#for assembly_results in SPADES METASPADES MEGAHIT IDBA_UD RNASPADES IDBA_TRAN TRINITY TRANSABYSS; do
-		for assembly_results in SPADES METASPADES MEGAHIT IDBA_UD RNASPADES IDBA_TRAN TRANSABYSS; do
+		for assembly_results in TRANSABYSS; do
 
 			if [[ $assembly_results == 'SPADES' ]]; then
-				scaffolds='SPADES/contigs.fasta'
+				scaffolds='SPADES/scaffolds.fasta'
 			elif [[ $assembly_results == 'METASPADES' ]]; then
 				scaffolds='METASPADES/scaffolds.fasta'
 			elif [[ $assembly_results == 'MEGAHIT' ]]; then
 				scaffolds='MEGAHIT/final.contigs.fa'
 			elif [[ $assembly_results == 'IDBA_UD' ]]; then
-				scaffolds='IDBA_UD/contig.fa'
+				scaffolds='IDBA_UD/scaffold.fa'
 			elif [[ $assembly_results == 'RNASPADES' ]]; then
 				scaffolds='RNASPADES/transcripts.fasta'
 			elif [[ $assembly_results == 'IDBA_TRAN' ]]; then
@@ -391,34 +391,34 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
         if [[ $mapper == 'BWA' ]]; then
           step_description_and_time_second "Starting bwa index"
-          # bwa index -p bwa_index ../../../$scaffolds
+          bwa index -p bwa_index ../../../$scaffolds
           step_description_and_time_second "bwa index complete. Starting bwa mem"
-          # bwa mem -t $threads bwa_index ../../../../../../*1P_error_corrected.fastq \
-					# ../../../../../../*2P_error_corrected.fastq > ${mapper}_output.sam
-          # rm bwa_index*
+          bwa mem -t $threads bwa_index ../../../../../../*1P_error_corrected.fastq \
+					../../../../../../*2P_error_corrected.fastq > ${mapper}_output.sam
+          rm bwa_index*
 					step_description_and_time_second "bwa mem complete"
   			else
           step_description_and_time_second "Starting bowtie2 index"
-    			# bowtie2-build -f ../../../$scaffolds bowtie_index
+    			bowtie2-build -f ../../../$scaffolds bowtie_index
     			step_description_and_time_second "bowtie2 index complete. Starting bowtie2"
-    			# bowtie2 -q -x bowtie_index -1 ../../../../../../*1P_error_corrected.fastq \
-					# -2 ../../../../../../*2P_error_corrected.fastq -S ${mapper}_output.sam \
-					# -p $threads
-    			# rm bowtie_index*
+    			bowtie2 -q -x bowtie_index -1 ../../../../../../*1P_error_corrected.fastq \
+					-2 ../../../../../../*2P_error_corrected.fastq -S ${mapper}_output.sam \
+					-p $threads
+    			rm bowtie_index*
           step_description_and_time_second "bowtie2 complete"
         fi
 
   			# Editing the mapper outputs:
-  			# samtools view -F 4 ${mapper}_output.sam | cut -f3	| sort | uniq -c \
-				# | column -t | sed 's/  */\t/g' > out_mapped_${mapper}.txt
-  			# samtools view -f 4 ${mapper}_output.sam | cut -f3 |	sort | uniq -c \
-				# | column -t | sed 's/  */\t/g' > out_unmapped_${mapper}.txt
-  			# echo -e "counts\tsequence_name" > merge_input_mapped_${mapper}.txt \
-				# && cat out_mapped_${mapper}.txt >> merge_input_mapped_${mapper}.txt
-  			# echo -e "counts\tsequence_name" > merge_input_unmapped_${mapper}.txt \
-				# && cat out_unmapped_${mapper}.txt >> merge_input_unmapped_${mapper}.txt
-        #
-  			# rm out_*mapped_${mapper}.txt
+  			samtools view -F 4 ${mapper}_output.sam | cut -f3	| sort | uniq -c \
+				| column -t | sed 's/  */\t/g' > out_mapped_${mapper}.txt
+  			samtools view -f 4 ${mapper}_output.sam | cut -f3 |	sort | uniq -c \
+				| column -t | sed 's/  */\t/g' > out_unmapped_${mapper}.txt
+  			echo -e "counts\tsequence_name" > merge_input_mapped_${mapper}.txt \
+				&& cat out_mapped_${mapper}.txt >> merge_input_mapped_${mapper}.txt
+  			echo -e "counts\tsequence_name" > merge_input_unmapped_${mapper}.txt \
+				&& cat out_unmapped_${mapper}.txt >> merge_input_unmapped_${mapper}.txt
+
+  			rm out_*mapped_${mapper}.txt
         cd ..
 			# And we close the mapper loop here because the next step is independent
 			# from the mappers and saved under a separate folder:
@@ -455,24 +455,28 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 
 				step_description_and_time_second "RUNNING BLAST WITH DATABASE $DB"
 				# Run BLAST via blastn
-				if ! [ "$(ls -A ${pwd})" ]; then
-					blastn -query ../../../../$scaffolds -db $blastDB -out blast_output.txt \
-					-outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
-					-evalue 1e-05 -num_threads $threads
-				fi
+				# blastn -query ../../../../$scaffolds -db $blastDB -out blast_output.txt \
+				# -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
+				# -evalue 1e-05 -num_threads $threads
 				step_description_and_time_second "BLAST WITH DATABASE $DB DONE"
 
 				step_description_and_time_second "RUNNING BLAST FIRST HIT"
 				# We run a separate script to add taxonomy and filter the BLAST results:
-				assign_taxonomy_to_NCBI_staxids.sh -b blast_output.txt -c 13 \
-				-e ~/.etetoolkit/taxa.sqlite
-				sed -i 's/Unknown/NA/g' blast_output_with_taxonomy.txt
-				blast_filter.py blast_output_with_taxonomy.txt soft -o blast_first_hit.txt
+				mkdir BLAST_FIRST_HIT/
+				# assign_taxonomy_to_NCBI_staxids.sh -b blast_output.txt -c 13 \
+				# -e ~/.etetoolkit/taxa.sqlite
+				# sed -i 's/Unknown/NA/g' blast_output_with_taxonomy.txt
+				# if [ -e blast_first_hit.txt ]; then
+				# 	mv blast_first_hit.txt BLAST_FIRST_HIT/
+				# else
+				blast_filter.py blast_output_with_taxonomy.txt soft -o BLAST_FIRST_HIT/blast_first_hit.txt
+				# fi
 				step_description_and_time_second "BLAST FIRST HIT DONE"
 
 				step_description_and_time_second "RUNNING BLAST FILTERED"
+				mkdir BLAST_FILTERED/
 				# We run a separate script to filter the BLAST results:
-				blast_filter.py blast_output_with_taxonomy.txt strict -o blast_filtered.txt
+				blast_filter.py blast_output_with_taxonomy.txt strict -o BLAST_FILTERED/blast_filtered.txt
 				step_description_and_time_second "BLAST FILTERED DONE"
 
 				# step_description_and_time_second "RUNNING KRAKEN2 WITH DATABASE $DB"

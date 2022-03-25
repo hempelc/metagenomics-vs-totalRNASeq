@@ -114,10 +114,8 @@ echo -e "Script started with full command: $cmd\n"
 step_description_and_time_first "START RUNNING SCRIPT"
 
 # Activate the conda ete3 environment within this script to be able to run ete3.
-# I found this solution # to activate conda environments in scripts here:
-# https://github.com/conda/conda/issues/7980.
-eval "$(conda shell.bash hook)" # Without this, the conda environment cannot be
-# activated within the script
+# Based on https://github.com/conda/conda/issues/7980
+source /hdd1/chempel/programs/miniconda/etc/profile.d/conda.sh
 conda activate ete3 # ete3 is our conda environemnt in which we installed ete3
 
 # Make output directory and directory for final files:
@@ -437,8 +435,7 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 			mkdir $assembly_results/step_5_reference_DB/
 
 			# For loop 4: loop over the reference DBs for taxonomic classification:
-			#for DB in SILVA NCBI_NT; do
-			for DB in SILVA; do
+			for DB in SILVA NCBI_NT; do
 
 				if [[ $DB == "SILVA" ]]; then
 					krakenDB="/hdd2/databases/kraken2_SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_DB_Jul_2021/"
@@ -458,67 +455,65 @@ for trimming_results in step_1_trimming/trimmomatic/*; do
 				blastn -query ../../../../$scaffolds -db $blastDB -out blast_output.txt \
 				-outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids" \
 				-evalue 1e-05 -num_threads $threads
-				step_description_and_time_second "BLAST WITH DATABASE $DB DONE"
-
-				step_description_and_time_second "RUNNING BLAST FIRST HIT"
-				# We run a separate script to add taxonomy and filter the BLAST results:
+			  # We run a separate script to add taxonomy and filter the BLAST results:
+				conda activate ete3 # ete3 is our conda environemnt in which we installed ete3
 				assign_taxonomy_to_NCBI_staxids.sh -b blast_output.txt -c 13 \
 				-e ~/.etetoolkit/taxa.sqlite
+				conda deactivate # ete3 env incompatible with blast filter script
 				sed -i 's/Unknown/NA/g' blast_output_with_taxonomy.txt
-				blast_filter.py blast_output_with_taxonomy.txt soft
+				step_description_and_time_second "BLAST WITH DATABASE $DB DONE"
+
+
+				step_description_and_time_second "RUNNING BLAST FIRST HIT"
+				# blast_filter.py blast_output_with_taxonomy.txt soft
 				step_description_and_time_second "BLAST FIRST HIT DONE"
 
 				step_description_and_time_second "RUNNING BLAST FILTERED"
-				# We run a separate script to add taxonomy and filter the BLAST results:
-				assign_taxonomy_to_NCBI_staxids.sh -b blast_output.txt -c 13 \
-				-e ~/.etetoolkit/taxa.sqlite
-				sed -i 's/Unknown/NA/g' blast_output_with_taxonomy.txt
-				blast_filter.py blast_output_with_taxonomy.txt strict
+				# blast_filter.py blast_output_with_taxonomy.txt strict
 				step_description_and_time_second "BLAST FILTERED DONE"
 
-				# step_description_and_time_second "RUNNING KRAKEN2 WITH DATABASE $DB"
-				# mkdir KRAKEN2/
-				# cd KRAKEN2/
-			  #    	# Run kraken2
-				# kraken2 --db $krakenDB --threads $threads ../../../../../$scaffolds \
-				# > kraken2_output.txt
-				#
-      	# cut -f 2-3 kraken2_output.txt > kraken2_output_contig_taxid.txt # Isolate contig names and taxids
-				# # We use a separate script to assign taxonomy to NCBI taxids:
-        # assign_taxonomy_to_NCBI_staxids.sh -b kraken2_output_contig_taxid.txt \
-				# -c 2 -e ~/.etetoolkit/taxa.sqlite
-        # sed -i '1d' kraken2_output_contig_taxid_with_taxonomy.txt # Remove header
-				# sed -i 's/Unknown/NA/g' kraken2_output_contig_taxid_with_taxonomy.txt # Change unknown to NA
-				#
-				# # Turn lowest_hit into species
-				# echo -e "sequence_name\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
-				# > kraken2_final.txt
-				# while read line; do
-				# 	pre=$(cut -f 1-3 <<< "${line}")
-				# 	spec=$(cut -f 4 <<< "${line}" | cut -f 1-2 -d ' ') # Cut down to first two words
-				# 	post=$(cut -f 5- <<< "${line}")
-				# 	if [[ "${spec:0:1}" =~ [a-z] ]]; then # if first letter is not capitalized (not in format "Genus species")
-				# 		spec="NA"
-				# 	elif [[ $(wc -w <<< "${spec}") != 2 ]]; then # if only one word (not in format "Genus species")
-				# 		spec="NA"
-				# 	fi
-				# 	echo -e "${pre}\t${spec}\t${post}" >> kraken2_final.txt
-				# done <kraken2_output_contig_taxid_with_taxonomy.txt
-				#
-       	# # Sort files
-        # mkdir intermediate_files
-        # mv kraken2_output* intermediate_files/
-				#
-				# cd ..
-	      # step_description_and_time_second "KRAKEN2 WITH DATABASE $DB DONE"
+				step_description_and_time_second "RUNNING KRAKEN2 WITH DATABASE $DB"
+				mkdir KRAKEN2/
+				cd KRAKEN2/
+			     	# Run kraken2
+				kraken2 --db $krakenDB --threads $threads ../../../../../$scaffolds \
+				> kraken2_output.txt
+
+      	cut -f 2-3 kraken2_output.txt > kraken2_output_contig_taxid.txt # Isolate contig names and taxids
+				# We use a separate script to assign taxonomy to NCBI taxids:
+        assign_taxonomy_to_NCBI_staxids.sh -b kraken2_output_contig_taxid.txt \
+				-c 2 -e ~/.etetoolkit/taxa.sqlite
+        sed -i '1d' kraken2_output_contig_taxid_with_taxonomy.txt # Remove header
+				sed -i 's/Unknown/NA/g' kraken2_output_contig_taxid_with_taxonomy.txt # Change unknown to NA
+
+				# Turn lowest_hit into species
+				echo -e "sequence_name\tstaxid\tlowest_rank\tspecies\tsuperkingdom\tkingdom\tphylum\tsubphylum\tclass\tsubclass\torder\tsuborder\tinfraorder\tfamily\tgenus" \
+				> kraken2_final.txt
+				while read line; do
+					pre=$(cut -f 1-3 <<< "${line}")
+					spec=$(cut -f 4 <<< "${line}" | cut -f 1-2 -d ' ') # Cut down to first two words
+					post=$(cut -f 5- <<< "${line}")
+					if [[ "${spec:0:1}" =~ [a-z] ]]; then # if first letter is not capitalized (not in format "Genus species")
+						spec="NA"
+					elif [[ $(wc -w <<< "${spec}") != 2 ]]; then # if only one word (not in format "Genus species")
+						spec="NA"
+					fi
+					echo -e "${pre}\t${spec}\t${post}" >> kraken2_final.txt
+				done <kraken2_output_contig_taxid_with_taxonomy.txt
+
+       	# Sort files
+        mkdir intermediate_files
+        mv kraken2_output* intermediate_files/
+
+				cd ..
+	      step_description_and_time_second "KRAKEN2 WITH DATABASE $DB DONE"
 
 				######################### Step 6.2: Generating final putput files ################################
 				# Each assembler/classification tool output has a different format. We
 				# make that format universal with the following code.
 
 				# For loop 5: loop over the classification tools for universal edits:
-				#for classification_tool in KRAKEN2 BLAST_FILTERED BLAST_FIRST_HIT; do
-				for classification_tool in BLAST_FILTERED BLAST_FIRST_HIT; do
+				for classification_tool in KRAKEN2 BLAST_FILTERED BLAST_FIRST_HIT; do
 
 					step_description_and_time_first "START STEP 6.2: GENERATING FINAL OUTPUT FILES OF READS IN $trimming_results/ AND rRNA FILTERED READS IN FOLDER $rrna_filter_results/ AND ASSEMBLY IN FOLDER $assembly_results/ AND CLASSIFICATION IN FOLDER $classification_tool/"
 					mkdir ${classification_tool}/FINAL_FILES/

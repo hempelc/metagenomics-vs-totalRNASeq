@@ -90,11 +90,14 @@ df=pd.read_csv(file, usecols=req_cols, sep="\t", dtype={"qseqid": str}).fillna('
 
 
 time_print('Checking if species are in "Genus species" format...')
-## Cut down to first two words
+## If only one word, replace by 'NA', then cut down to first two words,
+df["lowest_hit"]=df["lowest_hit"].replace(r'^\w*$', 'NA', regex=True)
 df["lowest_hit"]=df["lowest_hit"].str.split(' ').str[:2].str.join(sep=' ')
 
-## Check if the first word is capitalized. If not then turn species into "NA"
-idx_spe=df["lowest_hit"].str[0].str.isupper()
+## Check if the first word is capitalized and second is not capitalized. If not then turn species into "NA"
+idx_spe_first=df["lowest_hit"].str[0].str.isupper()
+idx_spe_second=df["lowest_hit"].str.split(' ').str[1].str.islower()
+idx_spe=idx_spe_first&idx_spe_second
 df["lowest_hit"]=[spe if capitalized else "NA" for spe, capitalized in zip(df["lowest_hit"], idx_spe)]
 
 
@@ -128,8 +131,7 @@ time_print("Performing LCA filter...")
 lca_mask=df.groupby(["qseqid"]).transform(lambda x: len(set(x)) != 1)
 
 ## Replace ranks in df with "NA" based on mask
-df=df.mask(lca_mask, "NA")
-df["qseqid"]=df['qseqid']
+df.mask(lca_mask, "NA", inplace=True)
 
 ## Drop duplicate rows == aggregate contig info
 df.drop_duplicates(inplace=True)

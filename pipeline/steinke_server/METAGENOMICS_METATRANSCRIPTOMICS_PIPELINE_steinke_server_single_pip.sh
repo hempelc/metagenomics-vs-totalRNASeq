@@ -187,10 +187,8 @@ echo -e "Script started with full command: $cmd\n"
 step_description_and_time_first "START RUNNING SCRIPT"
 
 # Activate the conda ete3 environment within this script to be able to run ete3.
-# I found this solution # to activate conda environments in scripts here:
-# https://github.com/conda/conda/issues/7980.
-val "$(conda shell.bash hook)" # Without this, the conda environment cannot be
-# activated within the script
+# Based on https://github.com/conda/conda/issues/7980
+source /hdd1/chempel/programs/miniconda/etc/profile.d/conda.sh
 conda activate ete3 # ete3 is our conda environemnt in which we installed ete3
 
 # Save full current path in variable to make navigation between directories easier:
@@ -533,6 +531,7 @@ if [[ $classification == "blast_first_hit" ]]; then
 	assign_taxonomy_to_NCBI_staxids.sh -b blast_output.txt -c 13 \
 	-e $etetoolkit
 	sed -i 's/Unknown/NA/g' blast_output_with_taxonomy.txt
+	conda deactivate # ete3 env incompatible with blast filter script
 	blast_filter.py blast_output_with_taxonomy.txt soft
 	step_description_and_time_first "BLAST FIRST HIT DONE"
 
@@ -542,7 +541,8 @@ elif [[ $classification == "blast_filtered" ]]; then
 	assign_taxonomy_to_NCBI_staxids.sh -b blast_output.txt -c 13 \
 	-e $etetoolkit
 	sed -i 's/Unknown/NA/g' blast_output_with_taxonomy.txt
-	blast_filter.py blast_output_with_taxonomy.txt strict
+	conda deactivate # ete3 env incompatible with blast filter script
+  blast_filter.py blast_output_with_taxonomy.txt strict
 	step_description_and_time_first "BLAST FILTERED DONE"
 
 elif [[ $classification == "kraken2" ]]; then
