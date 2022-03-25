@@ -8,27 +8,33 @@ import pandas as pd
 import plotly.express as px
 
 # Specify number of reads
-reads={"DNA 1 aquarium": 1355159, "DNA 2 aquarium": 1373310, "DNA 3 aquarium": 1571705, "RNA 1 aquarium": 1902388,
-"RNA 2 aquarium": 1099851, "RNA 3 aquarium": 773067, "DNA FilCon aquarium": 99, "RNA FilCon aquarium": 2685,
-"DNA ExtCon aquarium": 157, "RNA ExtCon aquarium": 1137, "DNA 1 mock": 817619, "DNA 2 mock": 644634,
-"DNA 3 mock": 669382, "RNA 1 mock": 94633, "RNA 2 mock": 78149, "RNA 3 mock": 120144,
-"DNA FilCon mock": 640, "RNA FilCon mock": 1551, "DNA ExtCon mock": 399, "RNA ExtCon mock": 887}
+reads = {"DNA 1 R1": 817619, "DNA 1 R2": 817619, "RNA 1 R1": 94633,
+    "RNA 1 R2": 94633, "DNA 2 R1": 644634, "DNA 2 R2": 644634, "RNA 2 R1": 78149,
+    "RNA 2 R2": 78149, "DNA 3 R1": 669382, "DNA 3 R2": 669382, "RNA 3 R1": 120144,
+    "RNA 3 R2": 120144, "DNA ExtCon R1": 399, "DNA ExtCon R2": 399,
+    "RNA ExtCon R1": 887, "RNA ExtCon R2": 887, "DNA FilCon R1": 640,
+    "DNA FilCon R2": 640, "RNA FilCon R1": 1551, "RNA FilCon R2": 1551}
 
-# Specify % of duplicated reads
-percentage=[2.75,2.2,2.65,75.25,53.7,52.5,2.2,41.15,0.5,26.95,5.75,4.55,4.45,74.3,69.4,77.05,9.65,41.6,0.9,35.1]
+# Specify percentage of duplictes
+percentage = {"DNA 1 R1": 6.0, "DNA 1 R2": 5.5, "RNA 1 R1": 74.1,
+    "RNA 1 R2": 74.5, "DNA 2 R1": 4.8, "DNA 2 R2": 4.3, "RNA 2 R1": 70.8,
+    "RNA 2 R2": 68.0, "DNA 3 R1": 4.6, "DNA 3 R2": 4.3, "RNA 3 R1": 77.1,
+    "RNA 3 R2": 77.0, "DNA ExtCon R1": 1.5, "DNA ExtCon R2": 0.3,
+    "RNA ExtCon R1": 64.9, "RNA ExtCon R2": 5.3, "DNA FilCon R1": 12.3,
+    "DNA FilCon R2": 7.0, "RNA FilCon R1": 74.7, "RNA FilCon R2": 8.5}
 
 # Make df
-reads_df=pd.DataFrame(reads, index=["reads"]).transpose().reset_index()
-reads_df["dupl_perc"]=percentage
+reads_df=pd.DataFrame([reads, percentage], index=["reads", "dupl_perc"]).transpose().reset_index()
 reads_df["dupl_reads"]=reads_df["dupl_perc"]/100*reads_df["reads"]
 reads_df["reads_left"]=reads_df["reads"]-reads_df["dupl_reads"]
 
 # Melt df for stacked barplot
-reads_df=pd.melt(reads_df, id_vars="index", value_vars=["dupl_reads", "reads_left"]).round(0)
-reads_df=pd.concat([reads_df[reads_df["variable"]=="reads_left"], reads_df[reads_df["variable"]=="dupl_reads"]])
+reads_df_melted=pd.melt(reads_df, id_vars="index", value_vars=["dupl_reads", "reads_left"]).round(0)
+reads_df_melted=pd.concat([reads_df_melted[reads_df_melted["variable"]=="reads_left"], reads_df_melted[reads_df_melted["variable"]=="dupl_reads"]])
+reads_df_melted["reads"]=2*list(reads_df["reads"])
 
 # Plot
-fig=px.bar(reads_df, x="index", y="value", text="value", color="variable", labels={"value": "Reads", "index": "Sample"})
-fig.update_xaxes(tickangle=45)
+fig=px.bar(reads_df_melted, x="index", y="value", text="reads", color="variable",
+    labels={"value": "Reads", "index": "Sample"})
 fig.update_traces(textposition='outside')
-fig.update_layout(width=1500, height=800)
+fig.write_image("/Users/christopherhempel/Desktop/readnum.svg", height=800, width=1500)
