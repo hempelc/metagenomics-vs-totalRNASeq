@@ -19,8 +19,6 @@ workdir = "/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mo
 ## Subsample read numbers
 subsample_readnums=[1000, 2500, 5000, 10000, 20000, 40000, 60000, 78149, 94633,
     120144, 200000, 300000, 400000, 500000, 600000, 644634, 669382, 817619]
-## Regression calc based on # of reads
-reg_reads=120144
 ## Indicate if you want to keep replicates separate
 sep_reps=False
 ## If sep_reps=False, indicate if you want to show separate replcates as gray lines
@@ -36,7 +34,7 @@ database="silva"
 dt_type="rel"
 
 # Adding regression curves for data until 120,144 reads
-def add_reg(mean, colour):
+def add_reg(mean, colour, reg_reads):
     mean_sub=mean.loc[:reg_reads]
     y_reg=mean_sub
     x_reg=mean_sub.index
@@ -51,7 +49,8 @@ def add_reg(mean, colour):
             x=x_reg,
             y=y_pred,
             line=dict(color=colour, dash='dash'),
-            mode='lines'))
+            mode='lines',
+            showlegend=False))
 
 
 # Parameters set automatically
@@ -131,17 +130,30 @@ for groupby_rank in groupby_rank_lst:
             if sep_reps:
                 lvls=[x for x in lvls if "M" in x]
             for lvl in lvls:
-                if not fourtyk:
+                ## Regression calc based on # of reads
+                if '4' in lvl:
+                    reg_reads = 94633
+                elif '5' in lvl:
+                    reg_reads = 78149
+                elif '6' in lvl:
+                    reg_reads = 120144
+                ## Cut down df to reads >=40k to exclude unuseful data
+                if not fourtyk and "_rel" in lvl:
                     cols=[x for x in master_df[lvl].columns if x >= 40000]
                 else:
                     cols=master_df[lvl].columns
+                ## Set colours
                 if "RNA" in lvl:
                     color='rgba(220,50,32,1)'
                     color_err='rgba(220,50,32,0.1)'
                 else:
                     color='rgba(0,90,181,1)'
                     color_err='rgba(0,90,181,0.1)'
-                name=lvl.replace("_{0}_{1}_{2}".format(db, groupby_rank, data_type), '')
+                sequencing_type=lvl.replace("_{0}_{1}_{2}".format(db, groupby_rank, data_type), '')
+                if sequencing_type=="DNA":
+                    name="Metagenomics"
+                else:
+                    name="Total RNA-Seq"
                 ## Calculate mean and sd
                 mean=master_df[lvl].loc[:, cols].mean()
                 sd=pd.Series()
@@ -193,7 +205,7 @@ for groupby_rank in groupby_rank_lst:
                                 hoverinfo="skip",
                                 showlegend=False))
                         # Add regression line
-                        add_reg(mean, "black")
+                        add_reg(mean, "black", reg_reads)
                 else:
                     fig.add_trace(
                         go.Scatter(
@@ -212,7 +224,7 @@ for groupby_rank in groupby_rank_lst:
                             hoverinfo="skip",
                             showlegend=False))
                     # Add regression line
-                    add_reg(mean, "black")
+                    add_reg(mean, "black", reg_reads)
 
             # Calculate p-values between DNA and RNA coefficients at 120k reads
             coeffs=coeffs.transpose()
@@ -220,10 +232,10 @@ for groupby_rank in groupby_rank_lst:
             rna_coeffs=coeffs[coeffs.index.str.contains('RNA')]["coef"]
             pval_coef=ttest_rel(dna_coeffs, rna_coeffs)[1]
 
-            fig.update_layout(title="{0}_{1}_{2}, pval={3}".format(db, groupby_rank, data_type, round(pval_coef, 3)),
+            fig.update_layout(title="p={3}".format(db, groupby_rank, data_type, round(pval_coef, 3)),
                 xaxis_title="Number of reads",
                 yaxis_title="Euclidean distance to reference",
                 legend_title="Sequencing type", template="simple_white")
             fig.show()
-            fig.write_image(os.path.join(workdir, "subsample_curves_{0}_{1}_{2}.png".format(db, groupby_rank, data_type)), height=600, width=1200)
-            fig.write_image(os.path.join(workdir, "subsample_curves_{0}_{1}_{2}.svg".format(db, groupby_rank, data_type)), height=600, width=1200)
+            fig.write_image(os.path.join(workdir, "subsample_curves_{0}_{1}_{2}.png".format(db, groupby_rank, data_type)), height=400, width=800)
+            fig.write_image(os.path.join(workdir, "subsample_curves_{0}_{1}_{2}.svg".format(db, groupby_rank, data_type)), height=400, width=800)
