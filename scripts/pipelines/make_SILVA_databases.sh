@@ -329,4 +329,4 @@ makeblastdb -dbtype 'nucl' -in ../SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fa
 -out $(basename $blastDB)
 cd ..
 
-echo "Databse setup done."
+echo "Database setup done."
