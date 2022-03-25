@@ -2,11 +2,11 @@
 
 # A simple script to merge two files on columns that exist in both files, keeps
 # all rows, and adds 0 for read counts if a contig has no mapped reads.
-# Needs to have a column 'counts' with readcounts in readcount_file.
-# If the first file is empty, the script merges on the colulm sequence_name and
+# Needs to have a column 'counts' with readcounts in the readcount file.
+# If the first file is empty, the script merges on the column sequence_name and
 # keeps the column order that way.
 
-# usage: ./merge_files.py file2 file2 output_file_name
+# Usage: ./merge_files.py file2 file2 output_file_name
 
 import pandas as pd, sys
 

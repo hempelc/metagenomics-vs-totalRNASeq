@@ -9,7 +9,7 @@ import sys
 import argparse
 import warnings
 
-# Set that warnings are not printed to console
+# Define that warnings are not printed to console
 warnings.filterwarnings("ignore")
 
 # Define funtion to print datetime and text
@@ -22,7 +22,7 @@ def bitscore_cutoff(x):
     min_bitscore=x.max()-x.max()*0.02
     return x[x>=min_bitscore]
 
-# Define class to format helptext of options properly, taken from
+# Define a class to format helptext of options properly, taken from
 # https://www.google.com/search?q=argsparse+recognize+newline+in+help&oq=argsparse+
 # recognize+newline+in+help&aqs=chrome..69i57j33i22i29i30.12450j0j7&sourceid=chrome&ie=UTF-8
 class SmartFormatter(argparse.HelpFormatter):
@@ -84,8 +84,8 @@ ranks=["superkingdom", "kingdom", "phylum", "subphylum", "class", "subclass",
 req_cols=['qseqid', 'pident', 'length', 'bitscore']+ranks
 
 
-time_print("Reading in file...")
 # Only read in columsn we need
+time_print("Reading in file...")
 df=pd.read_csv(file, usecols=req_cols, sep="\t", dtype={"qseqid": str}).fillna('NA')
 
 
@@ -126,8 +126,8 @@ elif filter=="soft":
 df=df[["qseqid"] + ranks]
 
 
-time_print("Performing LCA filter...")
 ## Make a df mask: group df by contigs, check if rank has more than one taxon, and if yes, True, else False
+time_print("Performing LCA filter...")
 lca_mask=df.groupby(["qseqid"]).transform(lambda x: len(set(x)) != 1)
 
 ## Replace ranks in df with "NA" based on mask
