@@ -2,7 +2,7 @@
 
 # Written by Christopher Hempel (hempelc@uoguelph.ca) on 9 Mar 2021
 
-# This script processes pipeline data from multiple replicates of environmental
+# This script processes pipeline data from multiple replicates of mock community
 # samples and compares the respective metrics in heatmaps
 
 import pandas as pd

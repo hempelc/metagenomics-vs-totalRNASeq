@@ -4,8 +4,8 @@
 
 # This script processes pipeline data from multiple replicates of mock community
 # samples and exports a metrics table. It's a modified version of the script
-# "metrics_generation_mock_samples.py" that is adapted for subsampled DNA and RNA
-# samples that were subsampled at different depths.
+# "metrics_generation.py" that is adapted for subsampled DNA and RNA
+# samples that were subsampled at different depths to generate accuracy curves.
 # Requires a specific directory structure to work.
 
 import pandas as pd

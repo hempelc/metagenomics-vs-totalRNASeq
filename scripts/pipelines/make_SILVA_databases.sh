@@ -2,12 +2,16 @@
 
 # Script to set up a SILVA SSU and LSU NR99 BLASTand kraken2 DB
 
-# Usage: make_SILVA_databases.sh path_to_new_kraken2_DB path_to_new_BLAST_DB
+# Usage: make_SILVA_databases.sh path_to_new_kraken2_DB_directory path_to_new_BLAST_DB_directory
 
-# Set variable to path name for generated SILVA kraken2 and BLAST DB
+# Set variable to FULL directory path for generated SILVA kraken2 and BLAST DB
 # Note: kraken2 won't work if the DB is moved after building
 kraken2DB=$1
 blastDB=$2
+
+cwd=$(pwd)
+mkdir make_SILVA_databases/
+cd make_SILVA_databases/
 
 # Get SILVA fasta and taxonomy files
 wget https://www.arb-silva.de/fileadmin/silva_databases/current/Exports/SILVA_138.1_SSURef_NR99_tax_silva_trunc.fasta.gz
@@ -317,16 +321,17 @@ SILVA_accession_numbers_and_NCBI_taxids.txt 1 1 \
 # Make the kraken2 DB
 mkdir $kraken2DB
 mkdir $kraken2DB/taxonomy
-cp nodes.dmp names.dmp $kraken2DB/taxonomy # Prepare the taxonomy for the kraken2 DB
-kraken2-build --add-to-library SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_kraken2.fasta --db $kraken2DB
+cp ${cwd}/make_SILVA_databases/nodes.dmp ${cwd}/make_SILVA_databases/names.dmp $kraken2DB/taxonomy # Prepare the taxonomy for the kraken2 DB
+kraken2-build --add-to-library ${cwd}/make_SILVA_databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc_kraken2.fasta --db $kraken2DB
 kraken2-build --build --db $kraken2DB
 
 # Make the blast DB
 mkdir $blastDB
 cd $blastDB
-makeblastdb -dbtype 'nucl' -in ../SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta \
--parse_seqids -taxid_map ../SILVA_accession_numbers_and_NCBI_taxids.txt \
+makeblastdb -dbtype 'nucl' -in ${cwd}/make_SILVA_databases/SILVA_138.1_SSU_LSURef_NR99_tax_silva_trunc.fasta \
+-parse_seqids -taxid_map ${cwd}/make_SILVA_databases/SILVA_accession_numbers_and_NCBI_taxids.txt \
 -out $(basename $blastDB)
-cd ..
+cd $cwd
+rm -r make_SILVA_databases/
 
 echo "Database setup done."
