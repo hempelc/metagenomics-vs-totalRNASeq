@@ -5,12 +5,12 @@
 # This script generates accuracy curves for various subsample sizes of DNA and RNA samples
 
 import os
-import pandas as pd
-import numpy as np
-import plotly.graph_objs as go
-from scipy.spatial.distance import euclidean
-import statsmodels.api as sm
-from scipy.stats import ttest_rel
+import pandas as pd #v1.3.5
+import numpy as np #v1.21.3
+import plotly.graph_objs as go #v5.5.0
+from scipy.spatial.distance import euclidean #v1.7.3
+import statsmodels.api as sm #v0.13.0
+from scipy.stats import ttest_rel #v1.7.3
 
 
 # Parameters set manually

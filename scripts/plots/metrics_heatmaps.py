@@ -5,15 +5,15 @@
 # This script processes pipeline data from multiple replicates of mock community
 # samples and compares the respective metrics in heatmaps
 
-import pandas as pd
-import numpy as np
+import pandas as pd #v1.3.5
+import numpy as np #v1.21.3
 import math
-import plotly.express as px
+import plotly.express as px #v5.5.0
 import os
 import copy
 import logging
-from scipy.stats import ttest_rel
-from scipy.spatial.distance import euclidean
+from scipy.stats import ttest_rel #v1.7.3
+from scipy.spatial.distance import euclidean #v1.7.3
 
 # Activate logging for debugging
 logging.basicConfig(level=logging.DEBUG,

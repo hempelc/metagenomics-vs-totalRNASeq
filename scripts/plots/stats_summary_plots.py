@@ -4,13 +4,13 @@
 
 # This script processes the output from the script "eucdist_correlation_clustering_metrics.py"
 
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
+import pandas as pd #v1.3.5
+import plotly.express as px #v5.5.0
+import plotly.graph_objects as go #v5.5.0
 import logging
 import os
 import pickle
-import numpy as np
+import numpy as np #v1.21.3
 import glob
 
 

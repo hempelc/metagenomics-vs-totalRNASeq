@@ -6,24 +6,23 @@
 # determines the Euclidean distance of pipelines to the reference mock community,
 # the correaltion between Euclidean distance and tools, and clusters of pipelines.
 
-import pandas as pd
-import numpy as np
-import plotly.express as px
+import pandas as pd #v1.3.5
+import numpy as np #v1.21.3
+import plotly.express as px #v5.5.0
 import os
 import copy
 import logging
 import pickle
-import statsmodels.api as sm
-from scipy.spatial.distance import euclidean
-from scipy.stats import pointbiserialr
-from kneed import KneeLocator
-from sklearn.metrics import silhouette_score
+import statsmodels.api as sm #v0.13.0
+from scipy.spatial.distance import euclidean #v1.7.3
+from scipy.stats import pointbiserialr #v1.7.3
+from kneed import KneeLocator #v0.7.0
+from sklearn.metrics import silhouette_score  #v1.0.2
 from collections import Counter
-from sklearn.decomposition import PCA
-from numpy import array, linspace
-from sklearn.neighbors import KernelDensity
-from sklearn.model_selection import GridSearchCV
-from scipy.signal import argrelextrema
+from sklearn.decomposition import PCA #v1.0.2
+from sklearn.neighbors import KernelDensity  #v1.0.2
+from sklearn.model_selection import GridSearchCV  #v1.0.2
+from scipy.signal import argrelextrema #v1.7.3
 
 
 # Activate logging for debugging
@@ -187,7 +186,7 @@ for combination in combinations:
 
                 ## 4.2 Run the actual Kernel Density Estimation
                 kde = KernelDensity(kernel='gaussian', bandwidth=bandw).fit(segmentation_df)
-                s = linspace(min(df["euc_dist"]),max(df["euc_dist"]))
+                s = np.linspace(min(df["euc_dist"]),max(df["euc_dist"]))
                 e = kde.score_samples(s.reshape(-1,1))
                 fig_kde=px.line(x=s, y=e)
                 fig_kde.show()

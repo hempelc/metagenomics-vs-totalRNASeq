@@ -4,8 +4,8 @@
 
 # This script generates a barplot for read numbers and % of duplicates
 
-import pandas as pd
-import plotly.express as px
+import pandas as pd #v1.3.5
+import plotly.express as px #v5.5.0
 
 # Specify number of reads
 reads = {"DNA 1 R1": 817619, "DNA 1 R2": 817619, "RNA 1 R1": 94633,
