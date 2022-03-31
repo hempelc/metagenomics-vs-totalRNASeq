@@ -2,15 +2,15 @@
 
 # Written by Christopher Hempel (hempelc@uoguelph.ca) on 2 Mar 2022
 
-# This script generates performance curves for various subsample sizes of DNA and RNA samples
+# This script generates accuracy curves for various subsample sizes of DNA and RNA samples
 
 import os
-import pandas as pd
-import numpy as np
-import plotly.graph_objs as go
-from scipy.spatial.distance import euclidean
-import statsmodels.api as sm
-from scipy.stats import ttest_rel
+import pandas as pd #v1.3.5
+import numpy as np #v1.21.3
+import plotly.graph_objs as go #v5.5.0
+from scipy.spatial.distance import euclidean #v1.7.3
+import statsmodels.api as sm #v0.13.0
+from scipy.stats import ttest_rel #v1.7.3
 
 
 # Parameters set manually
@@ -74,8 +74,9 @@ for sample in samples:
             for db in db_lst:
 
                 # Empty storage df
-                subsamples=[sample + "_subsample_" + str(x) for x in range(1,11)]
                 df_eucdist=pd.DataFrame({}, index=subsamples)
+                # List with names of subsamples
+                subsamples=[sample + "_subsample_" + str(x) for x in range(1,11)]
 
                 # Loop over subsample size
                 for subsample_readnum in subsample_readnums:
@@ -102,6 +103,8 @@ for sample in samples:
                     df_eucdist[subsample_readnum]=df_no_exp['euc_dist']
                 master_df["{0}_{1}_{2}_{3}".format(sample, db, groupby_rank, data_type)]=df_eucdist
 
+# Previous code was for every replicate separately, now we concatenate all
+# replicates together and store concatenated results separately
 for na in ["RNA", "DNA"]:
     for groupby_rank in groupby_rank_lst:
         for data_type in data_types:
@@ -165,13 +168,14 @@ for groupby_rank in groupby_rank_lst:
                         sd.loc[col]=col_no_nan.std()
                 mean_plus_sd=mean+sd
                 mean_minus_sd=mean-sd
-                ## Save coefficients of replicates
+                ## Generate regression curves and determine coefficients and constants
                 mean_sub=mean.loc[:reg_reads]
                 y_reg=mean_sub
                 x_reg=mean_sub.index
                 fit_results=sm.OLS(y_reg, sm.add_constant(x_reg), missing="drop").fit()
                 const = fit_results.params["const"]
                 coef = fit_results.params["x1"]
+                # Save coefficients of replicates
                 if "M" in lvl:
                     coeffs[lvl]=coef
                 if not sep_reps:
@@ -226,12 +230,13 @@ for groupby_rank in groupby_rank_lst:
                     # Add regression line
                     add_reg(mean, "black", reg_reads)
 
-            # Calculate p-values between DNA and RNA coefficients at 120k reads
+            # Calculate p-values between DNA and RNA coefficients
             coeffs=coeffs.transpose()
             dna_coeffs=coeffs[coeffs.index.str.contains('DNA')]["coef"]
             rna_coeffs=coeffs[coeffs.index.str.contains('RNA')]["coef"]
             pval_coef=ttest_rel(dna_coeffs, rna_coeffs)[1]
 
+            # Update and save figure
             fig.update_layout(title="p={3}".format(db, groupby_rank, data_type, round(pval_coef, 3)),
                 xaxis_title="Number of reads",
                 yaxis_title="Euclidean distance to reference",

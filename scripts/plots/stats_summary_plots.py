@@ -2,15 +2,15 @@
 
 # Written by Christopher Hempel (hempelc@uoguelph.ca) on 21 Sep 2021
 
-# This script processes the output from the script "regression_pca_clustering.py"
+# This script processes the output from the script "eucdist_correlation_clustering_metrics.py"
 
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
+import pandas as pd #v1.3.5
+import plotly.express as px #v5.5.0
+import plotly.graph_objects as go #v5.5.0
 import logging
 import os
 import pickle
-import numpy as np
+import numpy as np #v1.21.3
 import glob
 
 
@@ -19,14 +19,12 @@ logging.basicConfig(level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-# Parameters manual setting
+# Parameters set manually
 workdir="/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock_samples/"
-
-# Parameters auto setting
-## List of DNA and RNA mock community samples, replicates of 3; must equal names of directories in workdir that
-## contain each sample's pipeline results:
 # Indicate if you want to just highlight the best min (False) or also mean (True)
 both=False
+
+# Parameters set automatically
 aggs=["agg_reps_agg_type", "agg_reps_sep_type", "sep_reps_agg_type", "sep_reps_sep_type"]
 levels=["gen_genus", "gen_species"]
 metr_lst=["rel", "pa"]
@@ -44,8 +42,7 @@ if not os.path.exists(plotdir_level1):
     os.mkdir(plotdir_level1)
 
 # 1 Import dfs to evaluate tools and concatenate them, creating columns to separate
-#   them, and import tools count dics to evaluate clusters:
-
+#   them, and import tool count dicts to evaluate clusters:
 for agg in aggs:
     tool_eval_master_df=pd.DataFrame()
     cluster_counts_all=pd.DataFrame({'tool':tools})
@@ -144,9 +141,9 @@ for agg in aggs:
 
 
     # 2 Graph
+    ## Set order of columns
     category_orders_tool_eval_tool=[x for x in tools if x in tool_eval_master_df["tool"].unique()]
     category_orders_cluster_counts=[x for x in tools if x in cluster_counts_master_df["tool"].unique()]
-
     if agg=="agg_reps_agg_type":
         width=1050/1.5
         category_orders_comb=['agg_gen_species_rel','agg_gen_genus_rel',
@@ -173,8 +170,8 @@ for agg in aggs:
             'M6_DNA_gen_genus_pa','M4_RNA_gen_species_pa','M5_RNA_gen_species_pa',
             'M6_RNA_gen_species_pa','M4_RNA_gen_genus_pa','M5_RNA_gen_genus_pa',
             'M6_RNA_gen_genus_pa']
+
     ## 2.1 Tool evaluation:
-    ### Invert pval for graph (otherwise bubbles with good p-value are not visible):
     if both:
         color_discrete_map={'none': "lightgrey", 'min': "#0187b3", 'mean': "#e3c284", "both": "#cc0035"}
     else:

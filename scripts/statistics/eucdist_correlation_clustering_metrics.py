@@ -2,26 +2,27 @@
 
 # Written by Christopher Hempel (hempelc@uoguelph.ca) on 22 Jul 2021
 
-# This script processes the output from the script "processing_and_metrics.py"
+# This script processes the output from the script "metrics_generation.py" and
+# determines the Euclidean distance of pipelines to the reference mock community,
+# the correaltion between Euclidean distance and tools, and clusters of pipelines.
 
-import pandas as pd
-import numpy as np
-import plotly.express as px
+import pandas as pd #v1.3.5
+import numpy as np #v1.21.3
+import plotly.express as px #v5.5.0
 import os
 import copy
 import logging
 import pickle
-import statsmodels.api as sm
-from scipy.spatial.distance import euclidean
-from scipy.stats import pointbiserialr
-from kneed import KneeLocator
-from sklearn.metrics import silhouette_score
+import statsmodels.api as sm #v0.13.0
+from scipy.spatial.distance import euclidean #v1.7.3
+from scipy.stats import pointbiserialr #v1.7.3
+from kneed import KneeLocator #v0.7.0
+from sklearn.metrics import silhouette_score  #v1.0.2
 from collections import Counter
-from sklearn.decomposition import PCA
-from numpy import array, linspace
-from sklearn.neighbors import KernelDensity
-from sklearn.model_selection import GridSearchCV
-from scipy.signal import argrelextrema
+from sklearn.decomposition import PCA #v1.0.2
+from sklearn.neighbors import KernelDensity  #v1.0.2
+from sklearn.model_selection import GridSearchCV  #v1.0.2
+from scipy.signal import argrelextrema #v1.7.3
 
 
 # Activate logging for debugging
@@ -55,7 +56,6 @@ comb="gen_genus"
 ### ("rel", "pa")
 metrics="rel"
 
-master_master_counts_dic={}
 
 
 # Parameters set automatically
@@ -86,6 +86,7 @@ def sum_nested_dics(dic1, dic2):
     return summed_dic
 
 
+master_master_counts_dic={}
 for combination in combinations:
     for metr in metr_list:
         ## Make plot export directory:
@@ -185,12 +186,12 @@ for combination in combinations:
 
                 ## 4.2 Run the actual Kernel Density Estimation
                 kde = KernelDensity(kernel='gaussian', bandwidth=bandw).fit(segmentation_df)
-                s = linspace(min(df["euc_dist"]),max(df["euc_dist"]))
+                s = np.linspace(min(df["euc_dist"]),max(df["euc_dist"]))
                 e = kde.score_samples(s.reshape(-1,1))
                 fig_kde=px.line(x=s, y=e)
                 fig_kde.show()
 
-                # #NEW: maybe split based on either minima or maxima
+                # Uncomment if you want to split based on either minima or maxima
                 # ## 4.3 Define minima and split data into clusters based on minima
                 # mi=argrelextrema(e, np.less)[0]
                 # ma=argrelextrema(e, np.greater)[0]
@@ -209,7 +210,7 @@ for combination in combinations:
                 #     else:
                 #         clusters[i]=list(segmentation_df[(segmentation_df >= s[cuts][i-1]) * (segmentation_df <= s[cuts][i])])
 
-                # ORIGINAL (just minima):
+                # Split based on minima:
                 ## 4.3 Define minima and split data into clusters based on minima
                 mi=argrelextrema(e, np.less)[0]
                 print("For combination {0}_{1}_{2}, the best number of clusters is {3}."\
@@ -222,7 +223,6 @@ for combination in combinations:
                         clusters[i]=list(segmentation_df[segmentation_df >= s[mi][i-1]])
                     else:
                         clusters[i]=list(segmentation_df[(segmentation_df >= s[mi][i-1]) * (segmentation_df <= s[mi][i])])
-
 
                 ## 4.4 Turn clusters into mergeable dataframe and add them to metrics df
                 clusters_inv={}
@@ -266,142 +266,3 @@ for combination in combinations:
                 # Merge dfs
                 merged=pd.merge(euc_dist_final_df, pval_df, on="index").set_index("index")
                 merged.to_csv(os.path.join(exportdir_level2, "eucdist_pvalues_tools_" + combo + ".csv"), index_label="tool")
-
-
-
-# def get_jenks_breaks(data_list, number_class):
-#     data_list.sort()
-#     mat1 = []
-#     for i in range(len(data_list) + 1):
-#         temp = []
-#         for j in range(number_class + 1):
-#             temp.append(0)
-#         mat1.append(temp)
-#     mat2 = []
-#     for i in range(len(data_list) + 1):
-#         temp = []
-#         for j in range(number_class + 1):
-#             temp.append(0)
-#         mat2.append(temp)
-#     for i in range(1, number_class + 1):
-#         mat1[1][i] = 1
-#         mat2[1][i] = 0
-#         for j in range(2, len(data_list) + 1):
-#             mat2[j][i] = float('inf')
-#     v = 0.0
-#     for l in range(2, len(data_list) + 1):
-#         s1 = 0.0
-#         s2 = 0.0
-#         w = 0.0
-#         for m in range(1, l + 1):
-#             i3 = l - m + 1
-#             val = float(data_list[i3 - 1])
-#             s2 += val * val
-#             s1 += val
-#             w += 1
-#             v = s2 - (s1 * s1) / w
-#             i4 = i3 - 1
-#             if i4 != 0:
-#                 for j in range(2, number_class + 1):
-#                     if mat2[l][j] >= (v + mat2[i4][j - 1]):
-#                         mat1[l][j] = i3
-#                         mat2[l][j] = v + mat2[i4][j - 1]
-#         mat1[l][1] = 1
-#         mat2[l][1] = v
-#     k = len(data_list)
-#     kclass = []
-#     for i in range(number_class + 1):
-#         kclass.append(min(data_list))
-#     kclass[number_class] = float(data_list[len(data_list) - 1])
-#     count_num = number_class
-#     while count_num >= 2:  # print "rank = " + str(mat1[k][count_num])
-#         idx = int((mat1[k][count_num]) - 2)
-#         # print "val = " + str(data_list[idx])
-#         kclass[count_num - 1] = data_list[idx]
-#         k = int((mat1[k][count_num] - 1))
-#         count_num -= 1
-#     return kclass
-#
-# import numpy as np
-# import matplotlib.pyplot as plt
-#
-# x = list(aggregation_dic["DNA"]["euc_dist"])
-# breaks = get_jenks_breaks(x, 7)
-#
-# for line in breaks:
-#     plt.plot([line for _ in range(len(x))], 'k--')
-#
-# plt.plot(x)
-# plt.grid(True)
-# plt.show()
-#
-#
-# from sklearn.cluster import KMeans
-# k_list=[]
-#
-# ## We repeat k evaluation "k_test_reps" times to account for randomness:
-# for rep in range(0, 3):
-#     ## 2.1.1 Estimate the best kluster number k
-#     ### Number of k to test
-#     ktest=20
-#     ## 2.1.2 Elbow method based on SSE (kmeans)
-#     ### The dic fit holds the SSE values for each k
-#     fit={}
-#     for k in range(3, ktest):
-#         cluster_alg = KMeans(n_clusters=k)
-#         cluster_alg.fit(aggregation_dic["agg"]["euc_dist"].to_numpy().reshape(-1, 1))
-#         fit[k]=(cluster_alg.inertia_)
-#
-#     ### Plot SSEs
-#     fig = px.line(x=fit.keys(), y=fit.values())
-#     fig.show()
-#
-#     ## 2.1.3 Automatically calculate the best k using KneeLocator
-#     kl = KneeLocator(range(3, ktest), list(fit.values()), curve="convex", direction="decreasing")
-#     k_list.append(str(kl.elbow))
-#
-#
-# ## 2.1.4 Select k
-# ### Count occurence of each tool for each step and save in dict:
-# count_df=pd.DataFrame(Counter(k_list), index=["count"]).transpose().reset_index().rename(columns={'index': 'k'})
-# ### Plot counts
-# fig = px.bar(count_df, x='k', y='count')
-# fig.show()
-# ### Select k with highest counts
-# counts=count_df.sort_values("count")["count"].iloc[-1]
-# k=int(count_df.sort_values("count")["k"].iloc[-1])
-# print("The best k based on KneeLocator is {0} in {1}/{2} repetitions.".format(k, counts, 3))
-#
-# ## 2.2 Perform the actual kmeans with the estimated k
-# ### We cluster with the same k 100 times and determine the cluster labels
-# ### with the lowest silhouette score
-# k_actual_dic={}
-# for i in range(0,20):
-#     k_act={}
-#     cluster_alg = KMeans(n_clusters=k)
-#     cluster_alg.fit(aggregation_dic["agg"]["euc_dist"].to_numpy().reshape(-1, 1))
-#     k_act["silscore"]=silhouette_score(aggregation_dic["agg"]["euc_dist"].to_numpy().reshape(-1, 1), cluster_alg.labels_)
-#     k_act["labels"]=cluster_alg.labels_
-#     k_actual_dic[i]=k_act
-# silscore_lst_act=[]
-# for x in k_actual_dic.values():
-#     silscore_lst_act.append(x["silscore"])
-# best_silscore=sorted(silscore_lst_act)[0]
-# labels=[]
-# ### And we extract the labels for the lowest silhouette score
-# for x in k_actual_dic.values():
-#     if x["silscore"]==best_silscore:
-#         labels=x["labels"]
-#
-# aggregation_dic["agg"]["cluster"]=labels
-#
-# ## 4.5 Determine closest cluster to expected based on centroid
-# ### Determine euclidean distance of each cluster centroid to expected:
-# for i in set(labels):
-#     print(aggregation_dic["agg"][aggregation_dic["agg"]["cluster"]==i]["euc_dist"].mean())
-# aggregation_dic["agg"][aggregation_dic["agg"]["cluster"]==4]
-# best_cluster_df=aggregation_dic["agg"][aggregation_dic["agg"]["cluster"]==4]
-# ### Count occurence of each tool for each step in closest cluster (=always cluster 0) and save in dict:
-# counts_dic={}
-# for col in best_cluster_df.columns[-9:-2]:
-#     counts_dic[col]=Counter(best_cluster_df[col])

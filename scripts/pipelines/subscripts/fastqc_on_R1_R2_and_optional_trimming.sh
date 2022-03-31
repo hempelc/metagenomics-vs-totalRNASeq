@@ -11,10 +11,9 @@
 # A folder with adapters to trim must be located in the same folder as the
 # trimmomatic .jar application and called "adapters" (that's usually the case
 # when you install trimmomatic).
-# For now, the used adapter sequences are fixed, and can be changed in line 122
+# For now, the used adapter sequences are fixed and can be changed in line 122
 
-# For some reason, the limit of the PHRED score can only be set to 38, FastQC is
-# not able to deal with data generated with higher PHRED scores (in my test).
+# The limit of the PHRED score is 38.
 
 usage="$(basename "$0") -1 <R1.fastq> -2 <R2.fastq> -t <yes|no> [-T <path/to/trimmomatic.jar> -P <'score score score ...'> -l <length> -p <threads>]
 

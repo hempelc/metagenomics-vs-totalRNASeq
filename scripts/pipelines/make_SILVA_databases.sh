@@ -4,7 +4,7 @@
 
 # Usage: make_SILVA_databases.sh path_to_new_kraken2_DB_directory path_to_new_BLAST_DB_directory
 
-# Set variable to directory path for generated SILVA kraken2 and BLAST DB
+# Set variable to FULL directory path for generated SILVA kraken2 and BLAST DB
 # Note: kraken2 won't work if the DB is moved after building
 kraken2DB=$1
 blastDB=$2

@@ -3,15 +3,15 @@
 # Written by Christopher Hempel (hempelc@uoguelph.ca) on 16 Jul 2021
 
 # This script processes pipeline data from multiple replicates of mock community
-# samples and exports a metrics table
+# samples and exports a metrics table.
 
-import pandas as pd
+import pandas as pd #v1.3.5
 import glob
 import os
 import copy
 import logging
-from skbio.stats.composition import multiplicative_replacement
-from skbio.stats.composition import clr
+from skbio.stats.composition import multiplicative_replacement #v0.5.6
+from skbio.stats.composition import clr #v0.5.6
 
 # Activate logging for debugging
 logging.basicConfig(level=logging.DEBUG,
@@ -56,7 +56,7 @@ rel_abun_gen_manuf = [0.948, 0.042, 0.007, 0.0023, 0.00058, 0.00059, 0.00015,
 rel_abun_cell_manuf = [0.949, 0.042, 0.007, 0.0012, 0.00058, 0.00059, 0.00015,
     0.00001, 0.0000007, 0.000001]
 ## These don't add up to 1 for some reason, so we shift the relative abundances
-## so that they sum up to 1:
+## so that they add up to 1:
 rel_abun_gen = [x/sum(rel_abun_gen_manuf) for x in rel_abun_gen_manuf]
 rel_abun_cell = [x/sum(rel_abun_cell_manuf) for x in rel_abun_cell_manuf]
 

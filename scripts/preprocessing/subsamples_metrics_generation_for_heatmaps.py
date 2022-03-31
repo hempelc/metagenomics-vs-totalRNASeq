@@ -4,15 +4,15 @@
 
 # This script processes pipeline data from multiple replicates of mock community
 # samples and exports a metrics table. It's a modified version of the script
-# "metrics_generation_mock_samples.py" that is adapted for subsampled DNA samples
+# "metrics_generation.py" that is adapted for subsampled DNA samples.
 
-import pandas as pd
+import pandas as pd #v1.3.5
 import glob
 import os
 import copy
 import logging
-from skbio.stats.composition import multiplicative_replacement
-from skbio.stats.composition import clr
+from skbio.stats.composition import multiplicative_replacement #v0.5.6
+from skbio.stats.composition import clr #v0.5.6
 
 # Activate logging for debugging
 logging.basicConfig(level=logging.DEBUG,
