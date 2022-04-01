@@ -10,6 +10,8 @@ import numpy as np #v1.21.3
 import plotly.graph_objs as go #v5.5.0
 from scipy.spatial.distance import euclidean #v1.7.3
 import statsmodels.api as sm #v0.13.0
+from statsmodels.formula.api import ols #v0.13.0
+from statsmodels.stats.anova import anova_lm #v0.13.0
 from scipy.stats import ttest_rel #v1.7.3
 
 
@@ -73,10 +75,10 @@ for sample in samples:
         for data_type in data_types:
             for db in db_lst:
 
-                # Empty storage df
-                df_eucdist=pd.DataFrame({}, index=subsamples)
                 # List with names of subsamples
                 subsamples=[sample + "_subsample_" + str(x) for x in range(1,11)]
+                # Empty storage df
+                df_eucdist=pd.DataFrame({}, index=subsamples)
 
                 # Loop over subsample size
                 for subsample_readnum in subsample_readnums:
@@ -116,8 +118,9 @@ for na in ["RNA", "DNA"]:
                     rep_df=pd.concat([rep_df, master_df[rep]])
                 master_df["{0}_{1}_{2}_{3}".format(na, db, groupby_rank, data_type)]=rep_df
 
-# Plot (taken from https://plotly.com/python/continuous-error-bars/)
-## Make a plot for each evaluation level and add each sampel as layer in a for loop
+
+# Make a plot for each evaluation level and add each sampel as layer in a for loop
+# Also store data in dfs for following stats
 for groupby_rank in groupby_rank_lst:
     for data_type in data_types:
         for db in db_lst:
@@ -132,6 +135,8 @@ for groupby_rank in groupby_rank_lst:
                 +[x for x in lvls if "RNA" in x if "M" not in x]
             if sep_reps:
                 lvls=[x for x in lvls if "M" in x]
+            ## Make empty df for model comparison
+            model_comp_df=pd.DataFrame()
             for lvl in lvls:
                 ## Regression calc based on # of reads
                 if '4' in lvl:
@@ -158,7 +163,7 @@ for groupby_rank in groupby_rank_lst:
                 else:
                     name="Total RNA-Seq"
                 ## Calculate mean and sd
-                mean=master_df[lvl].loc[:, cols].mean()
+                mean=master_df[lvl].loc[:, cols].mean().rename("accuracy")
                 sd=pd.Series()
                 for col in cols:
                     col_no_nan=master_df[lvl][col].dropna()
@@ -178,6 +183,15 @@ for groupby_rank in groupby_rank_lst:
                 # Save coefficients of replicates
                 if "M" in lvl:
                     coeffs[lvl]=coef
+                # Add to df for model comparison
+                if "M" in lvl:
+                    df_comp_rep=pd.DataFrame({"accuracy": mean_sub})
+                    if "DNA" in lvl:
+                        df_comp_rep["seqtype"]=[0]*len(df_comp_rep)
+                    elif "RNA" in lvl:
+                        df_comp_rep["seqtype"]=[1]*len(df_comp_rep)
+                    model_comp_df=pd.concat([model_comp_df, df_comp_rep])
+                # Add lines to plot (following https://plotly.com/python/continuous-error-bars/)
                 if not sep_reps:
                     # Add grey lines
                     if "M" in lvl:
@@ -230,14 +244,26 @@ for groupby_rank in groupby_rank_lst:
                     # Add regression line
                     add_reg(mean, "black", reg_reads)
 
-            # Calculate p-values between DNA and RNA coefficients
-            coeffs=coeffs.transpose()
-            dna_coeffs=coeffs[coeffs.index.str.contains('DNA')]["coef"]
-            rna_coeffs=coeffs[coeffs.index.str.contains('RNA')]["coef"]
-            pval_coef=ttest_rel(dna_coeffs, rna_coeffs)[1]
+            ## Calculate p-values between DNA and RNA coefficients
+            # Note: excluded, model performance is better
+            #coeffs=coeffs.transpose()
+            #dna_coeffs=coeffs[coeffs.index.str.contains('DNA')]["coef"]
+            #rna_coeffs=coeffs[coeffs.index.str.contains('RNA')]["coef"]
+            #pval_coef=ttest_rel(dna_coeffs, rna_coeffs)[1]
+
+            # Determine model performance with and without sequencing type
+            # following https://nathancarter.github.io/how2data/site/how-to-compare-two-nested-linear-models/
+            model_comp_df = model_comp_df.reset_index().rename(columns={'index':'readnum'})
+            no_seq_model = ols('accuracy ~ readnum', data = model_comp_df).fit()
+            seq_model = ols('accuracy ~ readnum + seqtype', data = model_comp_df).fit()
+            pval_model=anova_lm(no_seq_model, seq_model)["Pr(>F)"][1]
+            if pval_model < 0.001:
+                pval_model_title="p < 0.001"
+            else:
+                pval_model_title="p = {0}".format(round(pval_model, 3))
 
             # Update and save figure
-            fig.update_layout(title="p={3}".format(db, groupby_rank, data_type, round(pval_coef, 3)),
+            fig.update_layout(title=pval_model_title,
                 xaxis_title="Number of reads",
                 yaxis_title="Euclidean distance to reference",
                 legend_title="Sequencing type", template="simple_white")
