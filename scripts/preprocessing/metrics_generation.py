@@ -142,35 +142,45 @@ for groupby_rank in groupby_rank_lst:
             sample_dfs = {"expected": expected_df}
             ## For each file in the sample dic
             for file in sample_files:
-                #### Read in file as pandas df, fill NaN with "NA", "Unknown" by "NA", and fix one taxonomic misambiguation
+                ### Read in file as pandas df, fill NaN with "NA", "Unknown" by "NA", and fix one taxonomic misambiguation
                 df = pd.read_table(file).replace("Lactobacillus", r"Limosilactobacillus", regex=True)\
                     .replace("Unknown", "NA").replace("-", r"", regex=True)
                 df=df.rename(columns={df.columns[0]: 'sequence_name'})\
                     .dropna(subset = ['sequence_name']).fillna("NA")
+                ### Determine covered bases of scaffolds to aggregate information
+                ### across scaffolds with similar taxonomic annotation
+                ### We need the scaffold length to determine covered bases, so
+                ### if that info is not available, we have to generate it from the given sequence
+                if "sequence_length" not in df.columns:
+                    df["sequence_length"] = df["assembly_sequence"].str.len()
+                df["covered_bases"]=df["sequence_length"]*df["coverage"]
+                ### Apply a species filter: if a species is not 2 words (contains a space),
+                ### replace species value with "NA"
+                #### Therefore, first get indices of species not containing a space
+                idx=df['species'].str.contains(" ")[df['species'].str.contains(" ") == False].index
+                #### And replace them with "NA" in the df
+                df.loc[idx,'species'] = "NA"
+                ### Cut df down to relevant columns
                 if groupby_rank == "species":
                     df_small = df[["superkingdom", "phylum", "class", "order", "family",
-                        "genus", "species", "counts"]]
+                        "genus", "species", "covered_bases", "sequence_length"]]
                 elif groupby_rank == "genus":
                     df_small = df[["superkingdom", "phylum", "class", "order", "family",
-                        "genus", "counts"]]
+                        "genus", "covered_bases", "sequence_length"]]
                 ### The negative controls often have no sequences = empty dfs, therefore we need to
                 ### ignore them in the next step since we get errors if we use groupby on an epmty df:
                 if df.empty:
                     df_agg = df_small
                 else:
-                    ### Apply a species filter: if a species is not 2 words (contains a space),
-                    ### replace species value with "NA"
-                    #### Therefore, first get indices of species not containing a space
-                    idx=df['species'].str.contains(" ")[df['species'].str.contains(" ") == False].index
-                    #### And replace them with "NA" in the df
-                    df.loc[idx,'species'] = "NA"
-                    ### Cut df down to relevant columns
-                    #### Group similar taxonomy hits and sum their counts:
-                    df_agg = df_small.groupby(list(df_small.columns)[:-1]).sum().reset_index()
-                    #### Turn counts into relative abundances:
-                    df_agg["counts"]=df_agg["counts"]/df_agg["counts"].sum()
+                    #### Group similar taxonomy hits and sum their covered bases and sequence length:
+                    df_agg = df_small.groupby(list(df_small.columns)[:-2])["covered_bases", "sequence_length"].sum().reset_index()
+                    #### Determine average per-base coverage for each taxon
+                    df_agg["per_base_coverage"] = df_agg["covered_bases"]/df_agg["sequence_length"]
+                    df_agg=df_agg.drop(["sequence_length", "covered_bases"], axis=1)
+                    #### Turn coverages into relative abundances:
+                    df_agg["per_base_coverage"]=df_agg["per_base_coverage"]/df_agg["per_base_coverage"].sum()
                 ### Rename counts col
-                df_agg.rename(columns = {'counts':'rel_abun'}, inplace = True)
+                df_agg.rename(columns = {'per_base_coverage':'rel_abun'}, inplace = True)
                 ### Add all taxa to list "all_taxa"
                 all_taxa.extend(df_agg[groupby_rank].tolist())
                 ### Edit file name so that we can name dfs based on their file name=pipeline
