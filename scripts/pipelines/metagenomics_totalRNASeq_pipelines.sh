@@ -479,7 +479,6 @@ if [[ $mapping == 'bwa' ]]; then
   step_description_and_time_first "bwa index complete. Starting bwa mem"
   bwa mem -t $threads bwa_index ../../../../../../*1P_error_corrected.fastq \
 	../../../../../../*2P_error_corrected.fastq > ${mapping}_output.sam
-  rm bwa_index*
 	step_description_and_time_first "bwa mem complete"
 elif [[ $mapping == 'bowtie2' ]]; then
   step_description_and_time_first "Starting bowtie2 index"
@@ -488,21 +487,17 @@ elif [[ $mapping == 'bowtie2' ]]; then
 	bowtie2 -q -x bowtie_index -1 ../../../../../../*1P_error_corrected.fastq \
 	-2 ../../../../../../*2P_error_corrected.fastq -S ${mapping}_output.sam \
 	-p $threads
-	rm bowtie_index*
   step_description_and_time_first "bowtie2 complete"
 fi
 
-# Editing the mapper outputs:
-samtools view -F 4 ${mapping}_output.sam | cut -f3	| sort | uniq -c \
-| column -t | sed 's/  */\t/g' > out_mapped_${mapping}.txt
-samtools view -f 4 ${mapping}_output.sam | cut -f3 |	sort | uniq -c \
-| column -t | sed 's/  */\t/g' > out_unmapped_${mapping}.txt
-echo -e "counts\tsequence_name" > merge_input_mapped_${mapping}.txt \
-&& cat out_mapped_${mapping}.txt >> merge_input_mapped_${mapping}.txt
-echo -e "counts\tsequence_name" > merge_input_unmapped_${mapping}.txt \
-&& cat out_unmapped_${mapping}.txt >> merge_input_unmapped_${mapping}.txt
+# Editing the mapper outputs to detemine coverge of each contig:
+samtools sort ${mapping}_output.sam > ${mapping}_output_sorted.sam
+samtools coverage ${mapping}_output_sorted.sam | cut -f 1,7 | tail -n +2 \
+| head -n -1 | awk ' { t = $1; $1 = $2; $2 = t; print; } ' > coverage_${mapping}.tsv
+echo -e "coverage\tsequence_name" > merge_input_mapped_${mapping}.txt \
+&& cat coverage_${mapping}.tsv >> merge_input_mapped_${mapping}.txt
 
-rm out_*mapped_${mapping}.txt
+rm ${mapping}_output* *index* coverage_${mapping}.tsv
 
 # Moving back to assembler directory:
 cd ../../
