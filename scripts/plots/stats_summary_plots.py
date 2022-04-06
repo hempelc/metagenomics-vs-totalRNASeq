@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.DEBUG,
 
 
 # Parameters set manually
-workdir="/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock_samples/"
+workdir="/Users/christopherhempel/Desktop/pipeline_results_coverage/"
 # Indicate if you want to just highlight the best min (False) or also mean (True)
 both=False
 

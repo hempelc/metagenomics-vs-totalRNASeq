@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.DEBUG,
 
 # Parameters set manually
 ## Full path to directory that contains samples
-workdir = "/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock_samples/"
+workdir = "/Users/christopherhempel/Desktop/pipeline_results_coverage/"
 ## List of DNA and RNA mock community samples, replicates of 3 plus filtration controls (Neg) and
 ## extraction controls (Ext); must equal names of directories in workdir that
 ## contain each sample's pipeline results:
@@ -147,19 +147,22 @@ for groupby_rank in groupby_rank_lst:
                     .replace("Unknown", "NA").replace("-", r"", regex=True)
                 df=df.rename(columns={df.columns[0]: 'sequence_name'})\
                     .dropna(subset = ['sequence_name']).fillna("NA")
+                if not df.empty:
+                    ### We need the scaffold length to determine covered bases, so
+                    ### if that info is not available, we have to generate it from the given sequence
+                    if "sequence_length" not in df.columns:
+                        df["sequence_length"] = df["assembly_sequence"].str.len()
+                    ### Apply a species filter: if a species is not 2 words (contains a space),
+                    ### replace species value with "NA"
+                    #### Therefore, first get indices of species not containing a space
+                    idx=df['species'].str.contains(" ")[df['species'].str.contains(" ") == False].index
+                    #### And replace them with "NA" in the df
+                    df.loc[idx,'species'] = "NA"
+                else:
+                    df["sequence_length"]=[]
                 ### Determine covered bases of scaffolds to aggregate information
                 ### across scaffolds with similar taxonomic annotation
-                ### We need the scaffold length to determine covered bases, so
-                ### if that info is not available, we have to generate it from the given sequence
-                if "sequence_length" not in df.columns:
-                    df["sequence_length"] = df["assembly_sequence"].str.len()
                 df["covered_bases"]=df["sequence_length"]*df["coverage"]
-                ### Apply a species filter: if a species is not 2 words (contains a space),
-                ### replace species value with "NA"
-                #### Therefore, first get indices of species not containing a space
-                idx=df['species'].str.contains(" ")[df['species'].str.contains(" ") == False].index
-                #### And replace them with "NA" in the df
-                df.loc[idx,'species'] = "NA"
                 ### Cut df down to relevant columns
                 if groupby_rank == "species":
                     df_small = df[["superkingdom", "phylum", "class", "order", "family",
