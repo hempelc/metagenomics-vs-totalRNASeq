@@ -511,12 +511,8 @@ step_description_and_time_first "START STEP 5.1: CLASSIFICATION OF ASSEMBLED SCA
 
 
 mkdir step_5_classification/
-mkdir step_5_classification/$(echo $classification | tr '[:lower:]' '[:upper:]')/
-cd step_5_classification/$(echo $classification | tr '[:lower:]' '[:upper:]')/
-
-echo $(pwd)
-ls ../../../../
-ls ../../
+mkdir -p step_5_classification/$(echo $classification | tr '[:lower:]' '[:upper:]')/step_6_database/SILVA/
+cd step_5_classification/$(echo $classification | tr '[:lower:]' '[:upper:]')/step_6_database/SILVA//
 
 if [[ $classification == "blast_first_hit" || $classification == "blast_filtered" ]]; then
 	step_description_and_time_first "RUNNING BLAST WITH DATABASE $silva_blast_db"
