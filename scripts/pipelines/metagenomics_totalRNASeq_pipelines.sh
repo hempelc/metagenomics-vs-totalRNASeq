@@ -514,6 +514,9 @@ mkdir step_5_classification/
 mkdir step_5_classification/$(echo $classification | tr '[:lower:]' '[:upper:]')/
 cd step_5_classification/$(echo $classification | tr '[:lower:]' '[:upper:]')/
 
+echo $(pwd)
+ls ../../../../
+ls ../../
 
 if [[ $classification == "blast_first_hit" || $classification == "blast_filtered" ]]; then
 	step_description_and_time_first "RUNNING BLAST WITH DATABASE $silva_blast_db"
