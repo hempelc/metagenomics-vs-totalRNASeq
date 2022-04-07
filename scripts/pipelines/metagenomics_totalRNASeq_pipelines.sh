@@ -158,7 +158,8 @@ trimming=$(echo $pipeline | cut -f1 -d-)
 sorting=$(echo $pipeline | cut -f2 -d-)
 assembly=$(echo $pipeline | cut -f3 -d-)
 mapping=$(echo $pipeline | cut -f4 -d-)
-classification=$(echo $pipeline | cut -f5 -d-)
+database=$(echo $pipeline | cut -f5 -d-)
+classification=$(echo $pipeline | cut -f6 -d-)
 
 # Define functions to print steps with time
 start=$(date +%s)
@@ -493,7 +494,7 @@ fi
 # Editing the mapper outputs to detemine coverge of each contig:
 samtools sort ${mapping}_output.sam > ${mapping}_output_sorted.sam
 samtools coverage ${mapping}_output_sorted.sam | cut -f 1,7 | tail -n +2 \
-| head -n -1 | awk ' { t = $1; $1 = $2; $2 = t; print; } ' > coverage_${mapping}.tsv
+| head -n -1 | awk '{ print $2, $1}' OFS=$'\t' > coverage_${mapping}.tsv
 echo -e "coverage\tsequence_name" > merge_input_mapped_${mapping}.txt \
 && cat coverage_${mapping}.tsv >> merge_input_mapped_${mapping}.txt
 
