@@ -50,7 +50,7 @@ for agg in aggs:
     total_counts_master_df=pd.DataFrame()
     plotdir_level2=os.path.join(workdir, "stats_summary_plots", "bubble_plots", agg)
     if not os.path.exists(plotdir_level2):
-        os.mkdir(plotdir_level2)
+        os.makedirs(plotdir_level2)
 
     for level in levels:
         for metr in metr_lst:
