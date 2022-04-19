@@ -281,10 +281,10 @@ elif [[ ${sorting} == "rrnafilter" ]]; then
 	cd rRNAFilter/
 	# We use 7GB for the rRNAFilter .jar, as shown in the rRNAFilter manual:
 	java -jar -Xmx7g rRNAFilter_commandline.jar \
-	-i ../../reads_in_fasta_format/R1.fa -r 0
+	-i ../reads_in_fasta_format/R1.fa -r 0
 	java -jar -Xmx7g rRNAFilter_commandline.jar \
-	-i ../../reads_in_fasta_format/R2.fa -r 0
-	mv ../../reads_in_fasta_format/R*.fa_rRNA ..
+	-i ../reads_in_fasta_format/R2.fa -r 0
+	mv ../reads_in_fasta_format/R*.fa_rRNA ..
 	cd ..
 	rm -r rRNAFilter
 	# We want to keep paired reads, so we extract all rRNA read names that were
@@ -900,4 +900,4 @@ echo -e "=================================================================\n"
 echo "SCRIPT DONE AFTER $((($(date +%s)-$start)/3600))h $(((($(date +%s)-$start)%3600)/60))m"
 
 # Write output to console and log file
-) 2>&1 | tee "${pipeline}"/log.txt
+) 2>&1 | tee log.txt
