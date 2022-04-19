@@ -22,6 +22,8 @@ logging.basicConfig(level=logging.DEBUG,
 # Parameters set manually
 ## Full path to directory that contains samples:
 workdir="/Users/christopherhempel/Desktop/pipeline_results_coverage/"
+## Full dir to the directory containing DNA subsamples
+subsample_dir="/Users/christopherhempel/Desktop/pipeline_results_coverage/dna_subsamples"
 ## List of DNA and RNA mock community samples, replicates of 3; must equal names of directories in workdir that
 ## contain each sample's pipeline results:
 samples = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA"]
@@ -105,25 +107,24 @@ for combination in combinations:
         # Until here, the code was based on the initial pipeline results based on all reads.
         # But we had to downsample DNA reads to make DNa and RNA comparable.
         # Therefore, we import data from subsampled DNA samples and replace DNA metrics above:
-        # subsamples = ["M4_DNA_subsample", "M5_DNA_subsample", "M6_DNA_subsample"]
-        # subsample_dir="/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock_samples_DNA_subsample"
-        # for subsample in subsamples:
-        #     subsample_file=os.path.join(subsample_dir, "{0}_{1}_{2}_metrics_df.csv".format(subsample, combination.replace("gen_",""), metr))
-        #     subsample_metrics_df=pd.read_csv(subsample_file, index_col=0).drop("expected")
-        #     if metr=="rel":
-        #         subsample_metrics_df=subsample_metrics_df.drop(subsample_metrics_df.loc[:,'TP':'FP'], axis=1)
-        #         subsample_metrics=subsample_metrics_df.mean(axis=0)
-        #     elif metr=="pa":
-        #         subsample_metrics_df=subsample_metrics_df.loc[:, ["TP","FP"]]
-        #         subsample_metrics=subsample_metrics_df.mean(axis=0).round(0)
-        #     subsample_metrics["euc_dist"]=euclidean(subsample_metrics, exp)
-        #     name="_".join(subsample.replace("_subsample","").split("_")[::-1])
-        #     master_df.loc[name]=subsample_metrics
-        #
-        # # Calculate p-values between DNA and RNA
-        # dna_eucdist=master_df[master_df.index.str.contains('DNA')]["euc_dist"]
-        # rna_eucdist=master_df[master_df.index.str.contains('RNA')]["euc_dist"]
-        # pval=ttest_rel(dna_eucdist, rna_eucdist)[1]
+        subsamples = ["M4_DNA_subsample", "M5_DNA_subsample", "M6_DNA_subsample"]
+        for subsample in subsamples:
+            subsample_file=os.path.join(subsample_dir, "{0}_{1}_{2}_metrics_df.csv".format(subsample, combination.replace("gen_",""), metr))
+            subsample_metrics_df=pd.read_csv(subsample_file, index_col=0).drop("expected")
+            if metr=="rel":
+                subsample_metrics_df=subsample_metrics_df.drop(subsample_metrics_df.loc[:,'TP':'FP'], axis=1)
+                subsample_metrics=subsample_metrics_df.mean(axis=0)
+            elif metr=="pa":
+                subsample_metrics_df=subsample_metrics_df.loc[:, ["TP","FP"]]
+                subsample_metrics=subsample_metrics_df.mean(axis=0).round(0)
+            subsample_metrics["euc_dist"]=euclidean(subsample_metrics, exp)
+            name="_".join(subsample.replace("_subsample","").split("_")[::-1])
+            master_df.loc[name]=subsample_metrics
+
+        # Calculate p-values between DNA and RNA
+        dna_eucdist=master_df[master_df.index.str.contains('DNA')]["euc_dist"]
+        rna_eucdist=master_df[master_df.index.str.contains('RNA')]["euc_dist"]
+        pval=ttest_rel(dna_eucdist, rna_eucdist)[1]
 
 
         # Normalize abundances from 0 to 1
