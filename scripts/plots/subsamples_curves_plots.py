@@ -2,7 +2,10 @@
 
 # Written by Christopher Hempel (hempelc@uoguelph.ca) on 2 Mar 2022
 
-# This script generates accuracy curves for various subsample sizes of DNA and RNA samples
+# This script generates accuracy curves for various subsample sizes of DNA and RNA samples.
+# The output plots are generated withint he workdir and called "subsample_curves_"
+# followed by the evaluation level.
+
 
 import os
 import pandas as pd #v1.3.5
@@ -21,6 +24,9 @@ workdir = "/Users/christopherhempel/Desktop/pipeline_results_coverage/subsample_
 ## Subsample read numbers
 subsample_readnums=[1000, 2500, 5000, 10000, 20000, 40000, 60000, 78149, 94633,
     120144, 200000, 300000, 400000, 500000, 600000, 644634, 669382, 817619]
+## Show figures while running the script? Depending on your environment, the
+## figures might be opened in the webbrowser; if that is not wanted, set this to False.
+show_figs=True
 ## Indicate if you want to keep replicates separate
 sep_reps=False
 ## If sep_reps=False, indicate if you want to show separate replcates as gray lines
@@ -271,6 +277,7 @@ for groupby_rank in groupby_rank_lst:
                 yaxis_title="Euclidean distance to reference",
                 legend_title="Sequencing type", template="simple_white")
             fig.update_yaxes(autorange="reversed")
-            fig.show()
+            if show_figs==True:
+                fig.show()
             fig.write_image(os.path.join(workdir, "subsample_curves_{0}_{1}_{2}.png".format(db, groupby_rank, data_type)), height=400, width=800)
             fig.write_image(os.path.join(workdir, "subsample_curves_{0}_{1}_{2}.svg".format(db, groupby_rank, data_type)), height=400, width=800)
