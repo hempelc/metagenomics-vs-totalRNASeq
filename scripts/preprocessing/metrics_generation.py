@@ -147,6 +147,8 @@ for groupby_rank in groupby_rank_lst:
                     .replace("Unknown", "NA").replace("-", r"", regex=True)
                 df=df.rename(columns={df.columns[0]: 'sequence_name'})\
                     .dropna(subset = ['sequence_name']).fillna("NA")
+                if "assembly_sequence " in df.columns:
+                    df=df.rename(columns={"assembly_sequence ": 'assembly_sequence'})
                 if not df.empty:
                     ### We need the scaffold length to determine covered bases, so
                     ### if that info is not available, we have to generate it from the given sequence
@@ -187,7 +189,7 @@ for groupby_rank in groupby_rank_lst:
                 ### Add all taxa to list "all_taxa"
                 all_taxa.extend(df_agg[groupby_rank].tolist())
                 ### Edit file name so that we can name dfs based on their file name=pipeline
-                pipeline_name = file.split("/")[-1].split(".")[0].split("trimmed_at_phred_")[1].split("_final")[0].replace("idba_",
+                pipeline_name = file.lower().split("/")[-1].split(".")[0].split("trimmed_at_phred_")[1].split("_pipeline_final")[0].replace("idba_",
                     "idba-").replace("ncbi_nt", "ncbi-nt").replace("blast_first_hit",
                     "blast-first-hit").replace("blast_filtered", "blast-filtered")
                 ### Add df_agg to the sample_dfs dic with key=pipeline_name
