@@ -32,7 +32,7 @@ logging.basicConfig(level=logging.DEBUG,
 
 # Parameters set manually
 ## Full path to directory that contains samples:
-workdir="/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock_samples/"
+workdir="/Users/christopherhempel/Desktop/pipeline_results_coverage/"
 ## List of DNA and RNA mock community samples, replicates of 3; must equal names of directories in workdir that
 ## contain each sample's pipeline results:
 samples = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA"]
