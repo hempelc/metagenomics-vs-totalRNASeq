@@ -21,7 +21,9 @@ logging.basicConfig(level=logging.DEBUG,
 
 # Parameters set manually
 ## Full path to directory that contains samples:
-workdir="/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock_samples/"
+workdir="/Users/christopherhempel/Desktop/pipeline_results_coverage/"
+## Full dir to the directory containing DNA subsamples
+subsample_dir="/Users/christopherhempel/Desktop/pipeline_results_coverage/dna_subsamples"
 ## List of DNA and RNA mock community samples, replicates of 3; must equal names of directories in workdir that
 ## contain each sample's pipeline results:
 samples = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA"]
@@ -106,7 +108,6 @@ for combination in combinations:
         # But we had to downsample DNA reads to make DNa and RNA comparable.
         # Therefore, we import data from subsampled DNA samples and replace DNA metrics above:
         subsamples = ["M4_DNA_subsample", "M5_DNA_subsample", "M6_DNA_subsample"]
-        subsample_dir="/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock_samples_DNA_subsample"
         for subsample in subsamples:
             subsample_file=os.path.join(subsample_dir, "{0}_{1}_{2}_metrics_df.csv".format(subsample, combination.replace("gen_",""), metr))
             subsample_metrics_df=pd.read_csv(subsample_file, index_col=0).drop("expected")

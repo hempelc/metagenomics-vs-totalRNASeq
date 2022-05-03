@@ -17,7 +17,7 @@ from scipy.stats import ttest_rel #v1.7.3
 
 # Parameters set manually
 samples = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA"]
-workdir = "/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock_samples_subsamples_curves/"
+workdir = "/Users/christopherhempel/Desktop/pipeline_results_coverage/subsample_curves/"
 ## Subsample read numbers
 subsample_readnums=[1000, 2500, 5000, 10000, 20000, 40000, 60000, 78149, 94633,
     120144, 200000, 300000, 400000, 500000, 600000, 644634, 669382, 817619]
@@ -83,7 +83,7 @@ for sample in samples:
                 # Loop over subsample size
                 for subsample_readnum in subsample_readnums:
                     # Import data
-                    file=os.path.join(workdir, str(subsample_readnum), "{0}_{1}_{2}_{3}_metrics_df.csv".format(sample, db, groupby_rank, data_type))
+                    file=os.path.join(workdir, "subsamples_" + str(subsample_readnum) + "_coverage", "{0}_{1}_{2}_{3}_metrics_df.csv".format(sample, db, groupby_rank, data_type))
                     if not os.path.isfile(file):
                         continue
                     df=pd.read_csv(file, index_col=0)
@@ -244,12 +244,15 @@ for groupby_rank in groupby_rank_lst:
                     # Add regression line
                     add_reg(mean, "black", reg_reads)
 
-            ## Calculate p-values between DNA and RNA coefficients
-            # Note: excluded, model performance is better
-            #coeffs=coeffs.transpose()
-            #dna_coeffs=coeffs[coeffs.index.str.contains('DNA')]["coef"]
-            #rna_coeffs=coeffs[coeffs.index.str.contains('RNA')]["coef"]
-            #pval_coef=ttest_rel(dna_coeffs, rna_coeffs)[1]
+            # Calculate p-values between DNA and RNA coefficients
+            coeffs=coeffs.transpose()
+            dna_coeffs=coeffs[coeffs.index.str.contains('DNA')]["coef"]
+            rna_coeffs=coeffs[coeffs.index.str.contains('RNA')]["coef"]
+            pval_coef=ttest_rel(dna_coeffs, rna_coeffs)[1]
+            if pval_coef < 0.001:
+                pval_coef_title="< 0.001"
+            else:
+                pval_coef_title="= {0}".format(round(pval_coef, 3))
 
             # Determine model performance with and without sequencing type
             # following https://nathancarter.github.io/how2data/site/how-to-compare-two-nested-linear-models/
@@ -258,15 +261,16 @@ for groupby_rank in groupby_rank_lst:
             seq_model = ols('accuracy ~ readnum + seqtype', data = model_comp_df).fit()
             pval_model=anova_lm(no_seq_model, seq_model)["Pr(>F)"][1]
             if pval_model < 0.001:
-                pval_model_title="p < 0.001"
+                pval_model_title="< 0.001"
             else:
-                pval_model_title="p = {0}".format(round(pval_model, 3))
+                pval_model_title="= {0}".format(round(pval_model, 3))
 
             # Update and save figure
-            fig.update_layout(title=pval_model_title,
+            fig.update_layout(title="p_seq " + pval_model_title + ", p_coef " + pval_coef_title,
                 xaxis_title="Number of reads",
                 yaxis_title="Euclidean distance to reference",
                 legend_title="Sequencing type", template="simple_white")
+            fig.update_yaxes(autorange="reversed")
             fig.show()
             fig.write_image(os.path.join(workdir, "subsample_curves_{0}_{1}_{2}.png".format(db, groupby_rank, data_type)), height=400, width=800)
             fig.write_image(os.path.join(workdir, "subsample_curves_{0}_{1}_{2}.svg".format(db, groupby_rank, data_type)), height=400, width=800)

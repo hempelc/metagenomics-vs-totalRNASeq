@@ -23,17 +23,20 @@ logging.basicConfig(level=logging.DEBUG,
 
 # Parameters set manually
 ## Full path to directory that contains samples
-workdir = "/Users/christopherhempel/Desktop/pipeline_results/pipeline_results_mock_samples_subsamples_curves/"
+workdir = "/Users/christopherhempel/Desktop/pipeline_results_coverage/subsample_curves/"
+excelfile="/Users/christopherhempel/Desktop/pipeline_results_coverage/rerun_dna_subsamples_coverage.xlsx"
 ## Dic containing number of reads per negative control
 neg_sample_reads={"M_Neg_DNA": 640, "M_Neg_RNA": 1551,
     "M_Ext_DNA": 399, "M_Ext_RNA": 887}
 ## List that indicates at what number of reads was subsampled
-subsample_readnums=[300000, 400000, 500000, 600000, 644634, 669382, 817619]
+#subsample_readnums=[1000, 2500, 5000, 10000, 20000, 40000, 60000, 78149, 94633, 120144, 200000, 300000, 400000, 600000, 644634, 669382, 817619]
+subsample_readnums=[1000, 2500, 5000, 10000, 20000, 40000, 60000, 78149, 94633]
+#subsample_readnums=[1000, 2500, 5000, 10000, 20000, 40000, 60000, 78149, 94633, 120144, 200000, 300000, 400000, 500000, 600000, 644634, 669382, 817619]
 ## Indicate if you want to loop over all combinations of genus/species and silva/ncbi and rel/pa (True/False)
-looping=True
+looping=False
 ## If you set looping to False, then define what specific rank, datatype, and database
 ## you want to process:
-rank="genus"
+rank="species"
 database="silva"
 dt_type="rel"
 
@@ -72,7 +75,7 @@ def cutdown (master_df, type):
 
 
 # 1 Import excel file containing which pipeline was used for each subsample
-pipelines_df=pd.read_excel(os.path.join(workdir, "rerun_dna_subsamples.xlsx"))
+pipelines_df=pd.read_excel(excelfile)
 
 
 # 2 Make expected mock community df
@@ -126,7 +129,7 @@ for subsample_readnum in subsample_readnums:
                 master_dfs_raw = {} # Empty dic that will eventually contain all samples' raw pipelines output
                 all_taxa = [] # Empty list that will eventually contain all taxa that appear in all samples
 
-                subsample_dir=os.path.join(workdir, str(subsample_readnum))
+                subsample_dir=os.path.join(workdir, "subsamples_" + str(subsample_readnum) + "_coverage")
                 ## Define samples
                 samples=[f.split('/')[-2] for f in glob.glob(os.path.join(subsample_dir, "*/")) if "M4" in f or "M5" in f or "M6" in f]
                 neg_samples=[f.split('/')[-2] for f in glob.glob(os.path.join(subsample_dir, "*/")) if "M_" in f]
@@ -134,43 +137,60 @@ for subsample_readnum in subsample_readnums:
                 for sample in samples:
                     sample_dir=os.path.join(subsample_dir, sample)
                     ## Make a list for all file names in sample dic:
-                    sample_files = glob.glob(os.path.join(sample_dir, "*", db, groupby_rank + "_" + data_type, "*.txt"))
+                    sample_files = glob.glob(os.path.join(sample_dir, "*", groupby_rank + "_" + data_type + "_coverage", "*", "*.txt*"))
                     ## Make a dic that will eventually contain all pipeline dfs and set the first entry to expected community:
                     sample_dfs = {"expected": expected_df}
                     ## For each file in the sample dic
                     for file in sample_files:
-                        #### Read in file as pandas df, fill NaN with "NA", "Unknown" by "NA", and fix one taxonomic misambiguation
-                        df = pd.read_table(file).fillna("NA").replace("Lactobacillus",
-                            r"Limosilactobacillus", regex=True).replace("Unknown", "NA").replace("-", r"", regex=True)
-                        ### Apply a species filter: if a species is not 2 words (contains a space),
-                        ### replace species value with "NA"
-                        #### Therefore, first get indices of species not containing a space
-                        idx=df['species'].str.contains(" ")[df['species'].str.contains(" ") == False].index
-                        #### And replace them with "NA" in the df
-                        df.loc[idx,'species'] = "NA"
+                        ### Read in file as pandas df, fill NaN with "NA", "Unknown" by "NA", and fix one taxonomic misambiguation
+                        df = pd.read_table(file).replace("Lactobacillus", r"Limosilactobacillus", regex=True)\
+                            .replace("Unknown", "NA").replace("-", r"", regex=True)
+                        df=df.rename(columns={df.columns[0]: 'sequence_name'})\
+                            .dropna(subset = ['sequence_name']).fillna("NA")
+                        if "assembly_sequence " in df.columns:
+                            df=df.rename(columns={"assembly_sequence ": 'assembly_sequence'})
+                        if not df.empty:
+                            ### We need the scaffold length to determine covered bases, so
+                            ### if that info is not available, we have to generate it from the given sequence
+                            if "sequence_length" not in df.columns:
+                                df["sequence_length"] = df["assembly_sequence"].str.len()
+                            ### Apply a species filter: if a species is not 2 words (contains a space),
+                            ### replace species value with "NA"
+                            #### Therefore, first get indices of species not containing a space
+                            idx=df['species'].str.contains(" ")[df['species'].str.contains(" ") == False].index
+                            #### And replace them with "NA" in the df
+                            df.loc[idx,'species'] = "NA"
+                        else:
+                            df["sequence_length"]=[]
+                        ### Determine covered bases of scaffolds to aggregate information
+                        ### across scaffolds with similar taxonomic annotation
+                        df["covered_bases"]=df["sequence_length"]*df["coverage"]
                         ### Cut df down to relevant columns
                         if groupby_rank == "species":
                             df_small = df[["superkingdom", "phylum", "class", "order", "family",
-                                "genus", "species", "counts"]]
+                                "genus", "species", "covered_bases", "sequence_length"]]
                         elif groupby_rank == "genus":
                             df_small = df[["superkingdom", "phylum", "class", "order", "family",
-                                "genus", "counts"]]
+                                "genus", "covered_bases", "sequence_length"]]
                         ### The negative controls often have no sequences = empty dfs, therefore we need to
                         ### ignore them in the next step since we get errors if we use groupby on an epmty df:
                         if df.empty:
                             df_agg = df_small
                         else:
-                            #### Group similar taxonomy hits and sum their counts:
-                            df_agg = df_small.groupby(list(df_small.columns)[:-1]).sum().reset_index()
-                            #### Turn counts into relative abundances:
-                            df_agg["counts"]=df_agg["counts"]/df_agg["counts"].sum()
+                            #### Group similar taxonomy hits and sum their covered bases and sequence length:
+                            df_agg = df_small.groupby(list(df_small.columns)[:-2])["covered_bases", "sequence_length"].sum().reset_index()
+                            #### Determine average per-base coverage for each taxon
+                            df_agg["per_base_coverage"] = df_agg["covered_bases"]/df_agg["sequence_length"]
+                            df_agg=df_agg.drop(["sequence_length", "covered_bases"], axis=1)
+                            #### Turn coverages into relative abundances:
+                            df_agg["per_base_coverage"]=df_agg["per_base_coverage"]/df_agg["per_base_coverage"].sum()
                         ### Rename counts col
-                        df_agg.rename(columns = {'counts':'rel_abun'}, inplace = True)
+                        df_agg.rename(columns = {'per_base_coverage':'rel_abun'}, inplace = True)
                         ### Add all taxa to list "all_taxa"
                         all_taxa.extend(df_agg[groupby_rank].tolist())
-                        ### Edit file name so that we can name dfs based on their file name=subsample
+                        ### Edit file name so that we can name dfs based on their file name=pipeline
                         sample_name = file.split("/")[8]
-                        ### Add df_agg to the sample_dfs dic with key=subsample
+                        ### Add df_agg to the sample_dfs dic with key=subsample name
                         sample_dfs[sample_name] = df_agg
                     ### Save sample_df in dic master_dfs_raw:
                     master_dfs_raw[sample] = sample_dfs
@@ -179,42 +199,60 @@ for subsample_readnum in subsample_readnums:
                 # so we import all files and select the pipelines that need to be substracted later
                 master_dfs_neg_raw = {} # Empty dic that will eventually contain all samples' raw pipelines output
                 for neg_sample in neg_samples:
+                    sample_dir=os.path.join(subsample_dir, neg_sample)
                     ## Make a list for all file names in sample dic:
-                    neg_sample_files = glob.glob(os.path.join(subsample_dir, neg_sample, "*.txt"))
+                    neg_sample_files = glob.glob(os.path.join(sample_dir, "*.txt*"))
                     ## For each file in the sample dic
                     neg_sample_dfs={}
                     for file in neg_sample_files:
-                        #### Read in file as pandas df, fill NaN with "NA", "Unknown" by "NA", and fix one taxonomic misambiguation
-                        df = pd.read_table(file).fillna("NA").replace("Lactobacillus",
-                            r"Limosilactobacillus", regex=True).replace("Unknown", "NA").replace("-", r"", regex=True)
-                        ### Apply a species filter: if a species is not 2 words (contains a space),
-                        ### replace species value with "NA"
-                        #### Therefore, first get indices of species not containing a space
-                        idx=df['species'].str.contains(" ")[df['species'].str.contains(" ") == False].index
-                        #### And replace them with "NA" in the df
-                        df.loc[idx,'species'] = "NA"
+                        ### Read in file as pandas df, fill NaN with "NA", "Unknown" by "NA", and fix one taxonomic misambiguation
+                        df = pd.read_table(file).replace("Lactobacillus", r"Limosilactobacillus", regex=True)\
+                            .replace("Unknown", "NA").replace("-", r"", regex=True)
+                        df=df.rename(columns={df.columns[0]: 'sequence_name'})\
+                            .dropna(subset = ['sequence_name']).fillna("NA")
+                        if "assembly_sequence " in df.columns:
+                            df=df.rename(columns={"assembly_sequence ": 'assembly_sequence'})
+                        if not df.empty:
+                            ### We need the scaffold length to determine covered bases, so
+                            ### if that info is not available, we have to generate it from the given sequence
+                            if "sequence_length" not in df.columns:
+                                df["sequence_length"] = df["assembly_sequence"].str.len()
+                            ### Apply a species filter: if a species is not 2 words (contains a space),
+                            ### replace species value with "NA"
+                            #### Therefore, first get indices of species not containing a space
+                            idx=df['species'].str.contains(" ")[df['species'].str.contains(" ") == False].index
+                            #### And replace them with "NA" in the df
+                            df.loc[idx,'species'] = "NA"
+                        else:
+                            df["sequence_length"]=[]
+                        ### Determine covered bases of scaffolds to aggregate information
+                        ### across scaffolds with similar taxonomic annotation
+                        df["covered_bases"]=df["sequence_length"]*df["coverage"]
                         ### Cut df down to relevant columns
                         if groupby_rank == "species":
                             df_small = df[["superkingdom", "phylum", "class", "order", "family",
-                                "genus", "species", "counts"]]
+                                "genus", "species", "covered_bases", "sequence_length"]]
                         elif groupby_rank == "genus":
                             df_small = df[["superkingdom", "phylum", "class", "order", "family",
-                                "genus", "counts"]]
+                                "genus", "covered_bases", "sequence_length"]]
                         ### The negative controls often have no sequences = empty dfs, therefore we need to
                         ### ignore them in the next step since we get errors if we use groupby on an epmty df:
                         if df.empty:
                             df_agg = df_small
                         else:
-                            #### Group similar taxonomy hits and sum their counts:
-                            df_agg = df_small.groupby(list(df_small.columns)[:-1]).sum().reset_index()
-                            #### Turn counts into relative abundances:
-                            df_agg["counts"]=df_agg["counts"]/df_agg["counts"].sum()
+                            #### Group similar taxonomy hits and sum their covered bases and sequence length:
+                            df_agg = df_small.groupby(list(df_small.columns)[:-2])["covered_bases", "sequence_length"].sum().reset_index()
+                            #### Determine average per-base coverage for each taxon
+                            df_agg["per_base_coverage"] = df_agg["covered_bases"]/df_agg["sequence_length"]
+                            df_agg=df_agg.drop(["sequence_length", "covered_bases"], axis=1)
+                            #### Turn coverages into relative abundances:
+                            df_agg["per_base_coverage"]=df_agg["per_base_coverage"]/df_agg["per_base_coverage"].sum()
                         ### Rename counts col
-                        df_agg.rename(columns = {'counts':'rel_abun'}, inplace = True)
+                        df_agg.rename(columns = {'per_base_coverage':'rel_abun'}, inplace = True)
                         ### Add all taxa to list "all_taxa"
                         all_taxa.extend(df_agg[groupby_rank].tolist())
                         ### Edit file name so that we can name dfs based on their file name=pipeline
-                        pipeline_name = file.split("/")[-1].split(".")[-2].split("trimmed_at_phred_")[1].split("_final")[0].replace("idba_",
+                        pipeline_name = file.lower().split("/")[-1].split(".")[0].split("trimmed_at_phred_")[1].split("_final")[0].replace("_pipeline", "").replace("idba_",
                             "idba-").replace("ncbi_nt", "ncbi-nt").replace("blast_first_hit",
                             "blast-first-hit").replace("blast_filtered", "blast-filtered")
                         ### Add df_agg to the sample_dfs dic with key=pipeline_name
@@ -373,4 +411,4 @@ for subsample_readnum in subsample_readnums:
                     metrics_df_TP_FP=metrics_df.loc[metrics_df_rel_std.index].iloc[:, 11:]
                     metrics_df_concat=pd.concat([metrics_df_rel_std, metrics_df_TP_FP], axis=1)
                     ### Save the df
-                    metrics_df_concat.to_csv(os.path.join(workdir, str(subsample_readnum), "{0}_{1}_{2}_{3}_metrics_df.csv".format(rep, db, groupby_rank, data_type)), index_label="subsample")
+                    metrics_df_concat.to_csv(os.path.join(subsample_dir, "{0}_{1}_{2}_{3}_metrics_df.csv".format(rep, db, groupby_rank, data_type)), index_label="subsample")
