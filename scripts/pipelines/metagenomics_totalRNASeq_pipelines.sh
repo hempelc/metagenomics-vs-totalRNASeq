@@ -35,7 +35,7 @@
 	# rRNAFILTER (1.1), SPADES (3.14.0)[note: runs with the --meta and --rna
 	# options for METASPADES and RNASPADES], MEGAHIT (1.2.9), IDBA-UD (1.1.1),
 	# IDBA_tran (1.1.1), Trinity (2.10.0),	Trans-ABySS (2.0.1), bowtie2 (2.3.3.1),
-	# bwa (0.7.17), blast+ (2.10.0+), kraken2 (2.1.1), seqtk (1.2-r94),
+	# bwa (0.7.17), blast+ (2.10.0+), kraken2 (2.1.1), seqtk (1.3-r106),
 	# samtools (1.10), python module ete3 (3.1.2)
 
 	# Note: we had to edit IDBA prior to compiling it because it didn't work
@@ -274,6 +274,8 @@ if [[ ${sorting} == "sortmerna" ]]; then
 
 elif [[ ${sorting} == "rrnafilter" ]]; then
 	step_description_and_time_first "RUNNING rRNAFILTER"
+	mkdir rRNAFilter/
+	cd rRNAFilter/
 	# rRNAFilter only worked for us when we started it within the directory
 	# containing the .jar file. To simplify switching to that directory, we copy
 	# it from its location to the pwd:
@@ -281,10 +283,10 @@ elif [[ ${sorting} == "rrnafilter" ]]; then
 	cd rRNAFilter/
 	# We use 7GB for the rRNAFilter .jar, as shown in the rRNAFilter manual:
 	java -jar -Xmx7g rRNAFilter_commandline.jar \
-	-i ../reads_in_fasta_format/R1.fa -r 0
+	-i ../../reads_in_fasta_format/R1.fa -r 0
 	java -jar -Xmx7g rRNAFilter_commandline.jar \
-	-i ../reads_in_fasta_format/R2.fa -r 0
-	mv ../reads_in_fasta_format/R*.fa_rRNA ..
+	-i ../../reads_in_fasta_format/R2.fa -r 0
+	mv ../../reads_in_fasta_format/R*.fa_rRNA ..
 	cd ..
 	rm -r rRNAFilter
 	# We want to keep paired reads, so we extract all rRNA read names that were
