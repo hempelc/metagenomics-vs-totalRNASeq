@@ -23,7 +23,7 @@ logging.basicConfig(level=logging.DEBUG,
 
 # Parameters set manually
 ## Full path to directory that contains samples
-workdir = "/Users/christopherhempel/Desktop/pipeline_results_coverage/"
+workdir = "/Users/christopherhempel/Desktop/Pilot project results backup/pipeline_results_coverage"
 ## List of DNA and RNA mock community samples, replicates of 3 plus filtration controls (Neg) and
 ## extraction controls (Ext); must equal names of directories in workdir that
 ## contain each sample's pipeline results:
@@ -226,7 +226,7 @@ for groupby_rank in groupby_rank_lst:
                 for taxon in unique_taxa:
                     ##### If taxon is in df groupby_rank column:
                     if (data[groupby_rank] == taxon).any():
-                        ###### Sum up all counts of that taxon and add them to list abun:
+                        ###### Sum up the coverage of that taxon and add it to list abun:
                         abun.append(data.loc[data[groupby_rank] == taxon, 'rel_abun'].sum())
                     ##### If taxon not in df groupby_rank column, add 0 to list abun:
                     else:
