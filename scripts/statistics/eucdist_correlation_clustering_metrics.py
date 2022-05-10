@@ -5,6 +5,10 @@
 # This script processes the output from the script "metrics_generation.py" and
 # determines the Euclidean distance of pipelines to the reference mock community,
 # the correaltion between Euclidean distance and tools, and clusters of pipelines.
+# If the script "metrics_generation.py" is run first, then the working directory
+# contains the directories "metrics_" followed by tested combination. The output
+# of this script can be found in the generated "stats" directories within the
+# "metrics_" directories.
 
 import pandas as pd #v1.3.5
 import numpy as np #v1.21.3
@@ -92,7 +96,7 @@ for combination in combinations:
         ## Make plot export directory:
         exportdir_level1=os.path.join(workdir, "metrics_" + combination, "stats_" + metr)
         if not os.path.exists(exportdir_level1):
-            os.mkdir(exportdir_level1)
+            os.makedirs(exportdir_level1)
 
         ### Do the following chunk for all samples separately
         master_eucdist_dfs={}
@@ -134,7 +138,7 @@ for combination in combinations:
             master_counts_dic={}
             exportdir_level2=os.path.join(exportdir_level1, aggregation)
             if not os.path.exists(exportdir_level2):
-                os.mkdir(exportdir_level2)
+                os.makedirs(exportdir_level2)
             aggregation_dic={}
             if aggregation=="agg_reps_agg_type":
                 agg_df=pd.DataFrame()

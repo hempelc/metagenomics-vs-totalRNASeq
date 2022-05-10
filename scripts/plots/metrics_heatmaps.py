@@ -3,7 +3,8 @@
 # Written by Christopher Hempel (hempelc@uoguelph.ca) on 9 Mar 2021
 
 # This script processes pipeline data from multiple replicates of mock community
-# samples and compares the respective metrics in heatmaps
+# samples and compares the respective metrics in heatmaps. The output can be found
+# in the directory "stats_summary_plots/abundance_heatmaps/" within the working directory.
 
 import pandas as pd #v1.3.5
 import numpy as np #v1.21.3
@@ -24,6 +25,9 @@ logging.basicConfig(level=logging.DEBUG,
 workdir="/Users/christopherhempel/Desktop/pipeline_results_coverage/"
 ## Full dir to the directory containing DNA subsamples
 subsample_dir="/Users/christopherhempel/Desktop/pipeline_results_coverage/dna_subsamples"
+## Show figures while running the script? Depending on your environment, the
+## figures might be opened in the webbrowser; if that is not wanted, set this to False.
+show_figs=True
 ## List of DNA and RNA mock community samples, replicates of 3; must equal names of directories in workdir that
 ## contain each sample's pipeline results:
 samples = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA"]
@@ -49,7 +53,7 @@ if looping:
 ## Make plot export directory:
 exportdir=os.path.join(workdir, "stats_summary_plots", "abundance_heatmaps")
 if not os.path.exists(exportdir):
-    os.mkdir(exportdir)
+    os.makedirs(exportdir)
 
 
 # Function for df normalization
@@ -140,19 +144,22 @@ for combination in combinations:
         ## With expected
         ### Normalized
         fig=px.imshow(master_df_norm_w_exp, color_continuous_scale=["#d80054", "#51a9ff"], text_auto=".2f", title="p=" + str(round(pval, 3)))
-        fig.show()
+        if show_figs==True:
+            fig.show()
         fig.write_image(os.path.join(exportdir, "abundance_heatmap_norm_w_exp_" + combination_short + "_" + metr + ".png"))
         fig.write_image(os.path.join(exportdir, "abundance_heatmap_norm_w_exp_" + combination_short + "_" + metr + ".svg"))
 
         ### Non-normalized
         fig=px.imshow(master_df.drop(['euc_dist'], axis=1), color_continuous_scale=non_normalized_col, text_auto=".2f", title="p=" + str(round(pval, 3)))
-        fig.show()
+        if show_figs==True:
+            fig.show()
         fig.write_image(os.path.join(exportdir, "abundance_heatmap_w_exp_" + combination_short + "_" + metr + ".png"))
         fig.write_image(os.path.join(exportdir, "abundance_heatmap_w_exp_" + combination_short + "_" + metr + ".svg"))
         #### Plot eucdist separately on different colourscale to make it distinguishable
         eucdist_df=copy.deepcopy(master_df)
         eucdist_df["random"]=np.random.randint(master_df["euc_dist"].max(), size=len(master_df))
         fig=px.imshow(eucdist_df.loc[:, "euc_dist":"random"], color_continuous_scale=px.colors.sequential.Reds_r[1:], text_auto=".2f", title="p=" + str(round(pval, 3)))
-        fig.show()
+        if show_figs==True:
+            fig.show()
         fig.write_image(os.path.join(exportdir, "abundance_heatmap_w_exp_" + combination_short + "_" + metr + "_euc_dist.png"))
         fig.write_image(os.path.join(exportdir, "abundance_heatmap_w_exp_" + combination_short + "_" + metr + "_euc_dist.svg"))

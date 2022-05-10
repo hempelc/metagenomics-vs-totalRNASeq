@@ -3,7 +3,10 @@
 # Written by Christopher Hempel (hempelc@uoguelph.ca) on 2 Mar 2022
 
 # This script processes pipeline data from multiple replicates of mock community
-# samples and exports a metrics table. It's a modified version of the script
+# samples and exports a metrics table. The output can be found in the workdir:
+# for each processed combination, a directory is created called "metrics_"
+# followed by the combination, which contains .csv files with processed metrics
+# for each replicate. It's a modified version of the script
 # "metrics_generation.py" that is adapted for subsampled DNA samples.
 
 import pandas as pd #v1.3.5

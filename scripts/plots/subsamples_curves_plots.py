@@ -2,7 +2,10 @@
 
 # Written by Christopher Hempel (hempelc@uoguelph.ca) on 2 Mar 2022
 
-# This script generates accuracy curves for various subsample sizes of DNA and RNA samples
+# This script generates accuracy curves for various subsample sizes of DNA and RNA samples.
+# The output plots are generated withint he workdir and called "subsample_curves_"
+# followed by the evaluation level.
+
 
 import os
 import pandas as pd #v1.3.5
@@ -21,6 +24,10 @@ workdir = "/Users/christopherhempel/Desktop/pipeline_results_coverage/subsample_
 ## Subsample read numbers
 subsample_readnums=[1000, 2500, 5000, 10000, 20000, 40000, 60000, 78149, 94633,
     120144, 200000, 300000, 400000, 500000, 600000, 644634, 669382, 817619]
+## Show figures while running the script? Depending on your environment, the
+## figures might be opened in the webbrowser or an HTTPS request is sent; if that
+# is not wanted or causes issues, set this to False.
+show_figs=True
 ## Indicate if you want to keep replicates separate
 sep_reps=False
 ## If sep_reps=False, indicate if you want to show separate replcates as gray lines
@@ -81,28 +88,28 @@ for sample in samples:
                 df_eucdist=pd.DataFrame({}, index=subsamples)
 
                 # Loop over subsample size
-                for subsample_readnum in subsample_readnums:
-                    # Import data
-                    file=os.path.join(workdir, "subsamples_" + str(subsample_readnum) + "_coverage", "{0}_{1}_{2}_{3}_metrics_df.csv".format(sample, db, groupby_rank, data_type))
-                    if not os.path.isfile(file):
-                        continue
-                    df=pd.read_csv(file, index_col=0)
-                    # Drop unwanted columns
-                    if data_type=="rel":
-                        df=df.drop(df.loc[:,'TP':'FP'], axis=1)
-                    elif data_type=="pa":
-                        df=df.loc[:, ["TP","FP"]]
-                    # Separate expected from df
-                    df_no_exp=df.drop(["expected"], axis=0)
-                    # If df is empty, then skip
-                    if df_no_exp.empty:
-                        continue
-                    exp=df.loc["expected"]
-                    # Calculate euc dist for each pipeline
-                    for index,row in df_no_exp.iterrows():
-                        df_no_exp.loc[index,'euc_dist'] = euclidean(row, exp)
-                    # Add to df and add df to master dic
-                    df_eucdist[subsample_readnum]=df_no_exp['euc_dist']
+for subsample_readnum in subsample_readnums:
+    # Import data
+    file=os.path.join(workdir, "subsamples_" + str(subsample_readnum) + "_coverage", "{0}_{1}_{2}_{3}_metrics_df.csv".format(sample, db, groupby_rank, data_type))
+    if not os.path.isfile(file):
+        continue
+    df=pd.read_csv(file, index_col=0)
+    # Drop unwanted columns
+    if data_type=="rel":
+        df=df.drop(df.loc[:,'TP':'FP'], axis=1)
+    elif data_type=="pa":
+        df=df.loc[:, ["TP","FP"]]
+    # Separate expected from df
+    df_no_exp=df.drop(["expected"], axis=0)
+    # If df is empty, then skip
+    if df_no_exp.empty:
+        continue
+    exp=df.loc["expected"]
+    # Calculate euc dist for each pipeline
+    for index,row in df_no_exp.iterrows():
+        df_no_exp.loc[index,'euc_dist'] = euclidean(row, exp)
+    # Add to df and add df to master dic
+    df_eucdist[subsample_readnum]=df_no_exp['euc_dist']
                 master_df["{0}_{1}_{2}_{3}".format(sample, db, groupby_rank, data_type)]=df_eucdist
 
 # Previous code was for every replicate separately, now we concatenate all
@@ -271,6 +278,7 @@ for groupby_rank in groupby_rank_lst:
                 yaxis_title="Euclidean distance to reference",
                 legend_title="Sequencing type", template="simple_white")
             fig.update_yaxes(autorange="reversed")
-            fig.show()
+            if show_figs==True:
+                fig.show()
             fig.write_image(os.path.join(workdir, "subsample_curves_{0}_{1}_{2}.png".format(db, groupby_rank, data_type)), height=400, width=800)
             fig.write_image(os.path.join(workdir, "subsample_curves_{0}_{1}_{2}.svg".format(db, groupby_rank, data_type)), height=400, width=800)

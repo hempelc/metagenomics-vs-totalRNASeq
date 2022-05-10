@@ -2,10 +2,14 @@
 
 # Written by Christopher Hempel (hempelc@uoguelph.ca) on 2 Mar 2022
 
-# This script generates a barplot for read numbers and % of duplicates
+# This script generates a barplot for read numbers and % of duplicates.
 
+import os
 import pandas as pd #v1.3.5
 import plotly.express as px #v5.5.0
+
+# Set output dir:
+outdir="/Users/christopherhempel/Desktop/"
 
 # Specify number of reads
 reads = {"DNA 1 R1": 817619, "DNA 1 R2": 817619, "RNA 1 R1": 94633,
@@ -37,4 +41,4 @@ reads_df_melted["reads"]=2*list(reads_df["reads"])
 fig=px.bar(reads_df_melted, x="index", y="value", text="reads", color="variable",
     labels={"value": "Reads", "index": "Sample"})
 fig.update_traces(textposition='outside')
-fig.write_image("/Users/christopherhempel/Desktop/readnum.svg", height=800, width=1500)
+fig.write_image(os.path.join(outdir, "readnum.svg"), height=800, width=1500)

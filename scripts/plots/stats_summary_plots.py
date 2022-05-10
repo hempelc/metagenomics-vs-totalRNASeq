@@ -2,7 +2,9 @@
 
 # Written by Christopher Hempel (hempelc@uoguelph.ca) on 21 Sep 2021
 
-# This script processes the output from the script "eucdist_correlation_clustering_metrics.py"
+# This script processes the output from the script "eucdist_correlation_clustering_metrics.py".
+# The output can be found in the directory "stats_summary_plots/bubble_plots/"
+# within the working directory.
 
 import pandas as pd #v1.3.5
 import plotly.express as px #v5.5.0
@@ -39,7 +41,7 @@ tools=['type_DNA', 'type_RNA',
     'classifier_blast-filtered', 'classifier_blast-first-hit', 'classifier_kraken2']
 plotdir_level1=os.path.join(workdir, "stats_summary_plots")
 if not os.path.exists(plotdir_level1):
-    os.mkdir(plotdir_level1)
+    os.makedirs(plotdir_level1)
 
 # 1 Import dfs to evaluate tools and concatenate them, creating columns to separate
 #   them, and import tool count dicts to evaluate clusters:
