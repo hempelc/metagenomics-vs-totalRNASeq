@@ -83,7 +83,7 @@ Usage:
 	-T Path to trimmomatic application (trimmomatic-<version>.jar)
 	-t Path to .etetoolkit/taxa.sqlite
 	-i Path to rRNAFilter directory
-	-m Maximum memory (format: XXXG, where XXX is a numerical value for teh emmory in Gigabyte)
+	-m Maximum memory (format: XXXG, where XXX is a numerical value for the memory in Gigabyte)
 	-p Number of threads (default:16)
 	-h Display this help and exit"
 
