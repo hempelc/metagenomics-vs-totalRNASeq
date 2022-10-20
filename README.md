@@ -12,3 +12,5 @@ The processed pipelines are combinations of typically utilized data-processing t
 The workflow from sample preparation to accuracy evaluation is shown in the following:
 
 <img src="https://github.com/hempelc/metagenomics-vs-totalRNASeq/blob/master/workflow.png" alt="workflow" width="250"/>
+
+![test](https://github.com/hempelc/metagenomics-vs-totalRNASeq/blob/master/workflow.png?raw=true)
