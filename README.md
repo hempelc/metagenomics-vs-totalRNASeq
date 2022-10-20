@@ -4,7 +4,6 @@ The repo contains scripts to run all pipelines and scripts for statistics.
 
 Hempel C. A., Wright N., Harvie J., Hleap J. S., Adamowicz S. J., Steinke D. (2022): Metagenomics versus total RNA sequencing: most accurate data-processing tools, microbial identification accuracy and perspectives for ecological assessments. Nucleic Acids Research 50(16):9279–9293. [https://doi.org/10.1093/nar/gkac689](https://doi.org/10.1093/nar/gkac689)
 
-
 The workflow from sample preparation to accuracy evaluation is shown in the following:
 
 <img src="https://github.com/hempelc/metagenomics-vs-totalRNASeq/blob/master/workflow.png" alt="workflow" width="250"/>
