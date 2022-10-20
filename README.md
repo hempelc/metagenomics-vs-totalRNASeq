@@ -13,4 +13,4 @@ The workflow from sample preparation to accuracy evaluation is shown in the foll
 
 <img src="https://github.com/hempelc/metagenomics-vs-totalRNASeq/blob/master/workflow.png" alt="workflow" width="250"/>
 
-![test](https://github.com/hempelc/metagenomics-vs-totalRNASeq/blob/master/workflow.png?raw=true width="250")
+![test](https://github.com/hempelc/metagenomics-vs-totalRNASeq/blob/master/workflow.png?raw=true,width="250")
