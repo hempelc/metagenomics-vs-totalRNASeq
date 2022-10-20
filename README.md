@@ -2,9 +2,8 @@
 This project represents the first chapter of my PhD, in which I compare metagenomics and total RNA-Seq data-processing pipelines to identify which sequencing technique and which pipeline give the most accurate estimate of the diversity of a microbial mock community.
 The repo contains scripts to run all pipelines and scripts for statistics.
 
-The project is part of the following publication:
-
-Hempel C. A., Wright N., Harvie J., Hleap J. S., Adamowicz S. J., Steinke D. (2022): Metagenomics versus total RNA sequencing: most accurate data-processing tools, microbial identification accuracy and perspectives for ecological assessments. Nucleic Acids Research 50(16):9279–9293. [https://doi.org/10.1093/nar/gkac689](https://doi.org/10.1093/nar/gkac689)
+The project is part of the following publication:<br>
+Hempel C. A., Wright N., Harvie J., Hleap J. S., Adamowicz S. J., and Steinke D. (2022): Metagenomics versus total RNA sequencing: most accurate data-processing tools, microbial identification accuracy and perspectives for ecological assessments. Nucleic Acids Research 50(16):9279–9293. [https://doi.org/10.1093/nar/gkac689](https://doi.org/10.1093/nar/gkac689)
 
 The workflow from sample preparation to accuracy evaluation is shown in the following:
 
