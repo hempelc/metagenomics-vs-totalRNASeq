@@ -83,7 +83,7 @@ Usage:
 	-T Path to trimmomatic application (trimmomatic-<version>.jar)
 	-t Path to .etetoolkit/taxa.sqlite
 	-i Path to rRNAFilter directory
-	-m Maximum memory (format: XXXG, where XXX is a numerical value for teh emmory in Gigabyte)
+	-m Maximum memory (format: XXXG, where XXX is a numerical value for the memory in Gigabyte)
 	-p Number of threads (default:16)
 	-h Display this help and exit"
 
@@ -158,8 +158,7 @@ trimming=$(echo $pipeline | cut -f1 -d-)
 sorting=$(echo $pipeline | cut -f2 -d-)
 assembly=$(echo $pipeline | cut -f3 -d-)
 mapping=$(echo $pipeline | cut -f4 -d-)
-database=$(echo $pipeline | cut -f5 -d-)
-classification=$(echo $pipeline | cut -f6 -d-)
+classification=$(echo $pipeline | cut -f5 -d-)
 
 # Define functions to print steps with time
 start=$(date +%s)
@@ -514,7 +513,7 @@ step_description_and_time_first "START STEP 5.1: CLASSIFICATION OF ASSEMBLED SCA
 
 mkdir step_5_classification/
 mkdir -p step_5_classification/$(echo $classification | tr '[:lower:]' '[:upper:]')/step_6_database/SILVA/
-cd step_5_classification/$(echo $classification | tr '[:lower:]' '[:upper:]')/step_6_database/SILVA//
+cd step_5_classification/$(echo $classification | tr '[:lower:]' '[:upper:]')/step_6_database/SILVA/
 
 if [[ $classification == "blast_first_hit" || $classification == "blast_filtered" ]]; then
 	step_description_and_time_first "RUNNING BLAST WITH DATABASE $silva_blast_db"
@@ -576,12 +575,14 @@ elif [[ $classification == "kraken2" ]]; then
 	mkdir intermediate_files
 	mv kraken2_output* intermediate_files/
 
-step_description_and_time_first "KRAKEN2 WITH DATABASE $silva_kraken2_db DONE"
+	step_description_and_time_first "KRAKEN2 WITH DATABASE $silva_kraken2_db DONE"
 fi
+
+step_description_and_time_first "FINISHED STEP 5.1: CLASSIFICATION OF ASSEMBLED SCAFFOLDS"
 
 ######################### Step 6.2: Generating final putput files ################################
 
-step_description_and_time_first "START STEP 6.2: GENERATING FINAL OUTPUT FILES"
+step_description_and_time_first "START STEP 5.2: GENERATING FINAL OUTPUT FILES"
 
 # Each assembler/classification tool output has a different format. We
 # make that format universal with the following code.

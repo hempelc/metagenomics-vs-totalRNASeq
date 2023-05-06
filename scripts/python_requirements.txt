@@ -1,4 +1,7 @@
-numpy==1.21.3
+# Note: scikit_bio==0.5.6 can give errors during installation using this requirements file.
+# If that is the case, comment scikit_bio out and install it manually after installing all other modules
+
+numpy==1.22
 plotly==5.5.0
 scipy==1.7.3
 kaleido==0.2.1
