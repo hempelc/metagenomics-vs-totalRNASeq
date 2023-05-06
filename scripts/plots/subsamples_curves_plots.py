@@ -20,7 +20,7 @@ from scipy.stats import ttest_rel #v1.7.3
 
 # Parameters set manually
 samples = ["M4_DNA", "M4_RNA", "M5_DNA", "M5_RNA", "M6_DNA", "M6_RNA"]
-workdir = "/Users/christopherhempel/Desktop/pipeline_results_coverage/subsample_curves/"
+workdir = "/Users/christopherhempel/Desktop/Pilot project results backup/pipeline_results_coverage/subsample_curves/"
 ## Subsample read numbers
 subsample_readnums=[1000, 2500, 5000, 10000, 20000, 40000, 60000, 78149, 94633,
     120144, 200000, 300000, 400000, 500000, 600000, 644634, 669382, 817619]
@@ -29,11 +29,11 @@ subsample_readnums=[1000, 2500, 5000, 10000, 20000, 40000, 60000, 78149, 94633,
 # is not wanted or causes issues, set this to False.
 show_figs=True
 ## Indicate if you want to keep replicates separate
-sep_reps=False
+sep_reps=True
 ## If sep_reps=False, indicate if you want to show separate replcates as gray lines
 show_reps=True
 ## Indicate if you don't want to show euc_dist for up to 40k reads
-fourtyk=False
+fourtyk=True
 ## Indicate if you want to loop over all 4 combinations of genus/species and cell/gen (True/False)
 looping=True
 ## If you set looping to False, then define what specific rank and datatype and database
@@ -110,7 +110,7 @@ for subsample_readnum in subsample_readnums:
         df_no_exp.loc[index,'euc_dist'] = euclidean(row, exp)
     # Add to df and add df to master dic
     df_eucdist[subsample_readnum]=df_no_exp['euc_dist']
-                master_df["{0}_{1}_{2}_{3}".format(sample, db, groupby_rank, data_type)]=df_eucdist
+    master_df["{0}_{1}_{2}_{3}".format(sample, db, groupby_rank, data_type)]=df_eucdist
 
 # Previous code was for every replicate separately, now we concatenate all
 # replicates together and store concatenated results separately
