@@ -1,4 +1,4 @@
-# *_Comparing metagenomics and total RNA-Seq pipelines for microbial diversity assessments_*
+# *_Metagenomics versus total RNA sequencing: most accurate data-processing tools, microbial identification accuracy and perspectives for ecological assessments_*
 This project represents the first chapter of my PhD, in which I compare metagenomics and total RNA-Seq data-processing pipelines to identify which sequencing method and pipeline give the most accurate estimate of the diversity of a microbial mock community.
 The repo contains scripts to run all pipelines and statistics.
 
