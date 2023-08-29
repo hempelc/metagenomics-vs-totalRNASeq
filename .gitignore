@@ -46,3 +46,6 @@ vignettes/*.pdf
 
 # Opened files from Mac
 ~$*
+
+# vscode
+.vscode
