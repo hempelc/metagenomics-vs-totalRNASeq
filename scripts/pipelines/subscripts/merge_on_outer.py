@@ -10,17 +10,17 @@
 
 import pandas as pd, sys
 
-df1_name=sys.argv[1]
-df2_name=sys.argv[2]
-output_name=sys.argv[3]
+df1_name = sys.argv[1]
+df2_name = sys.argv[2]
+output_name = sys.argv[3]
 
-df1 = pd.read_csv(df1_name, sep='\t')
-df2 = pd.read_csv(df2_name, sep='\t')
-if df1.empty==True:
-    df3 = pd.merge(df1, df2, how='outer', right_on="sequence_name", left_index=True)
+df1 = pd.read_csv(df1_name, sep="\t")
+df2 = pd.read_csv(df2_name, sep="\t")
+if df1.empty == True:
+    df3 = pd.merge(df1, df2, how="outer", right_on="sequence_name", left_index=True)
     if "sequence_name_x" in df3.columns:
-        df3 = df3.drop(["sequence_name_x", "sequence_name_y"], axis = 1)
+        df3 = df3.drop(["sequence_name_x", "sequence_name_y"], axis=1)
 else:
-    df3 = pd.merge(df1, df2, how='outer')
-df3['counts'].fillna(0, inplace=True)
-df3.to_csv(output_name, sep='\t', na_rep='NA', index=False)
+    df3 = pd.merge(df1, df2, how="outer")
+df3["coverage"].fillna(0, inplace=True)
+df3.to_csv(output_name, sep="\t", na_rep="NA", index=False)
